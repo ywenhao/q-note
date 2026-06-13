@@ -1,12 +1,20 @@
-# Q Note
+<p align="center">
+  <img src="./app-icon.png" alt="Q Note icon" width="120" height="120" />
+</p>
 
-> A small, fast desktop note board for content you copy often.
+<h1 align="center">Q Note</h1>
 
-[中文 README](./README.md)
+<p align="center">
+  A small, fast desktop note board for content you copy often.
+</p>
+
+<p align="center">
+  <a href="./read.md">中文说明</a>
+</p>
 
 ## Purpose
 
-Q Note is a desktop note app built with Tauri 2, React, TypeScript, Vite+, Tailwind CSS, SQLite, and Drizzle. It is designed for short snippets, image notes, web image URLs, local paths, dropped files, pasted screenshots, quick copy actions, always-on-top mode, a dockable Q icon, color marking, import/export, and guarded bulk deletion.
+Q Note is a desktop note app built with Tauri 2, React, TypeScript, Vite+, Tailwind CSS, SQLite, and Drizzle. It is designed for short snippets, image notes, web image URLs, local paths, dropped files, pasted screenshots, quick copy actions, always-on-top mode, a tray icon, launch-at-login, a dockable Q icon, color marking, import/export, and guarded bulk deletion.
 
 ## Quick Start
 
@@ -39,6 +47,8 @@ pnpm tauri dev
 | Images and files | Add images, drop files/images, paste screenshots, use web image URLs, local paths, and base64 fallback data |
 | Image preview    | Click editor thumbnails to view a larger image                                                              |
 | Topmost window   | Toggle always-on-top from the toolbar or right-click menu                                                   |
+| Tray icon        | Keep a resident Q icon in the system tray; click it to show the app                                         |
+| Launch at login  | Enable or disable startup launch from Settings; it is off by default                                        |
 | Q icon mode      | Collapse to a yellow Q icon, drag it, snap it to screen edges, and hover to restore the full UI             |
 | Persistence      | Notes, attachments, colors, card heights, window size, topmost state, and language are saved in SQLite      |
 | Import/export    | Export and import notes plus local settings as JSON                                                         |
