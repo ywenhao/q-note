@@ -1,0 +1,27 @@
+[
+  {
+    "label": "pnpm: dev",
+    "command": "pnpm dev",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "tauri: dev",
+    "command": "pnpm tauri dev",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ts: typecheck",
+    "command": "pnpm exec tsc --noEmit",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "cargo: check",
+    "command": "cargo check",
+    "cwd": "$ZED_WORKTREE_ROOT/src-tauri",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  }
+]

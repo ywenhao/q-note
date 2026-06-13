@@ -1,0 +1,76 @@
+{
+  "ensure_final_newline_on_save": true,
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.jj",
+    "**/CVS",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/.classpath",
+    "**/.settings",
+    "**/node_modules",
+    "**/dist",
+    "**/src-tauri/target"
+  ],
+  "format_on_save": "on",
+  "formatter": "auto",
+  "hard_tabs": false,
+  "languages": {
+    "CSS": {
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
+    },
+    "JSON": {
+      "formatter": "language_server"
+    },
+    "Rust": {
+      "formatter": "language_server",
+      "tab_size": 4
+    },
+    "TSX": {
+      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "format_on_save": "on",
+      "prettier": { "allowed": false }
+    },
+    "TypeScript": {
+      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "format_on_save": "on",
+      "prettier": { "allowed": false }
+    }
+  },
+  "lsp": {
+    "oxfmt": {
+      "initialization_options": {
+        "settings": {
+          "fmt.configPath": "./vite.config.ts",
+          "run": "onSave"
+        }
+      }
+    },
+    "oxlint": {
+      "initialization_options": {
+        "settings": {
+          "fixKind": "safe_fix",
+          "run": "onType"
+        }
+      }
+    },
+    "rust-analyzer": {
+      "initialization_options": {
+        "check": {
+          "command": "clippy"
+        }
+      }
+    },
+    "typescript-language-server": {
+      "initialization_options": {
+        "preferences": {
+          "includePackageJsonAutoImports": "on"
+        }
+      }
+    }
+  },
+  "remove_trailing_whitespace_on_save": true,
+  "tab_size": 2
+}
