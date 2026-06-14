@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="./read.md">中文说明</a>
+  <a href="./README.zh-CN.md">中文说明</a>
 </p>
 
 ## Purpose
