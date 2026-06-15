@@ -2,6 +2,7 @@ import {
   Download,
   FileInput,
   Languages,
+  Minus,
   PanelRightClose,
   Pencil,
   Pin,
@@ -349,6 +350,24 @@ function App() {
     });
   }
 
+  async function minimizeWindow() {
+    if (!isTauriRuntime()) {
+      await collapseToQIcon();
+      return;
+    }
+
+    await getCurrentWindow().minimize();
+  }
+
+  async function closeWindow() {
+    if (!isTauriRuntime()) {
+      await collapseToQIcon();
+      return;
+    }
+
+    await getCurrentWindow().close();
+  }
+
   async function toggleDockOnEdge() {
     if (settingsRef.current.docked) {
       await restoreDock({ keepFull: true });
@@ -647,62 +666,73 @@ function App() {
       onContextMenu={(event) => openMenu(event)}
       onMouseLeave={() => void handleMainMouseLeave()}
     >
-      <header className="top-bar">
-        <div className="brand" onPointerDown={dragMainWindow}>
+      <header className="top-bar" onPointerDown={dragMainWindow}>
+        <div className="brand">
           <QMark className="brand-mark" />
           <h1>{t.appTitle}</h1>
         </div>
-        <div className="toolbar">
-          <IconButton
-            icon={<Plus size={18} />}
-            label={t.newNote}
-            onClick={() => void openEditor(null)}
-          >
-            {t.newNote}
-          </IconButton>
-          <IconButton
-            icon={<Upload size={18} />}
-            label={t.import}
-            onClick={() => void handleImport()}
-          />
-          <IconButton
-            icon={<Download size={18} />}
-            label={t.export}
-            onClick={() => void handleExport()}
-          />
-          <IconButton
-            className="is-danger"
-            disabled={notes.length === 0}
-            icon={<Trash2 size={18} />}
-            label={t.deleteAll}
-            onClick={() => setShowDeleteAllConfirm(true)}
-          />
+        <div className="title-controls" onPointerDown={(event) => event.stopPropagation()}>
           <IconButton
             active={settings.alwaysOnTop}
-            icon={settings.alwaysOnTop ? <PinOff size={18} /> : <Pin size={18} />}
+            className="is-window-pin"
+            icon={settings.alwaysOnTop ? <PinOff size={16} /> : <Pin size={16} />}
             label={settings.alwaysOnTop ? t.alwaysOff : t.alwaysOn}
             onClick={() => void toggleAlwaysOnTop()}
+            subtle
           />
           <IconButton
-            icon={<Settings size={18} />}
-            label={t.settings}
-            onClick={() => setShowSettings(true)}
+            className="is-window-minimize"
+            icon={<Minus size={16} />}
+            label={t.minimize}
+            onClick={() => void minimizeWindow()}
+            subtle
           />
           <IconButton
-            active={settings.docked}
-            icon={<PanelRightClose size={18} />}
-            label={t.dockOn}
-            onClick={() => void toggleDockOnEdge()}
+            className="is-window-close"
+            icon={<X size={16} />}
+            label={t.closePanel}
+            onClick={() => void closeWindow()}
+            subtle
           />
-          <IconButton
-            icon={<Languages size={18} />}
-            label={t.language}
-            onClick={() => void toggleLanguage()}
-          >
-            {t.language}
-          </IconButton>
         </div>
       </header>
+
+      <div className="toolbar">
+        <IconButton
+          icon={<Plus size={18} />}
+          label={t.newNote}
+          onClick={() => void openEditor(null)}
+        />
+        <IconButton
+          icon={<Upload size={18} />}
+          label={t.import}
+          onClick={() => void handleImport()}
+        />
+        <IconButton
+          icon={<Download size={18} />}
+          label={t.export}
+          onClick={() => void handleExport()}
+        />
+        <IconButton
+          className="is-danger"
+          disabled={notes.length === 0}
+          icon={<Trash2 size={18} />}
+          label={t.deleteAll}
+          onClick={() => setShowDeleteAllConfirm(true)}
+        />
+        <IconButton
+          icon={<Settings size={18} />}
+          label={t.settings}
+          onClick={() => setShowSettings(true)}
+        />
+        <IconButton
+          icon={<Languages size={18} />}
+          label={t.language}
+          onClick={() => void toggleLanguage()}
+        >
+          {t.language}
+        </IconButton>
+      </div>
 
       {notes.length > 0 ? (
         <section className="note-list">
@@ -793,7 +823,7 @@ function App() {
           title={t.confirmDeleteAll}
         />
       ) : null}
-      <StatusBar notes={notes} settings={settings} t={t} />
+      <StatusBar notes={notes} t={t} />
       <Toast message={toast} />
     </main>
   );

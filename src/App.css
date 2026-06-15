@@ -4,14 +4,9 @@
   color: #1f2328;
   background: #ffd150;
   font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-size: 16px;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, ui-sans-serif,
+    system-ui, "Segoe UI", sans-serif;
+  font-size: 14px;
   font-synthesis: none;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
@@ -22,7 +17,7 @@
 
 * {
   box-sizing: border-box;
-  scrollbar-color: rgba(24, 33, 47, 0.46) rgba(255, 255, 255, 0.24);
+  scrollbar-color: rgba(60, 60, 67, 0.32) rgba(255, 255, 255, 0.24);
   scrollbar-width: thin;
 }
 
@@ -39,12 +34,12 @@
 *::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(24, 33, 47, 0.46);
+  background: rgba(60, 60, 67, 0.32);
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(24, 33, 47, 0.66);
+  background: rgba(60, 60, 67, 0.46);
   background-clip: padding-box;
 }
 
@@ -55,13 +50,16 @@
 html,
 body,
 #root {
+  width: 100%;
+  height: 100%;
   min-height: 100%;
+  overflow: hidden;
   background: transparent;
 }
 
 body {
   margin: 0;
-  min-width: 300px;
+  min-width: 0;
   background: transparent;
 }
 
@@ -73,13 +71,19 @@ textarea {
 
 button {
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .app-shell {
-  min-height: 100vh;
-  padding: 18px 18px 54px;
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 8px 10px 28px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 42%), #ffd150;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 46%), #ffd150;
   transition:
     background-color 180ms ease,
     opacity 180ms ease;
@@ -120,59 +124,155 @@ button {
 }
 
 .loading-mark {
-  width: 76px;
-  height: 76px;
-  box-shadow: 0 18px 45px rgba(31, 35, 40, 0.22);
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 12px 28px rgba(31, 35, 40, 0.18);
 }
 
 .top-bar {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin: 0 auto 16px;
+  gap: 6px;
+  width: 100%;
+  margin: 0 auto 4px;
   max-width: 980px;
+  cursor: grab;
+  user-select: none;
+}
+
+.top-bar:active {
+  cursor: grabbing;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   min-width: 0;
-  cursor: grab;
-  user-select: none;
-}
-
-.brand:active {
-  cursor: grabbing;
 }
 
 .brand-mark {
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  box-shadow: 0 8px 18px rgba(31, 35, 40, 0.12);
+  width: 22px;
+  height: 22px;
+  box-shadow: 0 6px 14px rgba(31, 35, 40, 0.12);
 }
 
 .brand h1 {
   margin: 0;
-  color: #1d2735;
-  font-size: clamp(1.35rem, 4vw, 1.9rem);
+  color: #1d1d1f;
+  font-size: 1.08rem;
+  font-weight: 600;
   line-height: 1;
+}
+
+.title-controls {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.44),
+    0 4px 12px rgba(31, 35, 40, 0.06);
+  backdrop-filter: blur(16px) saturate(160%);
+  cursor: default;
+}
+
+.title-controls .icon-button {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  color: rgba(60, 60, 67, 0.72);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.title-controls .icon-button > svg {
+  width: 10px;
+  height: 10px;
+}
+
+.title-controls .icon-button:hover {
+  transform: none;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: none;
+}
+
+.title-controls .icon-button.is-active {
+  background: #000;
+  color: #fff;
+  box-shadow: none;
+}
+
+.title-controls .icon-button.is-active:hover {
+  background: #007aff;
+}
+
+.title-controls .icon-button.is-window-pin {
+  color: rgba(60, 60, 67, 0.72);
+}
+
+.title-controls .icon-button.is-window-pin:hover {
+  background: #007aff;
+  color: #fff;
+}
+
+.title-controls .icon-button.is-window-pin.is-active {
+  background: transparent;
+  color: #007aff;
+}
+
+.title-controls .icon-button.is-window-pin.is-active:hover {
+  background: transparent;
+  color: #007aff;
+}
+
+.title-controls .icon-button.is-window-minimize:hover {
+  background: #ffcc00;
+  color: #5f3d00;
+}
+
+.title-controls .icon-button.is-window-close:hover {
+  background: #ff3b30;
+  color: #fff;
 }
 
 .toolbar {
   display: flex;
+  width: 100%;
+  max-width: 980px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 4px;
+  margin: 0 auto 7px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 8px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 4px 12px rgba(31, 35, 40, 0.035);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .icon-button,
 .primary-button,
 .text-button {
-  min-height: 36px;
-  border: 1px solid rgba(29, 39, 53, 0.12);
+  min-height: 26px;
+  border: 1px solid rgba(60, 60, 67, 0.08);
   border-radius: 8px;
   transition:
     transform 140ms ease,
@@ -186,27 +286,36 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-width: 36px;
-  padding: 0 10px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #253246;
-  box-shadow: 0 8px 20px rgba(31, 35, 40, 0.08);
+  gap: 5px;
+  min-width: 26px;
+  padding: 0 6px;
+  background: rgba(255, 255, 255, 0.46);
+  color: rgba(29, 29, 31, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(10px) saturate(130%);
 }
 
 .icon-button span {
   overflow: hidden;
-  max-width: 96px;
+  max-width: 78px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.icon-button > svg {
+  width: 13px;
+  height: 13px;
 }
 
 .icon-button:hover,
 .primary-button:hover,
 .text-button:hover,
 .danger-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(31, 35, 40, 0.12);
+  transform: none;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 3px 8px rgba(31, 35, 40, 0.055);
 }
 
 .icon-button:active,
@@ -217,22 +326,57 @@ button {
 }
 
 .icon-button.is-active {
-  border-color: rgba(24, 33, 47, 0.34);
-  background: #18212f;
-  color: #ffd150;
+  border-color: rgba(29, 29, 31, 0.18);
+  background: rgba(29, 29, 31, 0.9);
+  color: #fff;
 }
 
 .icon-button.is-subtle {
-  min-width: 30px;
-  min-height: 30px;
-  padding: 0 7px;
-  background: rgba(255, 255, 255, 0.5);
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 5px;
+  border-color: rgba(60, 60, 67, 0.08);
+  background: rgba(255, 255, 255, 0.34);
   box-shadow: none;
 }
 
 .icon-button.is-danger,
 .context-menu button.is-danger {
-  color: #a61e4d;
+  color: rgba(194, 31, 57, 0.82);
+}
+
+.icon-button.is-window-minimize {
+  color: #946200;
+}
+
+.icon-button.is-window-close {
+  color: #c21f39;
+}
+
+.title-controls .icon-button.is-subtle {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.title-controls .icon-button.is-window-minimize,
+.title-controls .icon-button.is-window-close {
+  color: rgba(60, 60, 67, 0.72);
+}
+
+.title-controls .icon-button.is-window-minimize:hover {
+  background: #ffcc00;
+  color: #5f3d00;
+}
+
+.title-controls .icon-button.is-window-close:hover {
+  background: #ff3b30;
+  color: #fff;
 }
 
 .icon-button:disabled {
@@ -243,33 +387,68 @@ button {
 
 .note-list {
   display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 10px;
   max-width: 980px;
   margin: 0 auto;
+  overflow: auto;
+  padding-bottom: 8px;
 }
 
 .note-card {
   position: relative;
   overflow: visible;
-  border: 1px solid rgba(29, 39, 53, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 8px;
-  box-shadow: 0 8px 22px rgba(31, 35, 40, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    0 8px 24px rgba(31, 35, 40, 0.08);
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease,
     background-color 160ms ease;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .note-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(29, 39, 53, 0.2);
-  box-shadow: 0 14px 30px rgba(31, 35, 40, 0.14);
+  transform: none;
+  border-color: rgba(0, 122, 255, 0.36);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 0 0 1px rgba(0, 122, 255, 0.12),
+    0 12px 28px rgba(31, 35, 40, 0.1);
 }
 
 .note-card.is-pinned {
-  border-color: rgba(24, 33, 47, 0.34);
+  border-color: rgba(0, 122, 255, 0.28);
+}
+
+.note-card__pin-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 2;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  color: rgba(0, 122, 255, 0.76);
+  box-shadow: none;
+  pointer-events: none;
+  transition: background-color 140ms ease;
+}
+
+.note-card__pin-badge svg {
+  width: 9px;
+  height: 9px;
 }
 
 .note-card__body {
@@ -286,7 +465,7 @@ button {
 .note-card__text {
   overflow: hidden;
   margin: 0;
-  color: #1f2937;
+  color: #1d1d1f;
   font-size: 0.96rem;
   line-height: 22px;
   overflow-wrap: anywhere;
@@ -325,11 +504,11 @@ button {
   max-width: 100%;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(29, 39, 53, 0.12);
+  border: 1px solid rgba(60, 60, 67, 0.12);
   border-radius: 8px;
   padding: 5px 8px;
-  background: rgba(255, 255, 255, 0.42);
-  color: rgba(31, 41, 55, 0.76);
+  background: rgba(255, 255, 255, 0.48);
+  color: rgba(29, 29, 31, 0.76);
   font-size: 0.82rem;
 }
 
@@ -339,10 +518,15 @@ button {
   white-space: nowrap;
 }
 
+.note-card__files svg {
+  width: 12px;
+  height: 12px;
+}
+
 .note-card__actions {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 5px;
   opacity: 0;
   transform: translateX(4px);
   transition:
@@ -352,8 +536,14 @@ button {
 
 .note-card:hover .note-card__actions,
 .note-card:focus-within .note-card__actions {
-  opacity: 1;
+  opacity: 0.88;
   transform: translateX(0);
+}
+
+.note-card__actions .icon-button.is-active {
+  border-color: rgba(60, 60, 67, 0.08);
+  background: rgba(255, 255, 255, 0.34);
+  color: rgba(29, 29, 31, 0.82);
 }
 
 .resize-handle {
@@ -361,8 +551,8 @@ button {
   right: 10px;
   bottom: 2px;
   display: grid;
-  width: 46px;
-  height: 16px;
+  width: 38px;
+  height: 14px;
   place-items: center;
   border: 0;
   border-radius: 8px;
@@ -373,6 +563,11 @@ button {
     opacity 140ms ease,
     color 140ms ease,
     background-color 140ms ease;
+}
+
+.resize-handle svg {
+  width: 14px;
+  height: 14px;
 }
 
 .note-card:hover .resize-handle,
@@ -395,9 +590,9 @@ button {
   right: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, 24px);
-  gap: 6px;
-  padding: 8px;
+  grid-template-columns: repeat(4, 20px);
+  gap: 5px;
+  padding: 6px;
   border: 1px solid rgba(29, 39, 53, 0.14);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
@@ -407,8 +602,8 @@ button {
 
 .color-swatch {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   place-items: center;
   border: 1px solid rgba(29, 39, 53, 0.16);
   border-radius: 999px;
@@ -417,6 +612,11 @@ button {
     transform 120ms ease,
     box-shadow 120ms ease,
     border-color 120ms ease;
+}
+
+.color-swatch svg {
+  width: 11px;
+  height: 11px;
 }
 
 .color-swatch:hover,
@@ -428,42 +628,51 @@ button {
 
 .empty-state {
   display: grid;
-  min-height: calc(100vh - 110px);
+  min-height: 0;
+  flex: 1 1 auto;
   place-content: center;
   justify-items: center;
-  gap: 14px;
+  gap: 8px;
+  padding: 8px 0;
   color: #1d2735;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .empty-mark {
-  width: 74px;
-  height: 74px;
-  box-shadow: 0 18px 42px rgba(31, 35, 40, 0.16);
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 12px 24px rgba(31, 35, 40, 0.14);
 }
 
 .empty-state h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1rem;
+}
+
+.empty-state p {
+  margin: 0;
+  text-align: center;
 }
 
 .primary-button,
 .text-button,
 .danger-button {
-  min-height: 36px;
+  min-height: 28px;
   border-radius: 8px;
-  padding: 0 14px;
+  padding: 0 10px;
 }
 
 .primary-button {
-  border-color: #18212f;
-  background: #18212f;
-  color: #ffd150;
+  border-color: rgba(29, 29, 31, 0.18);
+  background: rgba(29, 29, 31, 0.92);
+  color: #fff;
 }
 
 .text-button {
-  border: 1px solid rgba(29, 39, 53, 0.12);
-  background: rgba(255, 255, 255, 0.68);
-  color: #253246;
+  border: 1px solid rgba(60, 60, 67, 0.13);
+  background: rgba(255, 255, 255, 0.72);
+  color: #1d1d1f;
 }
 
 .danger-button {
@@ -479,8 +688,8 @@ button {
   display: grid;
   place-items: center;
   padding: 18px;
-  background: rgba(24, 33, 47, 0.28);
-  backdrop-filter: blur(8px);
+  background: rgba(29, 29, 31, 0.24);
+  backdrop-filter: blur(12px) saturate(140%);
   animation: fade-in 120ms ease;
 }
 
@@ -490,10 +699,13 @@ button {
   max-height: min(760px, calc(100vh - 36px));
   flex-direction: column;
   gap: 12px;
-  border: 1px solid rgba(29, 39, 53, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 8px;
-  background: #fffdf4;
-  box-shadow: 0 24px 70px rgba(31, 35, 40, 0.28);
+  background: rgba(255, 253, 244, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 24px 60px rgba(31, 35, 40, 0.22);
+  backdrop-filter: blur(24px) saturate(160%);
   animation: rise-in 140ms ease;
 }
 
@@ -502,11 +714,14 @@ button {
   width: min(340px, calc(100vw - 36px));
   flex-direction: column;
   gap: 12px;
-  border: 1px solid rgba(29, 39, 53, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 8px;
   padding: 12px;
-  background: #fffdf4;
-  box-shadow: 0 24px 70px rgba(31, 35, 40, 0.28);
+  background: rgba(255, 253, 244, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 24px 60px rgba(31, 35, 40, 0.22);
+  backdrop-filter: blur(24px) saturate(160%);
   animation: rise-in 140ms ease;
 }
 
@@ -520,17 +735,17 @@ button {
 
 .settings-dialog h2 {
   margin: 0;
-  color: #1d2735;
+  color: #1d1d1f;
   font-size: 1rem;
 }
 
 .settings-row {
-  min-height: 44px;
-  border: 1px solid rgba(29, 39, 53, 0.1);
+  min-height: 40px;
+  border: 1px solid rgba(60, 60, 67, 0.12);
   border-radius: 8px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.64);
-  color: #253246;
+  background: rgba(255, 255, 255, 0.62);
+  color: #1d1d1f;
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -539,8 +754,8 @@ button {
 
 .settings-row:hover {
   transform: translateY(-1px);
-  border-color: rgba(29, 39, 53, 0.22);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(60, 60, 67, 0.18);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .settings-row span:first-child {
@@ -549,13 +764,18 @@ button {
   gap: 8px;
 }
 
+.settings-row svg {
+  width: 14px;
+  height: 14px;
+}
+
 .switch {
   position: relative;
   width: 38px;
   height: 22px;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: rgba(31, 41, 55, 0.22);
+  background: rgba(120, 120, 128, 0.24);
   transition: background-color 140ms ease;
 }
 
@@ -566,13 +786,13 @@ button {
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  background: #fffdf4;
-  box-shadow: 0 4px 10px rgba(31, 35, 40, 0.18);
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(31, 35, 40, 0.18);
   transition: transform 140ms ease;
 }
 
 .switch.is-on {
-  background: #18212f;
+  background: #34c759;
 }
 
 .switch.is-on span {
@@ -580,10 +800,10 @@ button {
 }
 
 .editor-dialog.is-dragging {
-  border-color: rgba(24, 33, 47, 0.46);
+  border-color: rgba(0, 122, 255, 0.5);
   box-shadow:
-    0 0 0 4px rgba(255, 209, 80, 0.36),
-    0 24px 70px rgba(31, 35, 40, 0.28);
+    0 0 0 4px rgba(0, 122, 255, 0.16),
+    0 24px 60px rgba(31, 35, 40, 0.22);
 }
 
 .editor-dialog__header,
@@ -610,11 +830,11 @@ button {
   min-height: 260px;
   resize: vertical;
   border: 0;
-  border-top: 1px solid rgba(29, 39, 53, 0.08);
-  border-bottom: 1px solid rgba(29, 39, 53, 0.08);
+  border-top: 1px solid rgba(60, 60, 67, 0.1);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.1);
   padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.52);
-  color: #1f2937;
+  background: rgba(255, 255, 255, 0.5);
+  color: #1d1d1f;
   line-height: 1.55;
   outline: none;
 }
@@ -629,14 +849,19 @@ button {
   display: flex;
   flex: 1 1 260px;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
+  gap: 7px;
+  min-height: 34px;
   min-width: 0;
-  border: 1px solid rgba(29, 39, 53, 0.14);
+  border: 1px solid rgba(60, 60, 67, 0.12);
   border-radius: 8px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.64);
-  color: rgba(31, 41, 55, 0.58);
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(60, 60, 67, 0.62);
+}
+
+.media-input svg {
+  width: 14px;
+  height: 14px;
 }
 
 .media-input input {
@@ -644,7 +869,7 @@ button {
   min-width: 0;
   border: 0;
   background: transparent;
-  color: #1f2937;
+  color: #1d1d1f;
   outline: none;
 }
 
@@ -661,9 +886,9 @@ button {
   position: relative;
   overflow: hidden;
   margin: 0;
-  border: 1px solid rgba(29, 39, 53, 0.12);
+  border: 1px solid rgba(60, 60, 67, 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.64);
+  background: rgba(255, 255, 255, 0.62);
   aspect-ratio: 1.25;
 }
 
@@ -692,26 +917,36 @@ button {
   top: 6px;
   right: 6px;
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.86);
   color: #a61e4d;
+}
+
+.editor-image > button:not(.editor-image__preview) svg {
+  width: 12px;
+  height: 12px;
 }
 
 .editor-file {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  border: 1px solid rgba(29, 39, 53, 0.12);
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid rgba(60, 60, 67, 0.12);
   border-radius: 8px;
   padding: 8px;
-  background: rgba(255, 255, 255, 0.64);
-  color: #253246;
+  background: rgba(255, 255, 255, 0.62);
+  color: #1d1d1f;
+}
+
+.editor-file > svg {
+  width: 14px;
+  height: 14px;
 }
 
 .editor-file span {
@@ -722,27 +957,32 @@ button {
 
 .editor-file button {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.86);
   color: #a61e4d;
+}
+
+.editor-file button svg {
+  width: 12px;
+  height: 12px;
 }
 
 .pin-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #253246;
+  color: #1d1d1f;
   user-select: none;
 }
 
 .pin-toggle input {
   width: 16px;
   height: 16px;
-  accent-color: #18212f;
+  accent-color: #007aff;
 }
 
 .editor-dialog__buttons {
@@ -752,23 +992,26 @@ button {
 
 .confirm-dialog {
   width: min(420px, calc(100vw - 36px));
-  border: 1px solid rgba(29, 39, 53, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 8px;
   padding: 18px;
-  background: #fffdf4;
-  box-shadow: 0 24px 70px rgba(31, 35, 40, 0.28);
+  background: rgba(255, 253, 244, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 24px 60px rgba(31, 35, 40, 0.22);
+  backdrop-filter: blur(24px) saturate(160%);
   animation: rise-in 140ms ease;
 }
 
 .confirm-dialog h2 {
   margin: 0 0 8px;
-  color: #1d2735;
+  color: #1d1d1f;
   font-size: 1.08rem;
 }
 
 .confirm-dialog p {
   margin: 0 0 18px;
-  color: rgba(31, 41, 55, 0.72);
+  color: rgba(60, 60, 67, 0.78);
 }
 
 .confirm-dialog footer {
@@ -801,13 +1044,19 @@ button {
   top: 18px;
   right: 18px;
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.36);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fffdf4;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  backdrop-filter: blur(14px) saturate(150%);
+}
+
+.image-preview__close svg {
+  width: 14px;
+  height: 14px;
 }
 
 .context-menu {
@@ -815,49 +1064,85 @@ button {
   z-index: 80;
   min-width: 190px;
   overflow: hidden;
-  border: 1px solid rgba(29, 39, 53, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 42px rgba(31, 35, 40, 0.2);
+  background: rgba(255, 253, 244, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 18px 42px rgba(31, 35, 40, 0.16);
+  backdrop-filter: blur(22px) saturate(160%);
   animation: pop-in 100ms ease;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .context-menu button {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: transparent;
-  color: #253246;
+  color: #1d1d1f;
   text-align: left;
   transition:
     background-color 120ms ease,
     color 120ms ease;
 }
 
+.context-menu button svg {
+  width: 14px;
+  height: 14px;
+}
+
 .context-menu button:hover {
-  background: rgba(255, 209, 80, 0.28);
+  background: rgba(120, 120, 128, 0.12);
 }
 
 .toast {
   position: fixed;
   right: 16px;
-  bottom: 54px;
+  bottom: 42px;
   z-index: 90;
+  display: inline-flex;
   max-width: min(320px, calc(100vw - 32px));
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
   transform: translateY(12px);
-  border: 1px solid rgba(29, 39, 53, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 8px;
-  padding: 10px 14px;
-  background: #18212f;
-  color: #ffd150;
+  padding: 7px 12px 7px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1d1d1f;
   opacity: 0;
   pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    0 12px 30px rgba(31, 35, 40, 0.14);
+  backdrop-filter: blur(22px) saturate(160%);
   transition:
     opacity 140ms ease,
     transform 140ms ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.toast svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px;
+  background: #34c759;
+  color: #fff;
+}
+
+.toast span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .toast.is-visible {
@@ -868,27 +1153,28 @@ button {
 .app-statusbar {
   position: fixed;
   right: 12px;
-  bottom: 10px;
+  bottom: 7px;
   left: 12px;
   z-index: 40;
   display: flex;
-  min-height: 30px;
+  min-height: 18px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
-  border: 1px solid rgba(29, 39, 53, 0.12);
-  border-radius: 8px;
-  padding: 5px 8px;
-  background: rgba(255, 253, 244, 0.78);
-  box-shadow: 0 10px 28px rgba(31, 35, 40, 0.11);
-  backdrop-filter: blur(10px);
-  color: rgba(31, 41, 55, 0.72);
-  font-size: 0.78rem;
+  border: 0;
+  padding: 0 8px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: rgba(60, 60, 67, 0.78);
+  font-size: 0.86rem;
   transition:
     opacity 160ms ease,
     transform 160ms ease,
     background-color 160ms ease;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .app-statusbar span {
@@ -896,12 +1182,9 @@ button {
   align-items: center;
   gap: 5px;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.app-statusbar span.is-active {
-  color: #18212f;
-  font-weight: 650;
 }
 
 .dock-shell {
@@ -913,8 +1196,8 @@ button {
 }
 
 .dock-button {
-  width: min(100vw, 68px);
-  height: min(100vh, 68px);
+  width: min(100vw, 48px);
+  height: min(100vh, 48px);
   border: 0;
   border-radius: 999px;
   padding: 0;
@@ -957,12 +1240,11 @@ button {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: 12px 12px 62px;
+    padding: 8px 10px 28px;
   }
 
   .top-bar {
-    align-items: flex-start;
-    flex-direction: column;
+    gap: 6px;
   }
 
   .toolbar {
@@ -984,7 +1266,6 @@ button {
   }
 
   .app-statusbar {
-    justify-content: flex-start;
-    overflow-x: auto;
+    justify-content: center;
   }
 }

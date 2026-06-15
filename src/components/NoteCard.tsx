@@ -107,6 +107,12 @@ export function NoteCard({
       onContextMenu={(event) => onContextMenu(event, note.id)}
       style={{ backgroundColor: note.color }}
     >
+      {note.pinned ? (
+        <span aria-label={t.pinned} className="note-card__pin-badge" role="img">
+          <Pin size={12} />
+        </span>
+      ) : null}
+
       <div className="note-card__body">
         <div className="note-card__content">
           <p

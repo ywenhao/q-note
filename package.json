@@ -1,10 +1,11 @@
 {
   "name": "q-note",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
+    "tauri:dev": "tauri dev",
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
