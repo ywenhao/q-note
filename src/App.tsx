@@ -60,6 +60,7 @@ import {
   ensureEditorRoom,
   hideDockWindow,
   hideMainWindow,
+  revealQIconWindow,
   restoreWindowState,
   showDockWindow,
   showMainWindow,
@@ -106,7 +107,6 @@ function App() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [ready, setReady] = useState(false);
-  const [isCollapsing, setIsCollapsing] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -118,6 +118,7 @@ function App() {
   const notesRef = useRef<Note[]>([]);
   const settingsRef = useRef(settings);
   const toastTimerRef = useRef<number | null>(null);
+  const dockGuardTimerRef = useRef<number | null>(null);
 
   const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
   const isDockWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
@@ -153,8 +154,13 @@ function App() {
 
   const setDockGuard = useCallback(() => {
     dockGuardRef.current = true;
-    window.setTimeout(() => {
+    if (dockGuardTimerRef.current) {
+      window.clearTimeout(dockGuardTimerRef.current);
+    }
+
+    dockGuardTimerRef.current = window.setTimeout(() => {
       dockGuardRef.current = false;
+      dockGuardTimerRef.current = null;
     }, 700);
   }, []);
 
@@ -191,21 +197,10 @@ function App() {
       window: snapshot ?? settingsRef.current.window,
     });
     iconWindowRef.current = await showDockWindow(
-      iconWindowRef.current,
+      snapshot ?? settingsRef.current.window,
       settingsRef.current.alwaysOnTop,
     );
     await hideMainWindow();
-  }
-
-  async function collapseToQIconWithAnimation() {
-    if (isCollapsing) {
-      return;
-    }
-
-    setIsCollapsing(true);
-    await new Promise((resolve) => window.setTimeout(resolve, 170));
-    await collapseToQIcon();
-    setIsCollapsing(false);
   }
 
   async function openEditor(note: Note | null) {
@@ -395,28 +390,27 @@ function App() {
   }
 
   async function dragQIcon() {
-    try {
-      await startQIconDrag();
-    } finally {
-      window.setTimeout(() => {
-        void Promise.all([
-          detectSnapEdge(DOCK_WINDOW_LABEL),
-          captureWindowState(DOCK_WINDOW_LABEL),
-        ]).then(([edge, snapshot]) => {
-          if (!settingsRef.current.docked || !snapshot) {
-            return;
-          }
+    await startQIconDrag();
+  }
 
-          if (edge) {
-            void persistIconSnap(edge);
-            return;
-          }
-
-          iconWindowRef.current = snapshot;
-          void persistSettings({ dockEdge: null });
-        });
-      }, 240);
+  async function revealDockIcon() {
+    const edge = settingsRef.current.dockEdge;
+    if (!edge) {
+      return;
     }
+
+    setDockGuard();
+    iconWindowRef.current = await revealQIconWindow(edge);
+  }
+
+  async function concealDockIcon() {
+    const edge = settingsRef.current.dockEdge;
+    if (!edge) {
+      return;
+    }
+
+    setDockGuard();
+    iconWindowRef.current = await snapQIconWindow(edge);
   }
 
   function dragMainWindow(event: PointerEvent<HTMLElement>) {
@@ -610,7 +604,10 @@ function App() {
 
       if (currentWindowLabel === MAIN_WINDOW_LABEL) {
         if (data.settings.docked) {
-          iconWindowRef.current = await showDockWindow(null, data.settings.alwaysOnTop);
+          iconWindowRef.current = await showDockWindow(
+            data.settings.window,
+            data.settings.alwaysOnTop,
+          );
           await hideMainWindow();
         } else {
           await hideDockWindow();
@@ -693,6 +690,7 @@ function App() {
     }
 
     let saveTimer: number | null = null;
+    let moveTimer: number | null = null;
     let unlistenMove: (() => void) | null = null;
     let unlistenResize: (() => void) | null = null;
 
@@ -720,7 +718,11 @@ function App() {
         return;
       }
 
-      window.setTimeout(() => {
+      if (moveTimer) {
+        window.clearTimeout(moveTimer);
+      }
+
+      moveTimer = window.setTimeout(() => {
         void Promise.all([detectSnapEdge(), captureWindowState()]).then(([edge, snapshot]) => {
           if (!snapshot) {
             return;
@@ -739,7 +741,7 @@ function App() {
 
           void persistSettings({ window: snapshot });
         });
-      }, 160);
+      }, 220);
     };
 
     void (async () => {
@@ -751,6 +753,9 @@ function App() {
     return () => {
       if (saveTimer) {
         window.clearTimeout(saveTimer);
+      }
+      if (moveTimer) {
+        window.clearTimeout(moveTimer);
       }
       unlistenMove?.();
       unlistenResize?.();
@@ -779,6 +784,8 @@ function App() {
         <CompactDock
           onContextMenu={(event) => void openDockMenu(event)}
           onDragStart={() => void dragQIcon()}
+          onHoverEnd={() => void concealDockIcon()}
+          onHoverStart={() => void revealDockIcon()}
           onOpenMain={() => void restoreDock({ keepFull: true })}
           t={t}
         />
@@ -797,7 +804,7 @@ function App() {
 
   return (
     <main
-      className={`app-shell ${isCollapsing ? "is-collapsing" : ""}`}
+      className="app-shell"
       onClick={() => setMenu(null)}
       onContextMenu={(event) => openMenu(event)}
     >
@@ -965,7 +972,7 @@ function App() {
         className="panel-dock-button"
         onClick={(event) => {
           event.stopPropagation();
-          void collapseToQIconWithAnimation();
+          void collapseToQIcon();
         }}
         title={t.switchFloatingBall}
         type="button"

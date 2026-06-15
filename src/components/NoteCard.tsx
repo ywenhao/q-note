@@ -9,13 +9,23 @@ import {
   PinOff,
   Trash2,
 } from "lucide-react";
-import { useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent } from "react";
+import {
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent,
+} from "react";
 import type { Translation } from "../i18n";
 import { getAttachmentSrc, isImageAttachment } from "../lib/images";
 import { NOTE_COLORS, type Note } from "../types";
 import { IconButton } from "./IconButton";
 
 const LINE_HEIGHT = 22;
+
+type NoteTextStyle = CSSProperties & {
+  "--note-lines": number;
+};
 
 interface NoteCardProps {
   note: Note;
@@ -58,6 +68,7 @@ export function NoteCard({
 
   const defaultHeight = getDefaultLines(note.content) * LINE_HEIGHT;
   const textHeight = draftHeight ?? note.textHeight ?? defaultHeight;
+  const textLines = Math.max(1, Math.round(textHeight / LINE_HEIGHT));
   const hasText = note.content.trim().length > 0;
   const imageAttachments = note.attachments.filter(isImageAttachment);
   const fileAttachments = note.attachments.filter((attachment) => !isImageAttachment(attachment));
@@ -118,7 +129,7 @@ export function NoteCard({
           <p
             className={`note-card__text ${hasText ? "" : "is-muted"}`}
             ref={textRef}
-            style={{ maxHeight: textHeight }}
+            style={{ "--note-lines": textLines } as NoteTextStyle}
           >
             {hasText ? note.content : t.imageOnly}
           </p>

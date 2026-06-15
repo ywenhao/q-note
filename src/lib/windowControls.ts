@@ -17,6 +17,8 @@ import { isTauriRuntime } from "./env";
 
 const DOCK_MARGIN = 12;
 const SNAP_THRESHOLD = 28;
+const EDGE_PEEK_SIZE = DOCK_WINDOW_SIZE / 2;
+const DOCK_SLIDE_DURATION = 130;
 const MAIN_MIN_SIZE = new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
 export const MAIN_WINDOW_LABEL = "main";
 export const DOCK_WINDOW_LABEL = "dock";
@@ -126,6 +128,80 @@ function getDefaultDockState(monitor: Monitor): WindowState {
   };
 }
 
+function getDockEdgeState(
+  edge: DockEdge,
+  monitor: Monitor,
+  position: PhysicalPosition,
+  size: PhysicalSize,
+  hidden: boolean,
+): WindowState {
+  const area = getWorkArea(monitor);
+  const centerX = position.x + size.width / 2;
+  const centerY = position.y + size.height / 2;
+  const halfHidden = hidden ? EDGE_PEEK_SIZE : 0;
+
+  const x =
+    edge === "left"
+      ? area.left - halfHidden
+      : edge === "right"
+        ? area.right - DOCK_WINDOW_SIZE + halfHidden
+        : clamp(centerX - DOCK_WINDOW_SIZE / 2, area.left, area.right - DOCK_WINDOW_SIZE);
+
+  const y =
+    edge === "top"
+      ? area.top - halfHidden
+      : edge === "bottom"
+        ? area.bottom - DOCK_WINDOW_SIZE + halfHidden
+        : clamp(centerY - DOCK_WINDOW_SIZE / 2, area.top, area.bottom - DOCK_WINDOW_SIZE);
+
+  return {
+    width: DOCK_WINDOW_SIZE,
+    height: DOCK_WINDOW_SIZE,
+    x: Math.round(x),
+    y: Math.round(y),
+  };
+}
+
+async function moveDockWindow(window: Window, state: WindowState, animate = false) {
+  if (!animate) {
+    await window.setPosition(new PhysicalPosition(state.x, state.y));
+    return;
+  }
+
+  const start = await window.outerPosition();
+  const deltaX = state.x - start.x;
+  const deltaY = state.y - start.y;
+
+  if (deltaX === 0 && deltaY === 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const startedAt = performance.now();
+    const step = () => {
+      void (async () => {
+        const progress = clamp((performance.now() - startedAt) / DOCK_SLIDE_DURATION, 0, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        await window.setPosition(
+          new PhysicalPosition(
+            Math.round(start.x + deltaX * eased),
+            Math.round(start.y + deltaY * eased),
+          ),
+        );
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+          return;
+        }
+
+        resolve();
+      })();
+    };
+
+    requestAnimationFrame(step);
+  });
+}
+
 function normalizeDockState(state: WindowState | null, monitor: Monitor): WindowState {
   if (!state) {
     return getDefaultDockState(monitor);
@@ -178,7 +254,7 @@ export async function applyQIconWindow(state: WindowState | null): Promise<Windo
   await window.setSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
 
   if (nextState) {
-    await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
+    await moveDockWindow(window, nextState);
   }
 
   return nextState;
@@ -275,16 +351,16 @@ export async function detectSnapEdge(label?: string): Promise<DockEdge | null> {
   }
 
   const area = getWorkArea(monitor);
-  const nearLeft = position.x <= area.left + SNAP_THRESHOLD;
-  const nearRight = position.x + size.width >= area.right - SNAP_THRESHOLD;
-  const nearTop = position.y <= area.top + SNAP_THRESHOLD;
-  const nearBottom = position.y + size.height >= area.bottom - SNAP_THRESHOLD;
+  const distances: Array<[DockEdge, number]> = [
+    ["left", Math.abs(position.x - area.left)],
+    ["right", Math.abs(area.right - (position.x + size.width))],
+    ["top", Math.abs(position.y - area.top)],
+    ["bottom", Math.abs(area.bottom - (position.y + size.height))],
+  ];
+  const candidates = distances.filter(([, distance]) => distance <= SNAP_THRESHOLD);
 
-  if (nearLeft) return "left";
-  if (nearRight) return "right";
-  if (nearTop) return "top";
-  if (nearBottom) return "bottom";
-  return null;
+  candidates.sort((a, b) => a[1] - b[1]);
+  return candidates[0]?.[0] ?? null;
 }
 
 export async function snapQIconWindow(edge: DockEdge) {
@@ -307,36 +383,40 @@ export async function snapQIconWindow(edge: DockEdge) {
     return null;
   }
 
-  const area = getWorkArea(monitor);
-  const centerX = position.x + size.width / 2;
-  const centerY = position.y + size.height / 2;
-
-  const x =
-    edge === "left"
-      ? area.left
-      : edge === "right"
-        ? area.right - DOCK_WINDOW_SIZE
-        : clamp(centerX - DOCK_WINDOW_SIZE / 2, area.left, area.right - DOCK_WINDOW_SIZE);
-
-  const y =
-    edge === "top"
-      ? area.top
-      : edge === "bottom"
-        ? area.bottom - DOCK_WINDOW_SIZE
-        : clamp(centerY - DOCK_WINDOW_SIZE / 2, area.top, area.bottom - DOCK_WINDOW_SIZE);
+  const nextState = getDockEdgeState(edge, monitor, position, size, true);
 
   await window.setDecorations(false);
   await window.setShadow(false);
   await window.setMinSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
   await window.setMaxSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
   await window.setSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
-  const nextState = {
-    width: DOCK_WINDOW_SIZE,
-    height: DOCK_WINDOW_SIZE,
-    x: Math.round(x),
-    y: Math.round(y),
-  };
-  await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
+  await moveDockWindow(window, nextState, true);
+
+  return nextState;
+}
+
+export async function revealQIconWindow(edge: DockEdge) {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
+  if (!window) {
+    return null;
+  }
+
+  const [monitor, position, size] = await Promise.all([
+    currentMonitor(),
+    window.outerPosition(),
+    window.outerSize(),
+  ]);
+
+  if (!monitor) {
+    return null;
+  }
+
+  const nextState = getDockEdgeState(edge, monitor, position, size, false);
+  await moveDockWindow(window, nextState, true);
 
   return nextState;
 }
