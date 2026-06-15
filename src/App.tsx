@@ -76,6 +76,10 @@ interface MenuState {
   y: number;
 }
 
+type DockTransitionTarget = "dock" | "main";
+
+const DOCK_TRANSITION_KEY = "q-note:dock-transition";
+
 function sortNotes(notes: Note[]) {
   return [...notes].sort((a, b) => {
     if (a.pinned !== b.pinned) {
@@ -119,6 +123,7 @@ function App() {
   const settingsRef = useRef(settings);
   const toastTimerRef = useRef<number | null>(null);
   const dockGuardTimerRef = useRef<number | null>(null);
+  const dockTransitionRef = useRef(false);
 
   const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
   const isDockWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
@@ -176,31 +181,78 @@ function App() {
     [persistSettings, setDockGuard],
   );
 
+  function beginDockTransition(target: DockTransitionTarget) {
+    const token = `${target}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(DOCK_TRANSITION_KEY, token);
+    return token;
+  }
+
+  function getActiveDockTransitionTarget(): DockTransitionTarget | null {
+    const target = localStorage.getItem(DOCK_TRANSITION_KEY)?.split(":")[0];
+    return target === "dock" || target === "main" ? target : null;
+  }
+
+  function isActiveDockTransition(token: string) {
+    return localStorage.getItem(DOCK_TRANSITION_KEY) === token;
+  }
+
   async function restoreDock(options: { keepFull?: boolean } = {}) {
-    setDockGuard();
-    await persistSettings({
-      docked: false,
-      dockEdge: null,
-      keepFullMain: options.keepFull ?? settingsRef.current.keepFullMain,
-    });
-    await showMainWindow(settingsRef.current.window, settingsRef.current.alwaysOnTop);
-    await hideDockWindow();
+    if (dockTransitionRef.current) {
+      return;
+    }
+
+    dockTransitionRef.current = true;
+    const token = beginDockTransition("main");
+
+    try {
+      setDockGuard();
+      await persistSettings({
+        docked: false,
+        dockEdge: null,
+        keepFullMain: options.keepFull ?? settingsRef.current.keepFullMain,
+      });
+      await showMainWindow(settingsRef.current.window, settingsRef.current.alwaysOnTop);
+
+      if (isActiveDockTransition(token) && !settingsRef.current.docked) {
+        await hideDockWindow();
+      } else if (getActiveDockTransitionTarget() === "dock") {
+        await hideMainWindow();
+      }
+    } finally {
+      dockTransitionRef.current = false;
+    }
   }
 
   async function collapseToQIcon() {
-    const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
-    setDockGuard();
-    await persistSettings({
-      docked: true,
-      dockEdge: null,
-      keepFullMain: false,
-      window: snapshot ?? settingsRef.current.window,
-    });
-    iconWindowRef.current = await showDockWindow(
-      snapshot ?? settingsRef.current.window,
-      settingsRef.current.alwaysOnTop,
-    );
-    await hideMainWindow();
+    if (dockTransitionRef.current) {
+      return;
+    }
+
+    dockTransitionRef.current = true;
+    const token = beginDockTransition("dock");
+
+    try {
+      const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
+      setDockGuard();
+      await persistSettings({
+        docked: true,
+        dockEdge: null,
+        keepFullMain: false,
+        window: snapshot ?? settingsRef.current.window,
+      });
+      iconWindowRef.current = await showDockWindow(
+        snapshot ?? settingsRef.current.window,
+        settingsRef.current.alwaysOnTop,
+      );
+
+      if (isActiveDockTransition(token) && settingsRef.current.docked) {
+        await hideMainWindow();
+      } else if (getActiveDockTransitionTarget() === "main") {
+        await hideDockWindow();
+      }
+    } finally {
+      dockTransitionRef.current = false;
+    }
   }
 
   async function openEditor(note: Note | null) {
@@ -590,28 +642,33 @@ function App() {
         return;
       }
 
+      const bootSettings =
+        currentWindowLabel === MAIN_WINDOW_LABEL && data.settings.docked
+          ? {
+              ...data.settings,
+              docked: false,
+              dockEdge: null,
+              keepFullMain: false,
+            }
+          : data.settings;
+
       notesRef.current = sortNotes(data.notes);
-      settingsRef.current = data.settings;
+      settingsRef.current = bootSettings;
       setNotes(notesRef.current);
-      setSettings(data.settings);
-      await applyAlwaysOnTop(data.settings.alwaysOnTop);
+      setSettings(bootSettings);
+      await applyAlwaysOnTop(bootSettings.alwaysOnTop);
       const autoStart = await readAutoStartEnabled();
-      if (autoStart !== data.settings.autoStart) {
+      if (autoStart !== bootSettings.autoStart) {
         settingsRef.current = { ...settingsRef.current, autoStart };
         setSettings(settingsRef.current);
+      }
+
+      if (settingsRef.current !== data.settings) {
         await saveSettings(settingsRef.current);
       }
 
       if (currentWindowLabel === MAIN_WINDOW_LABEL) {
-        if (data.settings.docked) {
-          iconWindowRef.current = await showDockWindow(
-            data.settings.window,
-            data.settings.alwaysOnTop,
-          );
-          await hideMainWindow();
-        } else {
-          await hideDockWindow();
-        }
+        await hideDockWindow();
       }
 
       setReady(true);
