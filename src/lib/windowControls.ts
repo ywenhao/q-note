@@ -13,7 +13,7 @@ import {
 } from "../types";
 import { isTauriRuntime } from "./env";
 
-const DOCK_SIZE = 56;
+const DOCK_SIZE = 30;
 const SNAP_THRESHOLD = 28;
 const MAIN_MIN_SIZE = new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
 

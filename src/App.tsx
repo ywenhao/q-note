@@ -99,6 +99,7 @@ function App() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [ready, setReady] = useState(false);
+  const [isCollapsing, setIsCollapsing] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -177,6 +178,17 @@ function App() {
       window: snapshot ?? settingsRef.current.window,
     });
     hoverExpandedRef.current = false;
+  }
+
+  async function collapseToQIconWithAnimation() {
+    if (isCollapsing) {
+      return;
+    }
+
+    setIsCollapsing(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 170));
+    await collapseToQIcon();
+    setIsCollapsing(false);
   }
 
   async function hoverRestoreFromQIcon() {
@@ -661,7 +673,7 @@ function App() {
 
   return (
     <main
-      className="app-shell"
+      className={`app-shell ${isCollapsing ? "is-collapsing" : ""}`}
       onClick={() => setMenu(null)}
       onContextMenu={(event) => openMenu(event)}
       onMouseLeave={() => void handleMainMouseLeave()}
@@ -823,6 +835,18 @@ function App() {
           title={t.confirmDeleteAll}
         />
       ) : null}
+      <button
+        aria-label={t.dockOn}
+        className="panel-dock-button"
+        onClick={(event) => {
+          event.stopPropagation();
+          void collapseToQIconWithAnimation();
+        }}
+        title={t.dockOn}
+        type="button"
+      >
+        <QMark />
+      </button>
       <StatusBar notes={notes} t={t} />
       <Toast message={toast} />
     </main>
