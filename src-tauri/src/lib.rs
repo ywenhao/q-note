@@ -207,7 +207,6 @@ async fn open_editor_window(
         .min_inner_size(EDITOR_WINDOW_MIN_WIDTH, EDITOR_WINDOW_MIN_HEIGHT)
         .resizable(true)
         .decorations(true)
-        .transparent(false)
         .shadow(true)
         .always_on_top(always_on_top)
         .visible(false)
