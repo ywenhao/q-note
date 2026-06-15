@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   PhysicalPosition,
   PhysicalSize,
@@ -22,6 +23,9 @@ const DOCK_SLIDE_DURATION = 130;
 const MAIN_MIN_SIZE = new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
 export const MAIN_WINDOW_LABEL = "main";
 export const DOCK_WINDOW_LABEL = "dock";
+export const EDITOR_WINDOW_LABEL = "editor";
+
+const EDITOR_REQUEST_KEY = "q-note:editor-request";
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
@@ -39,6 +43,7 @@ export async function applyAlwaysOnTop(enabled: boolean) {
   const windows = await Promise.all([
     getWindowByLabel(MAIN_WINDOW_LABEL),
     getWindowByLabel(DOCK_WINDOW_LABEL),
+    getWindowByLabel(EDITOR_WINDOW_LABEL),
   ]);
 
   await Promise.all(
@@ -301,24 +306,37 @@ export async function startMainWindowDrag() {
   await getCurrentWindow().startDragging();
 }
 
-export async function ensureEditorRoom() {
+export async function openEditorWindow(noteId: string | null, alwaysOnTop: boolean) {
   if (!isTauriRuntime()) {
+    return;
+  }
+
+  localStorage.setItem(
+    EDITOR_REQUEST_KEY,
+    JSON.stringify({
+      noteId,
+      requestedAt: Date.now(),
+    }),
+  );
+
+  await invoke("open_editor_window", {
+    alwaysOnTop,
+    noteId,
+  });
+}
+
+export function readPendingEditorNoteId() {
+  const raw = localStorage.getItem(EDITOR_REQUEST_KEY);
+  if (!raw) {
     return null;
   }
 
-  const snapshot = await captureWindowState();
-  if (!snapshot) {
+  try {
+    const value = JSON.parse(raw) as { noteId?: unknown };
+    return typeof value.noteId === "string" ? value.noteId : null;
+  } catch {
     return null;
   }
-
-  const nextWidth = Math.max(snapshot.width, 960);
-  const nextHeight = Math.max(snapshot.height, 720);
-
-  if (nextWidth !== snapshot.width || nextHeight !== snapshot.height) {
-    await getCurrentWindow().setSize(new PhysicalSize(nextWidth, nextHeight));
-  }
-
-  return snapshot;
 }
 
 function getWorkArea(monitor: Monitor) {

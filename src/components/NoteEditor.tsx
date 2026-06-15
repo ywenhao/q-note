@@ -1,6 +1,13 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { FileText, Folder, ImagePlus, Link2, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type PointerEvent,
+} from "react";
 import type { Translation } from "../i18n";
 import { createId, isTauriRuntime } from "../lib/env";
 import {
@@ -22,13 +29,22 @@ export interface NoteDraft {
 }
 
 interface NoteEditorProps {
+  mode?: "modal" | "window";
   note: Note | null;
   onCancel: () => void;
+  onDragStart?: (event: PointerEvent<HTMLElement>) => void;
   onSave: (draft: NoteDraft) => void;
   t: Translation;
 }
 
-export function NoteEditor({ note, onCancel, onSave, t }: NoteEditorProps) {
+export function NoteEditor({
+  mode = "modal",
+  note,
+  onCancel,
+  onDragStart,
+  onSave,
+  t,
+}: NoteEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
   const [color, setColor] = useState<string>(DEFAULT_NOTE_COLOR);
@@ -37,6 +53,7 @@ export function NoteEditor({ note, onCancel, onSave, t }: NoteEditorProps) {
   const [mediaValue, setMediaValue] = useState("");
   const [previewAttachment, setPreviewAttachment] = useState<NoteAttachment | null>(null);
   const [pinned, setPinned] = useState(false);
+  const isWindowMode = mode === "window";
 
   useEffect(() => {
     setAttachments(note?.attachments ?? []);
@@ -198,10 +215,13 @@ export function NoteEditor({ note, onCancel, onSave, t }: NoteEditorProps) {
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={onCancel}>
+    <div
+      className={isWindowMode ? "editor-window-shell" : "modal-backdrop"}
+      onMouseDown={isWindowMode ? undefined : onCancel}
+    >
       <section
-        aria-modal="true"
-        className={`editor-dialog ${dragging ? "is-dragging" : ""}`}
+        aria-modal={isWindowMode ? undefined : true}
+        className={`editor-dialog ${isWindowMode ? "is-window" : ""} ${dragging ? "is-dragging" : ""}`}
         onDragEnter={() => setDragging(true)}
         onDragLeave={(event) => {
           const relatedTarget = event.relatedTarget;
@@ -214,8 +234,8 @@ export function NoteEditor({ note, onCancel, onSave, t }: NoteEditorProps) {
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <header className="editor-dialog__header">
-          <div className="editor-dialog__colors">
+        <header className="editor-dialog__header" onPointerDown={onDragStart}>
+          <div className="editor-dialog__colors" onPointerDown={(event) => event.stopPropagation()}>
             {NOTE_COLORS.map((item) => (
               <button
                 aria-label={item}
@@ -227,7 +247,9 @@ export function NoteEditor({ note, onCancel, onSave, t }: NoteEditorProps) {
               />
             ))}
           </div>
-          <IconButton icon={<X size={18} />} label={t.cancel} onClick={onCancel} subtle />
+          <div onPointerDown={(event) => event.stopPropagation()}>
+            <IconButton icon={<X size={18} />} label={t.cancel} onClick={onCancel} subtle />
+          </div>
         </header>
 
         <textarea

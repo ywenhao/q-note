@@ -28,6 +28,7 @@ import { AppToolbar } from "./components/AppToolbar";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CompactDock } from "./components/CompactDock";
 import { ContextMenu, type ContextMenuItem } from "./components/ContextMenu";
+import { EditorWindow } from "./components/EditorWindow";
 import { NoteEditor, type NoteDraft } from "./components/NoteEditor";
 import { NoteList } from "./components/NoteList";
 import { QMark } from "./components/QMark";
@@ -51,15 +52,15 @@ import {
 } from "./lib/storage";
 import {
   DOCK_WINDOW_LABEL,
+  EDITOR_WINDOW_LABEL,
   MAIN_WINDOW_LABEL,
   applyAlwaysOnTop,
   captureWindowState,
   detectSnapEdge,
-  ensureEditorRoom,
   hideDockWindow,
   hideMainWindow,
+  openEditorWindow,
   revealQIconWindow,
-  restoreWindowState,
   showDockWindow,
   showMainWindow,
   snapQIconWindow,
@@ -105,7 +106,11 @@ async function writeClipboard(value: string) {
   textArea.remove();
 }
 
-function App() {
+interface MainAppProps {
+  currentWindowLabel: string;
+}
+
+function MainApp({ currentWindowLabel }: MainAppProps) {
   const [editorNote, setEditorNote] = useState<Note | null | undefined>(undefined);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -116,7 +121,6 @@ function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const dockGuardRef = useRef(false);
-  const editorWindowRef = useRef<WindowState | null>(null);
   const iconWindowRef = useRef<WindowState | null>(null);
   const notesRef = useRef<Note[]>([]);
   const settingsRef = useRef(settings);
@@ -124,7 +128,6 @@ function App() {
   const dockGuardTimerRef = useRef<number | null>(null);
   const dockTransitionRef = useRef(false);
 
-  const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
   const isDockWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
   const t = translations[settings.language];
   const editorOpen = editorNote !== undefined;
@@ -259,18 +262,16 @@ function App() {
       await restoreDock({ keepFull: true });
     }
 
-    editorWindowRef.current = await ensureEditorRoom();
+    if (isTauriRuntime()) {
+      await openEditorWindow(note?.id ?? null, settingsRef.current.alwaysOnTop);
+      return;
+    }
+
     setEditorNote(note);
   }
 
   async function closeEditor() {
     setEditorNote(undefined);
-    const previousWindow = editorWindowRef.current;
-    editorWindowRef.current = null;
-
-    if (previousWindow && !settingsRef.current.docked) {
-      await restoreWindowState(previousWindow);
-    }
   }
 
   async function handleSaveDraft(draft: NoteDraft) {
@@ -720,6 +721,13 @@ function App() {
             void restoreDock({ keepFull: true });
           }
         }),
+        listen<Note>("q-note-note-saved", (event) => {
+          commitNotes([
+            event.payload,
+            ...notesRef.current.filter((note) => note.id !== event.payload.id),
+          ]);
+          showToast(translations[settingsRef.current.language].saved);
+        }),
         listen<AppSettings>("q-note-settings-updated", (event) => {
           settingsRef.current = event.payload;
           setSettings(event.payload);
@@ -954,6 +962,16 @@ function App() {
       <Toast message={toast} />
     </main>
   );
+}
+
+function App() {
+  const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
+
+  if (currentWindowLabel === EDITOR_WINDOW_LABEL) {
+    return <EditorWindow />;
+  }
+
+  return <MainApp currentWindowLabel={currentWindowLabel} />;
 }
 
 export default App;

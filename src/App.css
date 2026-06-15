@@ -316,6 +316,15 @@ button {
     0 3px 8px rgba(31, 35, 40, 0.055);
 }
 
+.text-button:hover {
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.danger-button:hover {
+  transition: background-color 0.3s ease;
+  background: #fd5f57;
+}
+
 .icon-button:active,
 .primary-button:active,
 .text-button:active,
@@ -340,7 +349,7 @@ button {
 
 .icon-button.is-danger,
 .context-menu button.is-danger {
-  color: rgba(194, 31, 57, 0.82);
+  color: #ff3b30;
 }
 
 .icon-button.is-window-minimize {
@@ -677,8 +686,8 @@ button {
 }
 
 .danger-button {
-  border: 1px solid #c92a2a;
-  background: #c92a2a;
+  border: 1px solid #ff3b30;
+  background: #ff3b30;
   color: #fff5f5;
 }
 
@@ -692,6 +701,19 @@ button {
   background: rgba(29, 29, 31, 0.24);
   backdrop-filter: blur(12px) saturate(140%);
   animation: fade-in 120ms ease;
+}
+
+.editor-window-shell {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  padding: 8px;
+  background: #ffd150;
+}
+
+.editor-window-shell.is-loading {
+  place-items: center;
 }
 
 .editor-dialog {
@@ -708,6 +730,13 @@ button {
     0 24px 60px rgba(31, 35, 40, 0.22);
   backdrop-filter: blur(24px) saturate(160%);
   animation: rise-in 140ms ease;
+}
+
+.editor-dialog.is-window {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  animation: none;
 }
 
 .settings-dialog {
@@ -821,6 +850,15 @@ button {
   justify-content: space-between;
 }
 
+.editor-dialog.is-window .editor-dialog__header {
+  cursor: grab;
+  user-select: none;
+}
+
+.editor-dialog.is-window .editor-dialog__header:active {
+  cursor: grabbing;
+}
+
 .editor-dialog__colors {
   display: flex;
   flex-wrap: wrap;
@@ -838,6 +876,12 @@ button {
   color: #1d1d1f;
   line-height: 1.55;
   outline: none;
+}
+
+.editor-dialog.is-window .editor-textarea {
+  min-height: 140px;
+  flex: 1 1 auto;
+  resize: none;
 }
 
 .editor-media-row {

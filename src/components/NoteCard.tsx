@@ -63,6 +63,7 @@ export function NoteCard({
   t,
 }: NoteCardProps) {
   const textRef = useRef<HTMLParagraphElement>(null);
+  const suppressCopyUntilRef = useRef(0);
   const [draftHeight, setDraftHeight] = useState<number | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -102,6 +103,8 @@ export function NoteCard({
         minHeight,
         maxHeight,
       );
+      // Drag release can synthesize a click on the card, so ignore that one copy action.
+      suppressCopyUntilRef.current = Date.now() + 300;
       setDraftHeight(null);
       onHeightChange(note.id, snappedHeight);
       window.removeEventListener("pointermove", handleMove);
@@ -111,10 +114,18 @@ export function NoteCard({
     window.addEventListener("pointerup", handleUp, { once: true });
   }
 
+  function handleCardClick() {
+    if (Date.now() < suppressCopyUntilRef.current) {
+      return;
+    }
+
+    onCopy(note);
+  }
+
   return (
     <article
       className={`note-card ${note.pinned ? "is-pinned" : ""}`}
-      onClick={() => onCopy(note)}
+      onClick={handleCardClick}
       onContextMenu={(event) => onContextMenu(event, note.id)}
       style={{ backgroundColor: note.color }}
     >

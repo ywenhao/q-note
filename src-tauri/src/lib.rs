@@ -9,6 +9,13 @@ use tauri::{
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 const DOCK_WINDOW_SIZE: f64 = 30.0;
+const APP_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EditorOpenPayload {
+    note_id: Option<String>,
+}
 
 #[derive(Default)]
 struct TrayMenuState {
@@ -118,6 +125,52 @@ fn set_tray_menu_labels(
     }
 }
 
+#[tauri::command]
+fn open_editor_window(
+    app: tauri::AppHandle,
+    note_id: Option<String>,
+    always_on_top: bool,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("editor") {
+        window
+            .set_icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())?;
+        window
+            .set_always_on_top(always_on_top)
+            .map_err(|error| error.to_string())?;
+        window.unminimize().map_err(|error| error.to_string())?;
+        window.show().map_err(|error| error.to_string())?;
+        window.set_focus().map_err(|error| error.to_string())?;
+        app.emit_to(
+            "editor",
+            "q-note-editor-open",
+            EditorOpenPayload { note_id },
+        )
+        .map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+
+    let window = WebviewWindowBuilder::new(&app, "editor", WebviewUrl::App("index.html".into()))
+        .title("Q Note")
+        .icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())?
+        .inner_size(520.0, 640.0)
+        .min_inner_size(420.0, 520.0)
+        .resizable(true)
+        .decorations(false)
+        .transparent(true)
+        .shadow(true)
+        .always_on_top(always_on_top)
+        .visible(true)
+        .focused(true)
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    let _ = window.emit("q-note-editor-open", EditorOpenPayload { note_id });
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -137,15 +190,26 @@ pub fn run() {
         )
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                if matches!(window.label(), "main" | "dock") {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
-        .invoke_handler(tauri::generate_handler![quit_app, set_tray_menu_labels])
+        .invoke_handler(tauri::generate_handler![
+            quit_app,
+            set_tray_menu_labels,
+            open_editor_window
+        ])
         .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_icon(Image::from_bytes(APP_ICON_BYTES)?)?;
+            }
+
             if app.get_webview_window("dock").is_none() {
                 WebviewWindowBuilder::new(app, "dock", WebviewUrl::App("index.html".into()))
                     .title("Q Note")
+                    .icon(Image::from_bytes(APP_ICON_BYTES)?)?
                     .inner_size(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE)
                     .min_inner_size(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE)
                     .max_inner_size(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE)
@@ -167,7 +231,7 @@ pub fn run() {
                 MenuItem::with_id(app, "toggle-dock", "切换悬浮球", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&topmost, &toggle_language, &toggle_dock, &quit])?;
-            let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
+            let icon = Image::from_bytes(APP_ICON_BYTES)?;
             let tray_state = app.state::<TrayMenuState>();
             if let Ok(mut state) = tray_state.topmost.lock() {
                 *state = Some(topmost.clone());
