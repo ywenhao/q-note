@@ -14,6 +14,9 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
+import { Menu } from "@tauri-apps/api/menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   useCallback,
@@ -49,13 +52,17 @@ import {
   saveSettings,
 } from "./lib/storage";
 import {
+  DOCK_WINDOW_LABEL,
+  MAIN_WINDOW_LABEL,
   applyAlwaysOnTop,
-  applyQIconWindow,
   captureWindowState,
   detectSnapEdge,
   ensureEditorRoom,
+  hideDockWindow,
+  hideMainWindow,
   restoreWindowState,
-  restoreWindowFromQIcon,
+  showDockWindow,
+  showMainWindow,
   snapQIconWindow,
   startMainWindowDrag,
   startQIconDrag,
@@ -107,13 +114,17 @@ function App() {
 
   const dockGuardRef = useRef(false);
   const editorWindowRef = useRef<WindowState | null>(null);
-  const hoverExpandedRef = useRef(false);
+  const iconWindowRef = useRef<WindowState | null>(null);
   const notesRef = useRef<Note[]>([]);
   const settingsRef = useRef(settings);
   const toastTimerRef = useRef<number | null>(null);
 
+  const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
+  const isDockWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
   const t = translations[settings.language];
   const editorOpen = editorNote !== undefined;
+  const dockToggleLabel = settings.docked ? t.switchMainWindow : t.switchFloatingBall;
+  const alwaysOnLabel = settings.alwaysOnTop ? t.alwaysOff : t.alwaysOn;
 
   const commitNotes = useCallback((nextNotes: Note[]) => {
     const sorted = sortNotes(nextNotes);
@@ -134,6 +145,10 @@ function App() {
     settingsRef.current = nextSettings;
     setSettings(nextSettings);
     await saveSettings(nextSettings);
+
+    if (isTauriRuntime()) {
+      await emit("q-note-settings-updated", nextSettings);
+    }
   }, []);
 
   const setDockGuard = useCallback(() => {
@@ -146,11 +161,10 @@ function App() {
   const persistIconSnap = useCallback(
     async (edge: DockEdge) => {
       setDockGuard();
-      const iconWindow = await snapQIconWindow(edge);
+      iconWindowRef.current = await snapQIconWindow(edge);
       await persistSettings({
         docked: true,
         dockEdge: edge,
-        iconWindow: iconWindow ?? settingsRef.current.iconWindow,
       });
     },
     [persistSettings, setDockGuard],
@@ -158,26 +172,29 @@ function App() {
 
   async function restoreDock(options: { keepFull?: boolean } = {}) {
     setDockGuard();
-    await restoreWindowState(settingsRef.current.window);
-    await applyAlwaysOnTop(settingsRef.current.alwaysOnTop);
     await persistSettings({
       docked: false,
       dockEdge: null,
       keepFullMain: options.keepFull ?? settingsRef.current.keepFullMain,
     });
+    await showMainWindow(settingsRef.current.window, settingsRef.current.alwaysOnTop);
+    await hideDockWindow();
   }
 
   async function collapseToQIcon() {
-    const snapshot = await captureWindowState();
+    const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
     setDockGuard();
-    await applyQIconWindow(settingsRef.current.iconWindow);
     await persistSettings({
       docked: true,
       dockEdge: null,
       keepFullMain: false,
       window: snapshot ?? settingsRef.current.window,
     });
-    hoverExpandedRef.current = false;
+    iconWindowRef.current = await showDockWindow(
+      iconWindowRef.current,
+      settingsRef.current.alwaysOnTop,
+    );
+    await hideMainWindow();
   }
 
   async function collapseToQIconWithAnimation() {
@@ -189,39 +206,6 @@ function App() {
     await new Promise((resolve) => window.setTimeout(resolve, 170));
     await collapseToQIcon();
     setIsCollapsing(false);
-  }
-
-  async function hoverRestoreFromQIcon() {
-    hoverExpandedRef.current = true;
-    setDockGuard();
-    await restoreWindowFromQIcon(settingsRef.current.window, settingsRef.current.iconWindow);
-    await applyAlwaysOnTop(settingsRef.current.alwaysOnTop);
-    await persistSettings({
-      docked: false,
-      dockEdge: null,
-      keepFullMain: settingsRef.current.keepFullMain,
-    });
-  }
-
-  async function returnToQIcon() {
-    setDockGuard();
-    const snapshot = await captureWindowState();
-    await applyQIconWindow(settingsRef.current.iconWindow);
-    await persistSettings({
-      docked: true,
-      dockEdge: settingsRef.current.dockEdge,
-      keepFullMain: false,
-      window: snapshot ?? settingsRef.current.window,
-    });
-    hoverExpandedRef.current = false;
-  }
-
-  async function handleMainMouseLeave() {
-    if (!hoverExpandedRef.current || settingsRef.current.keepFullMain || editorOpen || menu) {
-      return;
-    }
-
-    await returnToQIcon();
   }
 
   async function openEditor(note: Note | null) {
@@ -380,6 +364,27 @@ function App() {
     await getCurrentWindow().close();
   }
 
+  async function quitApp() {
+    if (!isTauriRuntime()) {
+      return;
+    }
+
+    await invoke("quit_app");
+  }
+
+  async function updateTrayMenuLabels() {
+    if (!isTauriRuntime()) {
+      return;
+    }
+
+    await invoke("set_tray_menu_labels", {
+      topmost: alwaysOnLabel,
+      quit: t.quit,
+      toggleDock: dockToggleLabel,
+      toggleLanguage: t.switchLanguage,
+    });
+  }
+
   async function toggleDockOnEdge() {
     if (settingsRef.current.docked) {
       await restoreDock({ keepFull: true });
@@ -389,27 +394,15 @@ function App() {
     await collapseToQIcon();
   }
 
-  async function toggleKeepFullMain() {
-    if (settingsRef.current.docked) {
-      await restoreDock({ keepFull: true });
-      hoverExpandedRef.current = false;
-      return;
-    }
-
-    const nextValue = !settingsRef.current.keepFullMain;
-    await persistSettings({ keepFullMain: nextValue });
-    hoverExpandedRef.current = nextValue;
-    if (!nextValue) {
-      await returnToQIcon();
-    }
-  }
-
   async function dragQIcon() {
     try {
       await startQIconDrag();
     } finally {
       window.setTimeout(() => {
-        void Promise.all([detectSnapEdge(), captureWindowState()]).then(([edge, snapshot]) => {
+        void Promise.all([
+          detectSnapEdge(DOCK_WINDOW_LABEL),
+          captureWindowState(DOCK_WINDOW_LABEL),
+        ]).then(([edge, snapshot]) => {
           if (!settingsRef.current.docked || !snapshot) {
             return;
           }
@@ -419,7 +412,8 @@ function App() {
             return;
           }
 
-          void persistSettings({ dockEdge: null, iconWindow: snapshot });
+          iconWindowRef.current = snapshot;
+          void persistSettings({ dockEdge: null });
         });
       }, 240);
     }
@@ -441,6 +435,46 @@ function App() {
       x: event.clientX,
       y: event.clientY,
     });
+  }
+
+  async function openDockMenu(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!isTauriRuntime()) {
+      setMenu({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      return;
+    }
+
+    const nativeMenu = await Menu.new({
+      items: [
+        {
+          id: "topmost",
+          text: alwaysOnLabel,
+          action: () => void toggleAlwaysOnTop(),
+        },
+        {
+          id: "toggle-language",
+          text: t.switchLanguage,
+          action: () => void toggleLanguage(),
+        },
+        {
+          id: "toggle-dock",
+          text: dockToggleLabel,
+          action: () => void toggleDockOnEdge(),
+        },
+        {
+          id: "quit",
+          text: t.quit,
+          action: () => void quitApp(),
+        },
+      ],
+    });
+
+    await nativeMenu.popup(undefined, getCurrentWindow());
   }
 
   function getContextItems(): ContextMenuItem[] {
@@ -503,7 +537,7 @@ function App() {
       {
         id: "topmost",
         icon: settings.alwaysOnTop ? <PinOff size={16} /> : <Pin size={16} />,
-        label: settings.alwaysOnTop ? t.alwaysOff : t.alwaysOn,
+        label: alwaysOnLabel,
         onSelect: () => void toggleAlwaysOnTop(),
       },
       {
@@ -515,18 +549,42 @@ function App() {
       {
         id: "dock-edge",
         icon: <PanelRightClose size={16} />,
-        label: settings.docked ? t.keepFull : t.dockOn,
+        label: dockToggleLabel,
         onSelect: () => void toggleDockOnEdge(),
-      },
-      {
-        id: "keep-full",
-        icon: <PanelRightClose size={16} />,
-        label: settings.keepFullMain ? t.keepCompact : t.keepFull,
-        onSelect: () => void toggleKeepFullMain(),
       },
     );
 
     return items;
+  }
+
+  function getDockMenuItems(): ContextMenuItem[] {
+    return [
+      {
+        id: "topmost",
+        icon: settings.alwaysOnTop ? <PinOff size={16} /> : <Pin size={16} />,
+        label: alwaysOnLabel,
+        onSelect: () => void toggleAlwaysOnTop(),
+      },
+      {
+        id: "toggle-language",
+        icon: <Languages size={16} />,
+        label: t.switchLanguage,
+        onSelect: () => void toggleLanguage(),
+      },
+      {
+        id: "toggle-dock",
+        icon: <PanelRightClose size={16} />,
+        label: dockToggleLabel,
+        onSelect: () => void toggleDockOnEdge(),
+      },
+      {
+        destructive: true,
+        id: "quit",
+        icon: <Power size={16} />,
+        label: t.quit,
+        onSelect: () => void quitApp(),
+      },
+    ];
   }
 
   useEffect(() => {
@@ -550,8 +608,13 @@ function App() {
         await saveSettings(settingsRef.current);
       }
 
-      if (data.settings.docked) {
-        await applyQIconWindow(data.settings.iconWindow);
+      if (currentWindowLabel === MAIN_WINDOW_LABEL) {
+        if (data.settings.docked) {
+          iconWindowRef.current = await showDockWindow(null, data.settings.alwaysOnTop);
+          await hideMainWindow();
+        } else {
+          await hideDockWindow();
+        }
       }
 
       setReady(true);
@@ -571,6 +634,58 @@ function App() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    void updateTrayMenuLabels();
+  }, [alwaysOnLabel, dockToggleLabel, ready, t.quit, t.switchLanguage]);
+
+  useEffect(() => {
+    if (!ready || !isTauriRuntime()) {
+      return;
+    }
+
+    let disposed = false;
+    let unlistenHandlers: Array<() => void> = [];
+
+    void (async () => {
+      const handlers = await Promise.all([
+        listen("q-note-toggle-always-on-top", () => {
+          void toggleAlwaysOnTop();
+        }),
+        listen("q-note-toggle-language", () => {
+          void toggleLanguage();
+        }),
+        listen("q-note-toggle-dock", () => {
+          void toggleDockOnEdge();
+        }),
+        listen("q-note-show-main", () => {
+          if (settingsRef.current.docked) {
+            void restoreDock({ keepFull: true });
+          }
+        }),
+        listen<AppSettings>("q-note-settings-updated", (event) => {
+          settingsRef.current = event.payload;
+          setSettings(event.payload);
+        }),
+      ]);
+
+      if (disposed) {
+        handlers.forEach((unlisten) => unlisten());
+        return;
+      }
+
+      unlistenHandlers = handlers;
+    })();
+
+    return () => {
+      disposed = true;
+      unlistenHandlers.forEach((unlisten) => unlisten());
+    };
+  }, [ready]);
 
   useEffect(() => {
     if (!ready || !isTauriRuntime()) {
@@ -617,7 +732,8 @@ function App() {
               return;
             }
 
-            void persistSettings({ dockEdge: null, iconWindow: snapshot });
+            iconWindowRef.current = snapshot;
+            void persistSettings({ dockEdge: null });
             return;
           }
 
@@ -642,6 +758,14 @@ function App() {
   }, [editorOpen, persistIconSnap, persistSettings, ready]);
 
   if (!ready) {
+    if (isDockWindow) {
+      return (
+        <main className="dock-shell">
+          <QMark className="dock-loading-mark" />
+        </main>
+      );
+    }
+
     return (
       <main className="app-shell is-loading">
         <QMark className="loading-mark" />
@@ -649,18 +773,18 @@ function App() {
     );
   }
 
-  if (settings.docked) {
+  if (isDockWindow) {
     return (
       <>
         <CompactDock
-          onContextMenu={(event) => openMenu(event)}
+          onContextMenu={(event) => void openDockMenu(event)}
           onDragStart={() => void dragQIcon()}
-          onHover={() => void hoverRestoreFromQIcon()}
+          onOpenMain={() => void restoreDock({ keepFull: true })}
           t={t}
         />
         {menu ? (
           <ContextMenu
-            items={getContextItems()}
+            items={getDockMenuItems()}
             onClose={() => setMenu(null)}
             x={menu.x}
             y={menu.y}
@@ -676,7 +800,6 @@ function App() {
       className={`app-shell ${isCollapsing ? "is-collapsing" : ""}`}
       onClick={() => setMenu(null)}
       onContextMenu={(event) => openMenu(event)}
-      onMouseLeave={() => void handleMainMouseLeave()}
     >
       <header className="top-bar" onPointerDown={dragMainWindow}>
         <div className="brand">
@@ -688,7 +811,7 @@ function App() {
             active={settings.alwaysOnTop}
             className="is-window-pin"
             icon={settings.alwaysOnTop ? <PinOff size={16} /> : <Pin size={16} />}
-            label={settings.alwaysOnTop ? t.alwaysOff : t.alwaysOn}
+            label={alwaysOnLabel}
             onClick={() => void toggleAlwaysOnTop()}
             subtle
           />
@@ -714,16 +837,6 @@ function App() {
           icon={<Plus size={18} />}
           label={t.newNote}
           onClick={() => void openEditor(null)}
-        />
-        <IconButton
-          icon={<Upload size={18} />}
-          label={t.import}
-          onClick={() => void handleImport()}
-        />
-        <IconButton
-          icon={<Download size={18} />}
-          label={t.export}
-          onClick={() => void handleExport()}
         />
         <IconButton
           className="is-danger"
@@ -813,6 +926,18 @@ function App() {
                 <span />
               </span>
             </button>
+            <button className="settings-row" onClick={() => void handleImport()} type="button">
+              <span>
+                <Upload size={18} />
+                {t.import}
+              </span>
+            </button>
+            <button className="settings-row" onClick={() => void handleExport()} type="button">
+              <span>
+                <Download size={18} />
+                {t.export}
+              </span>
+            </button>
           </section>
         </div>
       ) : null}
@@ -836,13 +961,13 @@ function App() {
         />
       ) : null}
       <button
-        aria-label={t.dockOn}
+        aria-label={t.switchFloatingBall}
         className="panel-dock-button"
         onClick={(event) => {
           event.stopPropagation();
           void collapseToQIconWithAnimation();
         }}
-        title={t.dockOn}
+        title={t.switchFloatingBall}
         type="button"
       >
         <QMark />

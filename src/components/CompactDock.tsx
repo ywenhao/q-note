@@ -1,46 +1,32 @@
-import { useRef, type MouseEvent, type PointerEvent } from "react";
+import type { MouseEvent, PointerEvent } from "react";
 import type { Translation } from "../i18n";
 import { QMark } from "./QMark";
 
 interface CompactDockProps {
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
   onDragStart: () => void;
-  onHover: () => void;
+  onOpenMain: () => void;
   t: Translation;
 }
 
-export function CompactDock({ onContextMenu, onDragStart, onHover, t }: CompactDockProps) {
-  const hoverTimerRef = useRef<number | null>(null);
-
-  function clearHoverTimer() {
-    if (hoverTimerRef.current) {
-      window.clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-  }
-
+export function CompactDock({ onContextMenu, onDragStart, onOpenMain, t }: CompactDockProps) {
   function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) {
       return;
     }
 
-    clearHoverTimer();
     onDragStart();
   }
 
   return (
     <main className="dock-shell">
       <button
-        aria-label={t.restore}
+        aria-label={t.switchMainWindow}
         className="dock-button"
+        onClick={onOpenMain}
         onContextMenu={onContextMenu}
-        onMouseEnter={() => {
-          clearHoverTimer();
-          hoverTimerRef.current = window.setTimeout(onHover, 480);
-        }}
-        onMouseLeave={clearHoverTimer}
         onPointerDown={handlePointerDown}
-        title={t.restore}
+        title={t.switchMainWindow}
         type="button"
       >
         <QMark />

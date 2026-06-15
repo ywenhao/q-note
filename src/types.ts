@@ -40,7 +40,6 @@ export interface AppSettings {
   dockOnEdge: boolean;
   docked: boolean;
   dockEdge: DockEdge | null;
-  iconWindow: WindowState | null;
   keepFullMain: boolean;
   window: WindowState | null;
 }
@@ -56,6 +55,7 @@ export interface ExportPayload extends AppData {
 }
 
 export const APP_BACKGROUND = "#ffd150";
+export const DOCK_WINDOW_SIZE = 30;
 export const DEFAULT_WINDOW_WIDTH = 300;
 export const DEFAULT_WINDOW_HEIGHT = 400;
 

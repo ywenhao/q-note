@@ -1,11 +1,13 @@
 import {
   PhysicalPosition,
   PhysicalSize,
+  Window,
   currentMonitor,
   getCurrentWindow,
   type Monitor,
 } from "@tauri-apps/api/window";
 import {
+  DOCK_WINDOW_SIZE,
   DEFAULT_WINDOW_HEIGHT,
   DEFAULT_WINDOW_WIDTH,
   type DockEdge,
@@ -13,12 +15,18 @@ import {
 } from "../types";
 import { isTauriRuntime } from "./env";
 
-const DOCK_SIZE = 30;
+const DOCK_MARGIN = 12;
 const SNAP_THRESHOLD = 28;
 const MAIN_MIN_SIZE = new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+export const MAIN_WINDOW_LABEL = "main";
+export const DOCK_WINDOW_LABEL = "dock";
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
+}
+
+async function getWindowByLabel(label: string) {
+  return Window.getByLabel(label);
 }
 
 export async function applyAlwaysOnTop(enabled: boolean) {
@@ -26,15 +34,28 @@ export async function applyAlwaysOnTop(enabled: boolean) {
     return;
   }
 
-  await getCurrentWindow().setAlwaysOnTop(enabled);
+  const windows = await Promise.all([
+    getWindowByLabel(MAIN_WINDOW_LABEL),
+    getWindowByLabel(DOCK_WINDOW_LABEL),
+  ]);
+
+  await Promise.all(
+    windows
+      .filter((window): window is Window => Boolean(window))
+      .map((window) => window.setAlwaysOnTop(enabled)),
+  );
 }
 
-export async function captureWindowState(): Promise<WindowState | null> {
+export async function captureWindowState(label?: string): Promise<WindowState | null> {
   if (!isTauriRuntime()) {
     return null;
   }
 
-  const window = getCurrentWindow();
+  const window = label ? await getWindowByLabel(label) : getCurrentWindow();
+  if (!window) {
+    return null;
+  }
+
   const [size, position] = await Promise.all([window.outerSize(), window.outerPosition()]);
 
   return {
@@ -45,12 +66,16 @@ export async function captureWindowState(): Promise<WindowState | null> {
   };
 }
 
-export async function restoreWindowState(state: WindowState | null) {
+export async function restoreWindowState(state: WindowState | null, label = MAIN_WINDOW_LABEL) {
   if (!isTauriRuntime()) {
     return;
   }
 
-  const window = getCurrentWindow();
+  const window = await getWindowByLabel(label);
+  if (!window) {
+    return;
+  }
+
   await window.setDecorations(false);
   await window.setShadow(true);
   await window.setMinSize(MAIN_MIN_SIZE);
@@ -64,74 +89,123 @@ export async function restoreWindowState(state: WindowState | null) {
   await window.setPosition(new PhysicalPosition(state.x, state.y));
 }
 
-export async function restoreWindowFromQIcon(
-  fullState: WindowState | null,
-  iconState: WindowState | null,
-) {
+export async function showMainWindow(state: WindowState | null, alwaysOnTop: boolean) {
   if (!isTauriRuntime()) {
     return;
   }
 
-  const window = getCurrentWindow();
-  const [monitor, currentPosition, currentSize] = await Promise.all([
-    currentMonitor(),
-    window.outerPosition(),
-    window.outerSize(),
-  ]);
-  const area = monitor ? getWorkArea(monitor) : null;
-  const width = fullState?.width ?? DEFAULT_WINDOW_WIDTH;
-  const height = fullState?.height ?? DEFAULT_WINDOW_HEIGHT;
-  const icon = iconState ?? {
-    width: currentSize.width,
-    height: currentSize.height,
-    x: currentPosition.x,
-    y: currentPosition.y,
-  };
-  const centerX = icon.x + icon.width / 2;
-  const centerY = icon.y + icon.height / 2;
+  await restoreWindowState(state, MAIN_WINDOW_LABEL);
 
-  await window.setDecorations(false);
-  await window.setShadow(true);
-  await window.setMinSize(MAIN_MIN_SIZE);
-  await window.setSize(new PhysicalSize(width, height));
-
-  if (!area) {
-    await window.setPosition(new PhysicalPosition(icon.x, icon.y));
+  const window = await getWindowByLabel(MAIN_WINDOW_LABEL);
+  if (!window) {
     return;
   }
 
-  const nearLeft = icon.x <= area.left + SNAP_THRESHOLD;
-  const nearRight = icon.x + icon.width >= area.right - SNAP_THRESHOLD;
-  const nearTop = icon.y <= area.top + SNAP_THRESHOLD;
-  const nearBottom = icon.y + icon.height >= area.bottom - SNAP_THRESHOLD;
-  const x = nearLeft
-    ? area.left
-    : nearRight
-      ? area.right - width
-      : clamp(centerX - width / 2, area.left, area.right - width);
-  const y = nearTop
-    ? area.top
-    : nearBottom
-      ? area.bottom - height
-      : clamp(centerY - height / 2, area.top, area.bottom - height);
-
-  await window.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)));
+  await window.setAlwaysOnTop(alwaysOnTop);
+  await window.unminimize();
+  await window.show();
+  await window.setFocus();
 }
 
-export async function applyQIconWindow(state: WindowState | null) {
+export async function hideMainWindow() {
   if (!isTauriRuntime()) {
     return;
   }
 
-  const window = getCurrentWindow();
+  await (await getWindowByLabel(MAIN_WINDOW_LABEL))?.hide();
+}
+
+function getDefaultDockState(monitor: Monitor): WindowState {
+  const area = getWorkArea(monitor);
+
+  return {
+    width: DOCK_WINDOW_SIZE,
+    height: DOCK_WINDOW_SIZE,
+    x: Math.round(area.right - DOCK_WINDOW_SIZE - DOCK_MARGIN),
+    y: Math.round(area.bottom - DOCK_WINDOW_SIZE - DOCK_MARGIN),
+  };
+}
+
+function normalizeDockState(state: WindowState | null, monitor: Monitor): WindowState {
+  if (!state) {
+    return getDefaultDockState(monitor);
+  }
+
+  const area = getWorkArea(monitor);
+  const centerX = state.x + state.width / 2;
+  const centerY = state.y + state.height / 2;
+  const centerInWorkArea =
+    centerX >= area.left && centerX <= area.right && centerY >= area.top && centerY <= area.bottom;
+
+  if (!centerInWorkArea) {
+    return getDefaultDockState(monitor);
+  }
+
+  return {
+    width: DOCK_WINDOW_SIZE,
+    height: DOCK_WINDOW_SIZE,
+    x: Math.round(clamp(centerX - DOCK_WINDOW_SIZE / 2, area.left, area.right - DOCK_WINDOW_SIZE)),
+    y: Math.round(clamp(centerY - DOCK_WINDOW_SIZE / 2, area.top, area.bottom - DOCK_WINDOW_SIZE)),
+  };
+}
+
+export async function applyQIconWindow(state: WindowState | null): Promise<WindowState | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
+  if (!window) {
+    return null;
+  }
+
+  const monitor = await currentMonitor();
+  const nextState = monitor
+    ? normalizeDockState(state, monitor)
+    : state
+      ? {
+          width: DOCK_WINDOW_SIZE,
+          height: DOCK_WINDOW_SIZE,
+          x: state.x,
+          y: state.y,
+        }
+      : null;
+
   await window.setDecorations(false);
   await window.setShadow(false);
-  await window.setMinSize(new PhysicalSize(DOCK_SIZE, DOCK_SIZE));
-  await window.setSize(new PhysicalSize(DOCK_SIZE, DOCK_SIZE));
+  await window.setMinSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
+  await window.setMaxSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
+  await window.setSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
 
-  if (state) {
-    await window.setPosition(new PhysicalPosition(state.x, state.y));
+  if (nextState) {
+    await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
   }
+
+  return nextState;
+}
+
+export async function showDockWindow(state: WindowState | null, alwaysOnTop: boolean) {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  const nextState = await applyQIconWindow(state);
+  const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
+  if (!window) {
+    return nextState;
+  }
+
+  await window.setAlwaysOnTop(alwaysOnTop);
+  await window.show();
+  return nextState;
+}
+
+export async function hideDockWindow() {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  await (await getWindowByLabel(DOCK_WINDOW_LABEL))?.hide();
 }
 
 export async function startQIconDrag() {
@@ -139,7 +213,8 @@ export async function startQIconDrag() {
     return;
   }
 
-  await getCurrentWindow().startDragging();
+  const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
+  await window?.startDragging();
 }
 
 export async function startMainWindowDrag() {
@@ -179,12 +254,16 @@ function getWorkArea(monitor: Monitor) {
   };
 }
 
-export async function detectSnapEdge(): Promise<DockEdge | null> {
+export async function detectSnapEdge(label?: string): Promise<DockEdge | null> {
   if (!isTauriRuntime()) {
     return null;
   }
 
-  const window = getCurrentWindow();
+  const window = label ? await getWindowByLabel(label) : getCurrentWindow();
+  if (!window) {
+    return null;
+  }
+
   const [monitor, size, position] = await Promise.all([
     currentMonitor(),
     window.outerSize(),
@@ -213,7 +292,11 @@ export async function snapQIconWindow(edge: DockEdge) {
     return null;
   }
 
-  const window = getCurrentWindow();
+  const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
+  if (!window) {
+    return null;
+  }
+
   const [monitor, position, size] = await Promise.all([
     currentMonitor(),
     window.outerPosition(),
@@ -232,23 +315,24 @@ export async function snapQIconWindow(edge: DockEdge) {
     edge === "left"
       ? area.left
       : edge === "right"
-        ? area.right - DOCK_SIZE
-        : clamp(centerX - DOCK_SIZE / 2, area.left, area.right - DOCK_SIZE);
+        ? area.right - DOCK_WINDOW_SIZE
+        : clamp(centerX - DOCK_WINDOW_SIZE / 2, area.left, area.right - DOCK_WINDOW_SIZE);
 
   const y =
     edge === "top"
       ? area.top
       : edge === "bottom"
-        ? area.bottom - DOCK_SIZE
-        : clamp(centerY - DOCK_SIZE / 2, area.top, area.bottom - DOCK_SIZE);
+        ? area.bottom - DOCK_WINDOW_SIZE
+        : clamp(centerY - DOCK_WINDOW_SIZE / 2, area.top, area.bottom - DOCK_WINDOW_SIZE);
 
   await window.setDecorations(false);
   await window.setShadow(false);
-  await window.setMinSize(new PhysicalSize(DOCK_SIZE, DOCK_SIZE));
-  await window.setSize(new PhysicalSize(DOCK_SIZE, DOCK_SIZE));
+  await window.setMinSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
+  await window.setMaxSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
+  await window.setSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
   const nextState = {
-    width: DOCK_SIZE,
-    height: DOCK_SIZE,
+    width: DOCK_WINDOW_SIZE,
+    height: DOCK_WINDOW_SIZE,
     x: Math.round(x),
     y: Math.round(y),
   };

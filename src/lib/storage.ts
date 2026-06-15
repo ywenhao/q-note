@@ -33,7 +33,6 @@ export function createDefaultSettings(): AppSettings {
     dockOnEdge: false,
     docked: false,
     dockEdge: null,
-    iconWindow: null,
     keepFullMain: false,
     window: null,
   };
@@ -96,15 +95,6 @@ function normalizeSettings(value: unknown): AppSettings {
         y: Number(value.window.y) || 0,
       }
     : null;
-  const iconWindow = isObject(value.iconWindow)
-    ? {
-        width: Number(value.iconWindow.width) || 68,
-        height: Number(value.iconWindow.height) || 68,
-        x: Number(value.iconWindow.x) || 0,
-        y: Number(value.iconWindow.y) || 0,
-      }
-    : null;
-
   return {
     language: toLanguage(value.language),
     alwaysOnTop: Boolean(value.alwaysOnTop),
@@ -118,7 +108,6 @@ function normalizeSettings(value: unknown): AppSettings {
       value.dockEdge === "bottom"
         ? value.dockEdge
         : null,
-    iconWindow,
     keepFullMain: Boolean(value.keepFullMain),
     window: windowState,
   };
