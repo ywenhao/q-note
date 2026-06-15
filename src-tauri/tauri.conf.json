@@ -28,11 +28,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "sql": {
-      "preload": ["sqlite:q-note.db"]
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",

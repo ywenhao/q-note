@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import { desc, eq } from "drizzle-orm";
 import { drizzle, type SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
@@ -18,10 +19,11 @@ import { isTauriRuntime } from "./env";
 import { isLikelyImagePath } from "./images";
 import { attachmentsTable, notesTable, schema, settingsTable } from "./schema";
 
-const DB_URL = "sqlite:q-note.db";
+const FALLBACK_DB_URL = "sqlite:q-note.db";
 const SETTINGS_KEY = "app";
 const WEB_STORAGE_KEY = "q-note:web-data";
 
+let dbUrlPromise: Promise<string> | null = null;
 let dbPromise: Promise<Database> | null = null;
 let drizzlePromise: Promise<SqliteRemoteDatabase<typeof schema>> | null = null;
 
@@ -38,8 +40,17 @@ export function createDefaultSettings(): AppSettings {
   };
 }
 
+function getDbUrl() {
+  if (!isTauriRuntime()) {
+    return Promise.resolve(FALLBACK_DB_URL);
+  }
+
+  dbUrlPromise ??= invoke<string>("get_database_url");
+  return dbUrlPromise;
+}
+
 function getDb() {
-  dbPromise ??= Database.load(DB_URL);
+  dbPromise ??= getDbUrl().then((url) => Database.load(url));
   return dbPromise;
 }
 

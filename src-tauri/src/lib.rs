@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{fs, path::PathBuf, sync::Mutex};
 
 use tauri::{
     image::Image,
@@ -15,6 +15,8 @@ const EDITOR_WINDOW_MIN_WIDTH: f64 = 420.0;
 const EDITOR_WINDOW_MIN_HEIGHT: f64 = 520.0;
 const EDITOR_WINDOW_GAP: i32 = 12;
 const APP_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
+const DATABASE_FILE_NAME: &str = "q-note.db";
+const DATA_DIR_NAME: &str = ".q-note";
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,6 +82,55 @@ fn migrations() -> Vec<Migration> {
     ]
 }
 
+fn home_dir() -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    {
+        if let Some(path) = std::env::var_os("USERPROFILE").map(PathBuf::from) {
+            return Ok(path);
+        }
+
+        if let (Some(drive), Some(path)) =
+            (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH"))
+        {
+            let mut home = PathBuf::from(drive);
+            home.push(path);
+            return Ok(home);
+        }
+    }
+
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Unable to resolve the user home directory".to_string())
+}
+
+fn database_path() -> Result<PathBuf, String> {
+    let dir = home_dir()?.join(DATA_DIR_NAME);
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    Ok(dir.join(DATABASE_FILE_NAME))
+}
+
+fn database_url() -> Result<String, String> {
+    Ok(format!("sqlite:{}", database_path()?.to_string_lossy()))
+}
+
+fn migrate_legacy_database(app: &tauri::AppHandle, next_path: &PathBuf) -> Result<(), String> {
+    if next_path.exists() {
+        return Ok(());
+    }
+
+    let legacy_path = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?
+        .join(DATABASE_FILE_NAME);
+
+    if legacy_path.exists() {
+        fs::copy(legacy_path, next_path).map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -136,6 +187,13 @@ fn position_editor_window(app: &tauri::AppHandle, editor: &WebviewWindow) {
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+#[tauri::command]
+fn get_database_url(app: tauri::AppHandle) -> Result<String, String> {
+    let path = database_path()?;
+    migrate_legacy_database(&app, &path)?;
+    Ok(format!("sqlite:{}", path.to_string_lossy()))
 }
 
 #[tauri::command]
@@ -224,6 +282,8 @@ async fn open_editor_window(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let db_url = database_url().expect("failed to resolve Q Note database path");
+
     tauri::Builder::default()
         .manage(TrayMenuState::default())
         .plugin(
@@ -236,7 +296,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:q-note.db", migrations())
+                .add_migrations(&db_url, migrations())
                 .build(),
         )
         .on_window_event(|window, event| {
@@ -256,6 +316,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             quit_app,
+            get_database_url,
             set_tray_menu_labels,
             open_editor_window
         ])
