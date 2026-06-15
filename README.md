@@ -5,16 +5,24 @@
 <h1 align="center">Q Note</h1>
 
 <p align="center">
-  A small, fast desktop note board for content you copy often.
+  A compact desktop note board for snippets, images, links, and local paths you reuse often.
 </p>
 
 <p align="center">
   <a href="./README.zh-CN.md">中文说明</a>
 </p>
 
-## Purpose
+## Screenshots
 
-Q Note is a desktop note app built with Tauri 2, React, TypeScript, Vite+, Tailwind CSS, SQLite, and Drizzle. It is designed for short snippets, image notes, web image URLs, local paths, dropped files, pasted screenshots, quick copy actions, always-on-top mode, a tray icon, launch-at-login, a dockable Q icon, color marking, import/export, and guarded bulk deletion.
+| Main board                                                                      | Editor window                                                                        |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| <img src="./docs/images/q-note-main.png" alt="Q Note main board" width="288" /> | <img src="./docs/images/q-note-editor.png" alt="Q Note editor window" width="360" /> |
+
+## Overview
+
+Q Note is a small Tauri desktop app for keeping short notes close to your cursor. It is built for quick capture and repeated copy workflows: save text snippets, screenshots, image URLs, local file paths, and small reference notes; pin the important ones; mark cards with color; and collapse the whole app into a tiny floating Q icon when you need the screen space.
+
+The interface stays intentionally compact. The main board is a narrow yellow panel with a short toolbar, card list, tray integration, always-on-top mode, and a floating icon mode that can snap to desktop edges while staying partly visible. Editing happens in a separate window so the main panel does not resize or jump.
 
 ## Quick Start
 
@@ -38,20 +46,22 @@ pnpm tauri dev
 
 ## Features
 
-| Feature          | Details                                                                                                     |
-| ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| Language switch  | Toggle Chinese and English from the toolbar; the choice is saved locally                                    |
-| Quick copy       | Click a card to copy its text; attachment-only notes copy attachment values                                 |
-| Card management  | Create, edit, delete, pin, recolor, and resize note cards                                                   |
-| Delete all       | Remove every note only after a red confirmation dialog                                                      |
-| Images and files | Add images, drop files/images, paste screenshots, use web image URLs, local paths, and base64 fallback data |
-| Image preview    | Click editor thumbnails to view a larger image                                                              |
-| Topmost window   | Toggle always-on-top from the toolbar or right-click menu                                                   |
-| Tray icon        | Keep a resident Q icon in the system tray; click it to show the app                                         |
-| Launch at login  | Enable or disable startup launch from Settings; it is off by default                                        |
-| Q icon mode      | Collapse to a yellow Q icon, drag it, snap it to screen edges, and hover to restore the full UI             |
-| Persistence      | Notes, attachments, colors, card heights, window size, topmost state, and language are saved in SQLite      |
-| Import/export    | Export and import notes plus local settings as JSON                                                         |
+| Feature            | Details                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Compact note board | Keep frequently used snippets in a narrow, always-available desktop panel                                          |
+| Quick copy         | Click a card to copy its text; attachment-only notes copy attachment values                                        |
+| Card management    | Create, edit, delete, pin, recolor, and resize note cards                                                          |
+| Separate editor    | Create and edit notes in an independent editor window without changing the main panel size                         |
+| Images and files   | Add images, drop files/images, paste screenshots, use web image URLs, local paths, and base64 fallback data        |
+| Image preview      | Click editor thumbnails to view a larger image                                                                     |
+| Floating Q icon    | Collapse to a 30px Q icon, drag it, snap it to screen edges, show half at the edge, and reveal it on hover         |
+| Dual-monitor edges | Edge snapping avoids unstable cross-screen offsets by clipping the Q icon inside the current screen                |
+| Topmost window     | Toggle always-on-top from the toolbar, right-click menu, or tray menu                                              |
+| Tray icon          | Keep a resident Q icon in the system tray; click it to show the app                                                |
+| Language switch    | Toggle Chinese and English from the toolbar; the choice is saved locally                                           |
+| Launch at login    | Enable or disable startup launch from Settings; it is off by default                                               |
+| Persistence        | Notes, attachments, colors, card heights, window size, topmost state, language, and dock state are saved in SQLite |
+| Import/export      | Export and import notes plus local settings as JSON                                                                |
 
 ## Stack
 
@@ -64,6 +74,10 @@ pnpm tauri dev
 | Storage       | SQLite + `@tauri-apps/plugin-sql` + Drizzle proxy     |
 | Files         | `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs` |
 | Icons         | lucide-react + yellow Q app icon                      |
+
+## Packaging
+
+Release builds are generated by GitHub Actions with Tauri's release build pipeline. The Windows NSIS installer uses `src-tauri/icons/icon.ico` for both installer and uninstaller icons.
 
 ## License
 
