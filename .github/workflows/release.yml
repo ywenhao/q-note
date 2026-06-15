@@ -54,5 +54,5 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Q Note ${{ github.ref_name }}
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false

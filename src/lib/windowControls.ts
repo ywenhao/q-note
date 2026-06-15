@@ -5,6 +5,7 @@ import {
   Window,
   currentMonitor,
   getCurrentWindow,
+  monitorFromPoint,
   type Monitor,
 } from "@tauri-apps/api/window";
 import {
@@ -47,6 +48,37 @@ function getRightCenterMainState(width: number, height: number, monitor: Monitor
 
 async function getWindowByLabel(label: string) {
   return Window.getByLabel(label);
+}
+
+async function getMonitorForState(state: WindowState | null) {
+  if (!state) {
+    return currentMonitor();
+  }
+
+  const centerX = Math.round(state.x + state.width / 2);
+  const centerY = Math.round(state.y + state.height / 2);
+  return (await monitorFromPoint(centerX, centerY)) ?? currentMonitor();
+}
+
+async function getMonitorForDockWindow(
+  edge: DockEdge,
+  position: PhysicalPosition,
+  size: PhysicalSize,
+) {
+  const probeX =
+    edge === "left"
+      ? position.x + size.width * 0.75
+      : edge === "right"
+        ? position.x + size.width * 0.25
+        : position.x + size.width / 2;
+  const probeY =
+    edge === "top"
+      ? position.y + size.height * 0.75
+      : edge === "bottom"
+        ? position.y + size.height * 0.25
+        : position.y + size.height / 2;
+
+  return (await monitorFromPoint(Math.round(probeX), Math.round(probeY))) ?? currentMonitor();
 }
 
 export async function applyAlwaysOnTop(enabled: boolean) {
@@ -291,7 +323,7 @@ export async function applyQIconWindow(state: WindowState | null): Promise<Windo
     return null;
   }
 
-  const monitor = await currentMonitor();
+  const monitor = await getMonitorForState(state);
   const nextState = monitor
     ? normalizeDockState(state, monitor)
     : state
@@ -442,11 +474,8 @@ export async function snapQIconWindow(edge: DockEdge) {
     return null;
   }
 
-  const [monitor, position, size] = await Promise.all([
-    currentMonitor(),
-    window.outerPosition(),
-    window.outerSize(),
-  ]);
+  const [position, size] = await Promise.all([window.outerPosition(), window.outerSize()]);
+  const monitor = await getMonitorForDockWindow(edge, position, size);
 
   if (!monitor) {
     return null;
@@ -474,11 +503,8 @@ export async function revealQIconWindow(edge: DockEdge) {
     return null;
   }
 
-  const [monitor, position, size] = await Promise.all([
-    currentMonitor(),
-    window.outerPosition(),
-    window.outerSize(),
-  ]);
+  const [position, size] = await Promise.all([window.outerPosition(), window.outerSize()]);
+  const monitor = await getMonitorForDockWindow(edge, position, size);
 
   if (!monitor) {
     return null;

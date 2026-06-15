@@ -75,9 +75,18 @@ interface MenuState {
 }
 
 type DockTransitionTarget = "dock" | "main";
+type DockRevealAnchor = WindowState & {
+  edge: DockEdge;
+  savedAt: number;
+};
 
 // A cross-window token prevents stale dock transitions from hiding the wrong window.
 const DOCK_TRANSITION_KEY = "q-note:dock-transition";
+const DOCK_GUARD_KEY = "q-note:dock-guard-until";
+const DOCK_REVEAL_ANCHOR_KEY = "q-note:dock-reveal-anchor";
+const DOCK_GUARD_MS = 800;
+const DOCK_REVEAL_ANCHOR_MAX_AGE = 5 * 60 * 1000;
+const DOCK_RETURN_SNAP_DELAY = 500;
 
 function sortNotes(notes: Note[]) {
   return [...notes].sort((a, b) => {
@@ -103,6 +112,84 @@ async function writeClipboard(value: string) {
   textArea.select();
   document.execCommand("copy");
   textArea.remove();
+}
+
+function isDockEdge(value: unknown): value is DockEdge {
+  return value === "left" || value === "right" || value === "top" || value === "bottom";
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function setSharedDockGuard() {
+  try {
+    localStorage.setItem(DOCK_GUARD_KEY, String(Date.now() + DOCK_GUARD_MS));
+  } catch {
+    // localStorage can be unavailable in unusual webview states; the local ref still guards moves.
+  }
+}
+
+function isSharedDockGuardActive() {
+  try {
+    const expiresAt = Number(localStorage.getItem(DOCK_GUARD_KEY));
+    return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function rememberDockRevealAnchor(edge: DockEdge, state: WindowState | null) {
+  if (!state) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      DOCK_REVEAL_ANCHOR_KEY,
+      JSON.stringify({
+        ...state,
+        edge,
+        savedAt: Date.now(),
+      } satisfies DockRevealAnchor),
+    );
+  } catch {
+    // This only improves return placement, so failing silently is fine.
+  }
+}
+
+function takeDockRevealAnchor() {
+  let raw: string | null = null;
+
+  try {
+    raw = localStorage.getItem(DOCK_REVEAL_ANCHOR_KEY);
+    localStorage.removeItem(DOCK_REVEAL_ANCHOR_KEY);
+  } catch {
+    return null;
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const value = JSON.parse(raw) as Partial<DockRevealAnchor>;
+    if (
+      !isDockEdge(value.edge) ||
+      !isFiniteNumber(value.x) ||
+      !isFiniteNumber(value.y) ||
+      !isFiniteNumber(value.width) ||
+      !isFiniteNumber(value.height) ||
+      !isFiniteNumber(value.savedAt) ||
+      Date.now() - value.savedAt > DOCK_REVEAL_ANCHOR_MAX_AGE
+    ) {
+      return null;
+    }
+
+    return value as DockRevealAnchor;
+  } catch {
+    return null;
+  }
 }
 
 function App() {
@@ -157,6 +244,7 @@ function App() {
 
   const setDockGuard = useCallback(() => {
     dockGuardRef.current = true;
+    setSharedDockGuard();
     if (dockGuardTimerRef.current) {
       window.clearTimeout(dockGuardTimerRef.current);
     }
@@ -221,30 +309,40 @@ function App() {
     }
   }
 
-  async function collapseToQIcon() {
+  async function collapseToQIcon(options: { useRevealAnchor?: boolean } = {}) {
     if (dockTransitionRef.current) {
       return;
     }
 
     dockTransitionRef.current = true;
     const token = beginDockTransition("dock");
+    const revealAnchor = options.useRevealAnchor ? takeDockRevealAnchor() : null;
 
     try {
       const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
       setDockGuard();
       await persistSettings({
         docked: true,
-        dockEdge: null,
+        dockEdge: revealAnchor?.edge ?? null,
         keepFullMain: false,
         window: snapshot ?? settingsRef.current.window,
       });
       iconWindowRef.current = await showDockWindow(
-        snapshot ?? settingsRef.current.window,
+        revealAnchor ?? snapshot ?? settingsRef.current.window,
         settingsRef.current.alwaysOnTop,
       );
 
       if (isActiveDockTransition(token) && settingsRef.current.docked) {
         await hideMainWindow();
+        if (revealAnchor) {
+          window.setTimeout(() => {
+            if (!isActiveDockTransition(token) || !settingsRef.current.docked) {
+              return;
+            }
+
+            void persistIconSnap(revealAnchor.edge);
+          }, DOCK_RETURN_SNAP_DELAY);
+        }
       } else if (getActiveDockTransitionTarget() === "main") {
         await hideDockWindow();
       }
@@ -449,6 +547,7 @@ function App() {
 
     setDockGuard();
     iconWindowRef.current = await revealQIconWindow(edge);
+    rememberDockRevealAnchor(edge, iconWindowRef.current);
   }
 
   async function concealDockIcon() {
@@ -459,6 +558,17 @@ function App() {
 
     setDockGuard();
     iconWindowRef.current = await snapQIconWindow(edge);
+  }
+
+  async function openMainFromDockIcon() {
+    const edge = settingsRef.current.dockEdge;
+    if (edge) {
+      setDockGuard();
+      iconWindowRef.current = await revealQIconWindow(edge);
+      rememberDockRevealAnchor(edge, iconWindowRef.current);
+    }
+
+    await restoreDock({ keepFull: true });
   }
 
   function dragMainWindow(event: PointerEvent<HTMLElement>) {
@@ -756,7 +866,7 @@ function App() {
     let unlistenResize: (() => void) | null = null;
 
     const saveWindowSoon = () => {
-      if (settingsRef.current.docked || dockGuardRef.current) {
+      if (settingsRef.current.docked || dockGuardRef.current || isSharedDockGuardActive()) {
         return;
       }
 
@@ -774,7 +884,7 @@ function App() {
     };
 
     const handleMoved = () => {
-      if (dockGuardRef.current || editorOpen) {
+      if (dockGuardRef.current || isSharedDockGuardActive() || editorOpen) {
         saveWindowSoon();
         return;
       }
@@ -847,7 +957,7 @@ function App() {
           onDragStart={() => void dragQIcon()}
           onHoverEnd={() => void concealDockIcon()}
           onHoverStart={() => void revealDockIcon()}
-          onOpenMain={() => void restoreDock({ keepFull: true })}
+          onOpenMain={() => void openMainFromDockIcon()}
           t={t}
         />
         {menu ? (
@@ -948,7 +1058,7 @@ function App() {
         className="panel-dock-button"
         onClick={(event) => {
           event.stopPropagation();
-          void collapseToQIcon();
+          void collapseToQIcon({ useRevealAnchor: true });
         }}
         title={t.switchFloatingBall}
         type="button"
