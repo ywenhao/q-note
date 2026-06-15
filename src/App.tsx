@@ -1,8 +1,6 @@
 import {
-  Download,
   FileInput,
   Languages,
-  Minus,
   PanelRightClose,
   Pencil,
   Pin,
@@ -11,8 +9,6 @@ import {
   Power,
   Settings,
   Trash2,
-  Upload,
-  X,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -27,13 +23,15 @@ import {
   type PointerEvent,
 } from "react";
 import "./App.css";
+import { AppHeader } from "./components/AppHeader";
+import { AppToolbar } from "./components/AppToolbar";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CompactDock } from "./components/CompactDock";
 import { ContextMenu, type ContextMenuItem } from "./components/ContextMenu";
-import { IconButton } from "./components/IconButton";
-import { NoteCard } from "./components/NoteCard";
 import { NoteEditor, type NoteDraft } from "./components/NoteEditor";
+import { NoteList } from "./components/NoteList";
 import { QMark } from "./components/QMark";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { StatusBar } from "./components/StatusBar";
 import { Toast } from "./components/Toast";
 import { translations } from "./i18n";
@@ -78,6 +76,7 @@ interface MenuState {
 
 type DockTransitionTarget = "dock" | "main";
 
+// A cross-window token prevents stale dock transitions from hiding the wrong window.
 const DOCK_TRANSITION_KEY = "q-note:dock-transition";
 
 function sortNotes(notes: Note[]) {
@@ -865,96 +864,42 @@ function App() {
       onClick={() => setMenu(null)}
       onContextMenu={(event) => openMenu(event)}
     >
-      <header className="top-bar" onPointerDown={dragMainWindow}>
-        <div className="brand">
-          <QMark className="brand-mark" />
-          <h1>{t.appTitle}</h1>
-        </div>
-        <div className="title-controls" onPointerDown={(event) => event.stopPropagation()}>
-          <IconButton
-            active={settings.alwaysOnTop}
-            className="is-window-pin"
-            icon={settings.alwaysOnTop ? <PinOff size={16} /> : <Pin size={16} />}
-            label={alwaysOnLabel}
-            onClick={() => void toggleAlwaysOnTop()}
-            subtle
-          />
-          <IconButton
-            className="is-window-minimize"
-            icon={<Minus size={16} />}
-            label={t.minimize}
-            onClick={() => void minimizeWindow()}
-            subtle
-          />
-          <IconButton
-            className="is-window-close"
-            icon={<X size={16} />}
-            label={t.closePanel}
-            onClick={() => void closeWindow()}
-            subtle
-          />
-        </div>
-      </header>
+      <AppHeader
+        alwaysOnLabel={alwaysOnLabel}
+        alwaysOnTop={settings.alwaysOnTop}
+        onClose={() => void closeWindow()}
+        onDragStart={dragMainWindow}
+        onMinimize={() => void minimizeWindow()}
+        onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
+        t={t}
+      />
 
-      <div className="toolbar">
-        <IconButton
-          icon={<Plus size={18} />}
-          label={t.newNote}
-          onClick={() => void openEditor(null)}
-        />
-        <IconButton
-          className="is-danger"
-          disabled={notes.length === 0}
-          icon={<Trash2 size={18} />}
-          label={t.deleteAll}
-          onClick={() => setShowDeleteAllConfirm(true)}
-        />
-        <IconButton
-          icon={<Settings size={18} />}
-          label={t.settings}
-          onClick={() => setShowSettings(true)}
-        />
-        <IconButton
-          icon={<Languages size={18} />}
-          label={t.language}
-          onClick={() => void toggleLanguage()}
-        >
-          {t.language}
-        </IconButton>
-      </div>
+      <AppToolbar
+        notesCount={notes.length}
+        onDeleteAll={() => setShowDeleteAllConfirm(true)}
+        onNewNote={() => void openEditor(null)}
+        onOpenSettings={() => setShowSettings(true)}
+        onToggleLanguage={() => void toggleLanguage()}
+        t={t}
+      />
 
-      {notes.length > 0 ? (
-        <section className="note-list">
-          {notes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              onColorChange={(id, color) => void patchNote(id, { color })}
-              onContextMenu={openMenu}
-              onCopy={(item) => void handleCopy(item)}
-              onDelete={(id) => void handleDelete(id)}
-              onEdit={(item) => void openEditor(item)}
-              onHeightChange={(id, textHeight) => void patchNote(id, { textHeight })}
-              onTogglePin={(id) => {
-                const note = notesRef.current.find((item) => item.id === id);
-                if (note) {
-                  void patchNote(id, { pinned: !note.pinned });
-                }
-              }}
-              t={t}
-            />
-          ))}
-        </section>
-      ) : (
-        <section className="empty-state">
-          <QMark className="empty-mark" />
-          <h2>{t.emptyTitle}</h2>
-          <p>{t.noNotesBody}</p>
-          <button className="primary-button" onClick={() => void openEditor(null)} type="button">
-            {t.emptyAction}
-          </button>
-        </section>
-      )}
+      <NoteList
+        notes={notes}
+        onColorChange={(id, color) => void patchNote(id, { color })}
+        onContextMenu={openMenu}
+        onCopy={(item) => void handleCopy(item)}
+        onDelete={(id) => void handleDelete(id)}
+        onEdit={(item) => void openEditor(item)}
+        onHeightChange={(id, textHeight) => void patchNote(id, { textHeight })}
+        onNewNote={() => void openEditor(null)}
+        onTogglePin={(id) => {
+          const note = notesRef.current.find((item) => item.id === id);
+          if (note) {
+            void patchNote(id, { pinned: !note.pinned });
+          }
+        }}
+        t={t}
+      />
 
       {editorOpen ? (
         <NoteEditor
@@ -965,45 +910,14 @@ function App() {
         />
       ) : null}
       {showSettings ? (
-        <div className="modal-backdrop" onMouseDown={() => setShowSettings(false)}>
-          <section
-            aria-modal="true"
-            className="settings-dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <header>
-              <h2>{t.settingsTitle}</h2>
-              <IconButton
-                icon={<X size={18} />}
-                label={t.cancel}
-                onClick={() => setShowSettings(false)}
-                subtle
-              />
-            </header>
-            <button className="settings-row" onClick={() => void toggleAutoStart()} type="button">
-              <span>
-                <Power size={18} />
-                {t.startupSetting}
-              </span>
-              <span className={`switch ${settings.autoStart ? "is-on" : ""}`} aria-hidden="true">
-                <span />
-              </span>
-            </button>
-            <button className="settings-row" onClick={() => void handleImport()} type="button">
-              <span>
-                <Upload size={18} />
-                {t.import}
-              </span>
-            </button>
-            <button className="settings-row" onClick={() => void handleExport()} type="button">
-              <span>
-                <Download size={18} />
-                {t.export}
-              </span>
-            </button>
-          </section>
-        </div>
+        <SettingsDialog
+          autoStart={settings.autoStart}
+          onClose={() => setShowSettings(false)}
+          onExport={() => void handleExport()}
+          onImport={() => void handleImport()}
+          onToggleAutoStart={() => void toggleAutoStart()}
+          t={t}
+        />
       ) : null}
 
       {menu ? (

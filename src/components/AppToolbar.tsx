@@ -1,0 +1,38 @@
+import { Languages, Plus, Settings, Trash2 } from "lucide-react";
+import type { Translation } from "../i18n";
+import { IconButton } from "./IconButton";
+
+interface AppToolbarProps {
+  notesCount: number;
+  onDeleteAll: () => void;
+  onNewNote: () => void;
+  onOpenSettings: () => void;
+  onToggleLanguage: () => void;
+  t: Translation;
+}
+
+export function AppToolbar({
+  notesCount,
+  onDeleteAll,
+  onNewNote,
+  onOpenSettings,
+  onToggleLanguage,
+  t,
+}: AppToolbarProps) {
+  return (
+    <div className="toolbar">
+      <IconButton icon={<Plus size={18} />} label={t.newNote} onClick={onNewNote} />
+      <IconButton
+        className="is-danger"
+        disabled={notesCount === 0}
+        icon={<Trash2 size={18} />}
+        label={t.deleteAll}
+        onClick={onDeleteAll}
+      />
+      <IconButton icon={<Settings size={18} />} label={t.settings} onClick={onOpenSettings} />
+      <IconButton icon={<Languages size={18} />} label={t.language} onClick={onToggleLanguage}>
+        {t.language}
+      </IconButton>
+    </div>
+  );
+}
