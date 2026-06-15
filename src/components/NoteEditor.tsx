@@ -247,9 +247,11 @@ export function NoteEditor({
               />
             ))}
           </div>
-          <div onPointerDown={(event) => event.stopPropagation()}>
-            <IconButton icon={<X size={18} />} label={t.cancel} onClick={onCancel} subtle />
-          </div>
+          {!isWindowMode ? (
+            <div onPointerDown={(event) => event.stopPropagation()}>
+              <IconButton icon={<X size={18} />} label={t.cancel} onClick={onCancel} subtle />
+            </div>
+          ) : null}
         </header>
 
         <textarea

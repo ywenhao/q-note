@@ -58,6 +58,7 @@ import {
   hideDockWindow,
   hideMainWindow,
   openEditorWindow,
+  positionMainWindowAtStartup,
   revealQIconWindow,
   showDockWindow,
   showMainWindow,
@@ -663,6 +664,7 @@ function App() {
       }
 
       if (currentWindowLabel === MAIN_WINDOW_LABEL) {
+        await positionMainWindowAtStartup(bootSettings.window);
         await hideDockWindow();
       }
 

@@ -597,7 +597,7 @@ button {
 .color-popover {
   position: absolute;
   top: 36px;
-  right: 0;
+  left: -2px;
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(4, 20px);
@@ -708,8 +708,8 @@ button {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  padding: 8px;
-  background: #ffd150;
+  padding: 0;
+  background: #fff9df;
 }
 
 .editor-window-shell.is-loading {
@@ -736,6 +736,9 @@ button {
   width: 100%;
   height: 100%;
   max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   animation: none;
 }
 

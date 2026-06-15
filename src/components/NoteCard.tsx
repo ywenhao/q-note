@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -62,6 +63,7 @@ export function NoteCard({
   onTogglePin,
   t,
 }: NoteCardProps) {
+  const colorPopoverRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLParagraphElement>(null);
   const suppressCopyUntilRef = useRef(0);
   const [draftHeight, setDraftHeight] = useState<number | null>(null);
@@ -73,6 +75,24 @@ export function NoteCard({
   const hasText = note.content.trim().length > 0;
   const imageAttachments = note.attachments.filter(isImageAttachment);
   const fileAttachments = note.attachments.filter((attachment) => !isImageAttachment(attachment));
+
+  useEffect(() => {
+    if (!paletteOpen) {
+      return;
+    }
+
+    function closePaletteOnOutsidePointer(event: globalThis.PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && colorPopoverRef.current?.contains(target)) {
+        return;
+      }
+
+      setPaletteOpen(false);
+    }
+
+    window.addEventListener("pointerdown", closePaletteOnOutsidePointer);
+    return () => window.removeEventListener("pointerdown", closePaletteOnOutsidePointer);
+  }, [paletteOpen]);
 
   function beginResize(event: PointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -183,7 +203,7 @@ export function NoteCard({
             onClick={() => onEdit(note)}
             subtle
           />
-          <div className="color-popover-wrap">
+          <div className="color-popover-wrap" ref={colorPopoverRef}>
             <IconButton
               icon={<Palette size={16} />}
               label={t.color}

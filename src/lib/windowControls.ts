@@ -17,6 +17,7 @@ import {
 import { isTauriRuntime } from "./env";
 
 const DOCK_MARGIN = 12;
+const MAIN_START_MARGIN = 40;
 const SNAP_THRESHOLD = 28;
 const EDGE_PEEK_SIZE = DOCK_WINDOW_SIZE / 2;
 const DOCK_SLIDE_DURATION = 130;
@@ -29,6 +30,19 @@ const EDITOR_REQUEST_KEY = "q-note:editor-request";
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
+}
+
+function getRightCenterMainState(width: number, height: number, monitor: Monitor): WindowState {
+  const area = getWorkArea(monitor);
+
+  return {
+    width,
+    height,
+    x: Math.round(clamp(area.right - width - MAIN_START_MARGIN, area.left, area.right - width)),
+    y: Math.round(
+      clamp(area.top + (area.bottom - area.top - height) / 2, area.top, area.bottom - height),
+    ),
+  };
 }
 
 async function getWindowByLabel(label: string) {
@@ -89,11 +103,48 @@ export async function restoreWindowState(state: WindowState | null, label = MAIN
 
   if (!state) {
     await window.setSize(new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
+    const monitor = await currentMonitor();
+    if (monitor) {
+      const nextState = getRightCenterMainState(
+        DEFAULT_WINDOW_WIDTH,
+        DEFAULT_WINDOW_HEIGHT,
+        monitor,
+      );
+      await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
+    }
     return;
   }
 
   await window.setSize(new PhysicalSize(state.width, state.height));
   await window.setPosition(new PhysicalPosition(state.x, state.y));
+}
+
+export async function positionMainWindowAtStartup(state: WindowState | null) {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  const window = await getWindowByLabel(MAIN_WINDOW_LABEL);
+  const monitor = await currentMonitor();
+  if (!window) {
+    return;
+  }
+
+  const width = state?.width ?? DEFAULT_WINDOW_WIDTH;
+  const height = state?.height ?? DEFAULT_WINDOW_HEIGHT;
+
+  await window.setDecorations(false);
+  await window.setShadow(true);
+  await window.setMinSize(MAIN_MIN_SIZE);
+  await window.setSize(new PhysicalSize(width, height));
+
+  if (monitor) {
+    const nextState = getRightCenterMainState(width, height, monitor);
+    await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
+  }
+
+  await window.show();
+  await window.setFocus();
 }
 
 export async function showMainWindow(state: WindowState | null, alwaysOnTop: boolean) {

@@ -4,11 +4,16 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder,
+    Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 const DOCK_WINDOW_SIZE: f64 = 30.0;
+const EDITOR_WINDOW_WIDTH: f64 = 520.0;
+const EDITOR_WINDOW_HEIGHT: f64 = 640.0;
+const EDITOR_WINDOW_MIN_WIDTH: f64 = 420.0;
+const EDITOR_WINDOW_MIN_HEIGHT: f64 = 520.0;
+const EDITOR_WINDOW_GAP: i32 = 12;
 const APP_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 
 #[derive(Clone, serde::Serialize)]
@@ -89,6 +94,45 @@ fn hide_dock_window(app: &tauri::AppHandle) {
     }
 }
 
+fn clamp_i32(value: i32, min: i32, max: i32) -> i32 {
+    value.max(min).min(max)
+}
+
+fn position_editor_window(app: &tauri::AppHandle, editor: &WebviewWindow) {
+    let Some(main) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let (Ok(main_position), Ok(main_size), Ok(editor_size)) = (
+        main.outer_position(),
+        main.outer_size(),
+        editor.outer_size(),
+    ) else {
+        return;
+    };
+
+    let target_x = main_position.x - editor_size.width as i32 - EDITOR_WINDOW_GAP;
+    let target_y = main_position.y + (main_size.height as i32 - editor_size.height as i32) / 2;
+
+    if let Ok(Some(monitor)) = main.current_monitor() {
+        let area = monitor.work_area();
+        let area_position = area.position;
+        let area_size = area.size;
+        let min_x = area_position.x;
+        let max_x = area_position.x + area_size.width as i32 - editor_size.width as i32;
+        let min_y = area_position.y;
+        let max_y = area_position.y + area_size.height as i32 - editor_size.height as i32;
+
+        let _ = editor.set_position(PhysicalPosition::new(
+            clamp_i32(target_x, min_x, max_x),
+            clamp_i32(target_y, min_y, max_y),
+        ));
+        return;
+    }
+
+    let _ = editor.set_position(PhysicalPosition::new(target_x, target_y));
+}
+
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
@@ -126,7 +170,7 @@ fn set_tray_menu_labels(
 }
 
 #[tauri::command]
-fn open_editor_window(
+async fn open_editor_window(
     app: tauri::AppHandle,
     note_id: Option<String>,
     always_on_top: bool,
@@ -142,6 +186,7 @@ fn open_editor_window(
         window
             .set_always_on_top(always_on_top)
             .map_err(|error| error.to_string())?;
+        position_editor_window(&app, &window);
         window.unminimize().map_err(|error| error.to_string())?;
         window.show().map_err(|error| error.to_string())?;
         window.set_focus().map_err(|error| error.to_string())?;
@@ -158,18 +203,21 @@ fn open_editor_window(
         .title("Q Note")
         .icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?
-        .inner_size(520.0, 640.0)
-        .min_inner_size(420.0, 520.0)
+        .inner_size(EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_HEIGHT)
+        .min_inner_size(EDITOR_WINDOW_MIN_WIDTH, EDITOR_WINDOW_MIN_HEIGHT)
         .resizable(true)
         .decorations(true)
         .transparent(false)
         .shadow(true)
         .always_on_top(always_on_top)
-        .visible(true)
-        .focused(true)
+        .visible(false)
+        .focused(false)
         .build()
         .map_err(|error| error.to_string())?;
 
+    position_editor_window(&app, &window);
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
     let _ = window.emit("q-note-editor-open", EditorOpenPayload { note_id });
 
     Ok(())
@@ -201,7 +249,7 @@ pub fn run() {
                     }
                     "editor" => {
                         api.prevent_close();
-                        let _ = window.destroy();
+                        let _ = window.hide();
                     }
                     _ => {}
                 }
