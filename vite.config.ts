@@ -26,6 +26,14 @@ export default defineConfig({
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
+  build: {
+    rollupOptions: {
+      input: {
+        editor: "editor.html",
+        main: "index.html",
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

@@ -28,7 +28,6 @@ import { AppToolbar } from "./components/AppToolbar";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CompactDock } from "./components/CompactDock";
 import { ContextMenu, type ContextMenuItem } from "./components/ContextMenu";
-import { EditorWindow } from "./components/EditorWindow";
 import { NoteEditor, type NoteDraft } from "./components/NoteEditor";
 import { NoteList } from "./components/NoteList";
 import { QMark } from "./components/QMark";
@@ -52,7 +51,6 @@ import {
 } from "./lib/storage";
 import {
   DOCK_WINDOW_LABEL,
-  EDITOR_WINDOW_LABEL,
   MAIN_WINDOW_LABEL,
   applyAlwaysOnTop,
   captureWindowState,
@@ -106,11 +104,7 @@ async function writeClipboard(value: string) {
   textArea.remove();
 }
 
-interface MainAppProps {
-  currentWindowLabel: string;
-}
-
-function MainApp({ currentWindowLabel }: MainAppProps) {
+function App() {
   const [editorNote, setEditorNote] = useState<Note | null | undefined>(undefined);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -128,6 +122,7 @@ function MainApp({ currentWindowLabel }: MainAppProps) {
   const dockGuardTimerRef = useRef<number | null>(null);
   const dockTransitionRef = useRef(false);
 
+  const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
   const isDockWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
   const t = translations[settings.language];
   const editorOpen = editorNote !== undefined;
@@ -962,16 +957,6 @@ function MainApp({ currentWindowLabel }: MainAppProps) {
       <Toast message={toast} />
     </main>
   );
-}
-
-function App() {
-  const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
-
-  if (currentWindowLabel === EDITOR_WINDOW_LABEL) {
-    return <EditorWindow />;
-  }
-
-  return <MainApp currentWindowLabel={currentWindowLabel} />;
 }
 
 export default App;

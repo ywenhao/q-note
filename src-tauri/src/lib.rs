@@ -136,6 +136,10 @@ fn open_editor_window(
             .set_icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())?;
         window
+            .set_decorations(true)
+            .map_err(|error| error.to_string())?;
+        window.set_shadow(true).map_err(|error| error.to_string())?;
+        window
             .set_always_on_top(always_on_top)
             .map_err(|error| error.to_string())?;
         window.unminimize().map_err(|error| error.to_string())?;
@@ -150,15 +154,15 @@ fn open_editor_window(
         return Ok(());
     }
 
-    let window = WebviewWindowBuilder::new(&app, "editor", WebviewUrl::App("index.html".into()))
+    let window = WebviewWindowBuilder::new(&app, "editor", WebviewUrl::App("editor.html".into()))
         .title("Q Note")
         .icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?
         .inner_size(520.0, 640.0)
         .min_inner_size(420.0, 520.0)
         .resizable(true)
-        .decorations(false)
-        .transparent(true)
+        .decorations(true)
+        .transparent(false)
         .shadow(true)
         .always_on_top(always_on_top)
         .visible(true)
@@ -190,9 +194,16 @@ pub fn run() {
         )
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if matches!(window.label(), "main" | "dock") {
-                    api.prevent_close();
-                    let _ = window.hide();
+                match window.label() {
+                    "main" | "dock" => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                    "editor" => {
+                        api.prevent_close();
+                        let _ = window.destroy();
+                    }
+                    _ => {}
                 }
             }
         })

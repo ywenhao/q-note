@@ -76,7 +76,7 @@ export function EditorWindow() {
 
   async function closeEditorWindow() {
     if (isTauriRuntime()) {
-      await getCurrentWindow().hide();
+      await getCurrentWindow().close();
     }
   }
 
