@@ -184,6 +184,14 @@ function rememberDockRevealAnchor(edge: DockEdge, state: WindowState | null) {
   }
 }
 
+function clearDockRevealAnchor() {
+  try {
+    localStorage.removeItem(DOCK_REVEAL_ANCHOR_KEY);
+  } catch {
+    // This state is only used to polish the dock return transition.
+  }
+}
+
 function takeDockRevealAnchor() {
   let raw: string | null = null;
 
@@ -311,9 +319,13 @@ function App() {
     return localStorage.getItem(DOCK_TRANSITION_KEY) === token;
   }
 
-  async function restoreDock(options: { keepFull?: boolean } = {}) {
+  async function restoreDock(options: { keepFull?: boolean; preserveRevealAnchor?: boolean } = {}) {
     if (dockTransitionRef.current) {
       return;
+    }
+
+    if (!options.preserveRevealAnchor) {
+      clearDockRevealAnchor();
     }
 
     dockTransitionRef.current = true;
@@ -624,6 +636,7 @@ function App() {
       return;
     }
 
+    clearDockRevealAnchor();
     dockDragRef.current = true;
     dockDragSessionRef.current = await beginQIconDrag();
     if (!dockDragSessionRef.current) {
@@ -667,6 +680,7 @@ function App() {
       captureWindowState(DOCK_WINDOW_LABEL),
     ]);
     if (!snapshot) {
+      clearDockRevealAnchor();
       return;
     }
 
@@ -676,6 +690,7 @@ function App() {
     }
 
     iconWindowRef.current = snapshot;
+    clearDockRevealAnchor();
     await persistSettings({ dockEdge: null });
   }
 
@@ -691,7 +706,6 @@ function App() {
 
     setDockGuard();
     iconWindowRef.current = await revealQIconWindow(edge);
-    rememberDockRevealAnchor(edge, iconWindowRef.current);
   }
 
   async function concealDockIcon() {
@@ -711,11 +725,15 @@ function App() {
   async function openMainFromDockIcon() {
     const edge = settingsRef.current.dockEdge;
     if (edge) {
+      clearDockRevealAnchor();
       setDockGuard();
       iconWindowRef.current = await revealQIconWindow(edge);
       rememberDockRevealAnchor(edge, iconWindowRef.current);
+      await restoreDock({ keepFull: true, preserveRevealAnchor: true });
+      return;
     }
 
+    clearDockRevealAnchor();
     await restoreDock({ keepFull: true });
   }
 
@@ -1069,6 +1087,7 @@ function App() {
             }
 
             iconWindowRef.current = snapshot;
+            clearDockRevealAnchor();
             void persistSettings({ dockEdge: null });
           });
         }, 220);
