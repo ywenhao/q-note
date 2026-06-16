@@ -4,6 +4,7 @@ import { translations } from "../i18n";
 import { isTauriRuntime } from "../lib/env";
 import {
   UPDATE_DOWNLOAD_PROGRESS_EVENT,
+  FALLBACK_VERSION,
   cancelUpdateDownload,
   checkForUpdate,
   downloadUpdate,
@@ -32,7 +33,7 @@ export function useUpdateManager({
   ready,
   showToast,
 }: UseUpdateManagerOptions) {
-  const [appVersion, setAppVersion] = useState("0.0.9");
+  const [appVersion, setAppVersion] = useState(FALLBACK_VERSION);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
