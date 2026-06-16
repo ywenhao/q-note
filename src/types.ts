@@ -18,6 +18,7 @@ export interface Note {
   content: string;
   color: string;
   pinned: boolean;
+  sortOrder: number;
   textHeight: number | null;
   attachments: NoteAttachment[];
   createdAt: number;

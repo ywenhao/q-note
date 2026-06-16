@@ -17,19 +17,37 @@ function getInitialNoteId() {
   return new URLSearchParams(window.location.search).get("noteId") ?? readPendingEditorNoteId();
 }
 
+function getTopSortOrder(notes: Note[], pinned: boolean) {
+  const group = notes.filter((note) => note.pinned === pinned);
+  if (group.length === 0) {
+    return 0;
+  }
+
+  return Math.min(...group.map((note) => note.sortOrder)) - 1;
+}
+
 export function EditorWindow() {
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(() => getInitialNoteId());
+  const [editorSession, setEditorSession] = useState(0);
   const [note, setNote] = useState<Note | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const t = translations[settings.language];
+  const editorTitle = activeNoteId ? t.editorEditTitle : t.editorNewTitle;
 
   const loadEditorData = useCallback(async (noteId: string | null) => {
+    setActiveNoteId(noteId);
+    setEditorSession((current) => current + 1);
+    setNote(null);
     try {
       const data = await loadAppData();
       setSettings(data.settings);
+      setNotes(data.notes);
       setNote(noteId ? (data.notes.find((item) => item.id === noteId) ?? null) : null);
     } catch {
       setSettings(createDefaultSettings());
+      setNotes([]);
       setNote(null);
     } finally {
       setReady(true);
@@ -74,7 +92,17 @@ export function EditorWindow() {
     };
   }, [loadEditorData]);
 
+  useEffect(() => {
+    document.title = editorTitle;
+    if (isTauriRuntime()) {
+      void getCurrentWindow().setTitle(editorTitle);
+    }
+  }, [editorTitle]);
+
   async function closeEditorWindow() {
+    setActiveNoteId(null);
+    setEditorSession((current) => current + 1);
+    setNote(null);
     if (isTauriRuntime()) {
       await getCurrentWindow().hide();
     }
@@ -89,6 +117,13 @@ export function EditorWindow() {
           color: draft.color,
           content: draft.content,
           pinned: draft.pinned,
+          sortOrder:
+            note.pinned === draft.pinned
+              ? note.sortOrder
+              : getTopSortOrder(
+                  notes.filter((item) => item.id !== note.id),
+                  draft.pinned,
+                ),
           updatedAt: now,
         }
       : {
@@ -97,6 +132,7 @@ export function EditorWindow() {
           color: draft.color,
           content: draft.content,
           pinned: draft.pinned,
+          sortOrder: getTopSortOrder(notes, draft.pinned),
           textHeight: null,
           createdAt: now,
           updatedAt: now,
@@ -125,6 +161,7 @@ export function EditorWindow() {
 
   return (
     <NoteEditor
+      key={editorSession}
       mode="window"
       note={note}
       onCancel={() => void closeEditorWindow()}

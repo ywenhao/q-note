@@ -14,7 +14,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type HTMLAttributes,
   type MouseEvent as ReactMouseEvent,
+  type Ref,
   type PointerEvent,
 } from "react";
 import type { Translation } from "../i18n";
@@ -29,6 +31,10 @@ type NoteTextStyle = CSSProperties & {
 };
 
 interface NoteCardProps {
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
+  dragHandleRef?: Ref<HTMLDivElement>;
+  dragOverlay?: boolean;
+  dragging?: boolean;
   note: Note;
   onColorChange: (id: string, color: string) => void;
   onContextMenu: (event: ReactMouseEvent<HTMLElement>, noteId: string) => void;
@@ -37,6 +43,9 @@ interface NoteCardProps {
   onEdit: (note: Note) => void;
   onHeightChange: (id: string, height: number) => void;
   onTogglePin: (id: string) => void;
+  rootRef?: Ref<HTMLElement>;
+  shouldSuppressCopy: () => boolean;
+  sortableStyle?: CSSProperties;
   t: Translation;
 }
 
@@ -52,7 +61,15 @@ function stopCardClick(event: ReactMouseEvent) {
   event.stopPropagation();
 }
 
+function stopCardPointer(event: PointerEvent) {
+  event.stopPropagation();
+}
+
 export function NoteCard({
+  dragHandleProps,
+  dragHandleRef,
+  dragOverlay = false,
+  dragging = false,
   note,
   onColorChange,
   onContextMenu,
@@ -61,6 +78,9 @@ export function NoteCard({
   onEdit,
   onHeightChange,
   onTogglePin,
+  rootRef,
+  shouldSuppressCopy,
+  sortableStyle,
   t,
 }: NoteCardProps) {
   const colorPopoverRef = useRef<HTMLDivElement>(null);
@@ -135,7 +155,7 @@ export function NoteCard({
   }
 
   function handleCardClick() {
-    if (Date.now() < suppressCopyUntilRef.current) {
+    if (Date.now() < suppressCopyUntilRef.current || shouldSuppressCopy()) {
       return;
     }
 
@@ -144,10 +164,18 @@ export function NoteCard({
 
   return (
     <article
-      className={`note-card ${note.pinned ? "is-pinned" : ""}`}
+      className={[
+        "note-card",
+        note.pinned ? "is-pinned" : "",
+        dragging ? "is-dragging" : "",
+        dragOverlay ? "is-drag-overlay" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onClick={handleCardClick}
       onContextMenu={(event) => onContextMenu(event, note.id)}
-      style={{ backgroundColor: note.color }}
+      ref={rootRef}
+      style={{ ...sortableStyle, backgroundColor: note.color }}
     >
       {note.pinned ? (
         <span aria-label={t.pinned} className="note-card__pin-badge" role="img">
@@ -156,7 +184,7 @@ export function NoteCard({
       ) : null}
 
       <div className="note-card__body">
-        <div className="note-card__content">
+        <div className="note-card__content" ref={dragHandleRef} {...dragHandleProps}>
           <p
             className={`note-card__text ${hasText ? "" : "is-muted"}`}
             ref={textRef}
@@ -189,7 +217,7 @@ export function NoteCard({
           ) : null}
         </div>
 
-        <div className="note-card__actions" onClick={stopCardClick}>
+        <div className="note-card__actions" onClick={stopCardClick} onPointerDown={stopCardPointer}>
           <IconButton
             active={note.pinned}
             icon={note.pinned ? <PinOff size={16} /> : <Pin size={16} />}

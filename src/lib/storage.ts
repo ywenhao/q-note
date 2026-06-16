@@ -153,6 +153,7 @@ function normalizeNote(value: unknown): Note | null {
     return null;
   }
 
+  const updatedAt = Number(value.updatedAt) || Date.now();
   const attachments = Array.isArray(value.attachments)
     ? value.attachments
         .map(normalizeAttachment)
@@ -164,10 +165,11 @@ function normalizeNote(value: unknown): Note | null {
     content: typeof value.content === "string" ? value.content : "",
     color: typeof value.color === "string" ? value.color : DEFAULT_NOTE_COLOR,
     pinned: Boolean(value.pinned),
+    sortOrder: Number.isFinite(Number(value.sortOrder)) ? Number(value.sortOrder) : -updatedAt,
     textHeight: typeof value.textHeight === "number" ? value.textHeight : null,
     attachments,
     createdAt: Number(value.createdAt) || Date.now(),
-    updatedAt: Number(value.updatedAt) || Date.now(),
+    updatedAt,
   };
 }
 
@@ -212,7 +214,7 @@ export async function loadAppData(): Promise<AppData> {
   const noteRows = await db
     .select()
     .from(notesTable)
-    .orderBy(desc(notesTable.pinned), desc(notesTable.updatedAt));
+    .orderBy(desc(notesTable.pinned), notesTable.sortOrder, desc(notesTable.updatedAt));
   const attachmentRows = await db
     .select()
     .from(attachmentsTable)
@@ -242,6 +244,7 @@ export async function loadAppData(): Promise<AppData> {
     content: row.content,
     color: row.color,
     pinned: row.pinned === 1,
+    sortOrder: row.sortOrder,
     textHeight: row.textHeight,
     attachments: attachmentMap.get(row.id) ?? [],
     createdAt: row.createdAt,
@@ -288,6 +291,7 @@ export async function saveNote(note: Note) {
       content: note.content,
       color: note.color,
       pinned: note.pinned ? 1 : 0,
+      sortOrder: note.sortOrder,
       textHeight: note.textHeight,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
@@ -298,6 +302,7 @@ export async function saveNote(note: Note) {
         content: note.content,
         color: note.color,
         pinned: note.pinned ? 1 : 0,
+        sortOrder: note.sortOrder,
         textHeight: note.textHeight,
         updatedAt: note.updatedAt,
       },
@@ -314,6 +319,29 @@ export async function saveNote(note: Note) {
       name: attachment.name ?? null,
       createdAt: attachment.createdAt,
     });
+  }
+}
+
+export async function saveNotesOrder(notes: Note[]) {
+  if (!isTauriRuntime()) {
+    const data = loadWebData();
+    const noteMap = new Map(notes.map((note) => [note.id, note]));
+    saveWebData({
+      ...data,
+      notes: data.notes.map((note) => noteMap.get(note.id) ?? note),
+    });
+    return;
+  }
+
+  const db = await getDrizzleDb();
+  for (const note of notes) {
+    await db
+      .update(notesTable)
+      .set({
+        pinned: note.pinned ? 1 : 0,
+        sortOrder: note.sortOrder,
+      })
+      .where(eq(notesTable.id, note.id));
   }
 }
 

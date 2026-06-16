@@ -47,6 +47,7 @@ import {
   normalizeImportPayload,
   replaceAppData,
   saveNote,
+  saveNotesOrder,
   saveSettings,
 } from "./lib/storage";
 import {
@@ -94,8 +95,30 @@ function sortNotes(notes: Note[]) {
       return Number(b.pinned) - Number(a.pinned);
     }
 
+    if (a.sortOrder !== b.sortOrder) {
+      return a.sortOrder - b.sortOrder;
+    }
+
     return b.updatedAt - a.updatedAt;
   });
+}
+
+function getTopSortOrder(notes: Note[], pinned: boolean) {
+  const group = notes.filter((note) => note.pinned === pinned);
+  if (group.length === 0) {
+    return 0;
+  }
+
+  return Math.min(...group.map((note) => note.sortOrder)) - 1;
+}
+
+function normalizeManualOrder(notes: Note[]) {
+  return [...notes.filter((note) => note.pinned), ...notes.filter((note) => !note.pinned)].map(
+    (note, index) => ({
+      ...note,
+      sortOrder: index,
+    }),
+  );
 }
 
 async function writeClipboard(value: string) {
@@ -357,7 +380,13 @@ function App() {
     }
 
     if (isTauriRuntime()) {
-      await openEditorWindow(note?.id ?? null, settingsRef.current.alwaysOnTop);
+      await openEditorWindow(
+        note?.id ?? null,
+        settingsRef.current.alwaysOnTop,
+        note
+          ? translations[settingsRef.current.language].editorEditTitle
+          : translations[settingsRef.current.language].editorNewTitle,
+      );
       return;
     }
 
@@ -377,6 +406,13 @@ function App() {
           color: draft.color,
           content: draft.content,
           pinned: draft.pinned,
+          sortOrder:
+            editorNote.pinned === draft.pinned
+              ? editorNote.sortOrder
+              : getTopSortOrder(
+                  notesRef.current.filter((note) => note.id !== editorNote.id),
+                  draft.pinned,
+                ),
           updatedAt: now,
         }
       : {
@@ -385,6 +421,7 @@ function App() {
           color: draft.color,
           content: draft.content,
           pinned: draft.pinned,
+          sortOrder: getTopSortOrder(notesRef.current, draft.pinned),
           textHeight: null,
           createdAt: now,
           updatedAt: now,
@@ -415,9 +452,50 @@ function App() {
       return;
     }
 
-    const nextNote = { ...target, ...patch };
+    const targetPinned =
+      typeof patch.pinned === "boolean" && patch.pinned !== target.pinned
+        ? patch.pinned
+        : target.pinned;
+    const nextNote = {
+      ...target,
+      ...patch,
+      sortOrder:
+        typeof patch.pinned === "boolean" && patch.pinned !== target.pinned
+          ? getTopSortOrder(
+              notesRef.current.filter((note) => note.id !== id),
+              targetPinned,
+            )
+          : (patch.sortOrder ?? target.sortOrder),
+    };
     commitNotes([nextNote, ...notesRef.current.filter((note) => note.id !== id)]);
     await saveNote(nextNote);
+  }
+
+  async function reorderNotes(draggedId: string, targetId: string, placement: "before" | "after") {
+    if (draggedId === targetId) {
+      return;
+    }
+
+    const draggedNote = notesRef.current.find((note) => note.id === draggedId);
+    const targetNote = notesRef.current.find((note) => note.id === targetId);
+    if (!draggedNote || !targetNote) {
+      return;
+    }
+
+    const nextNotes = notesRef.current.filter((note) => note.id !== draggedId);
+    const targetIndex = nextNotes.findIndex((note) => note.id === targetId);
+    if (targetIndex < 0) {
+      return;
+    }
+
+    nextNotes.splice(targetIndex + (placement === "after" ? 1 : 0), 0, {
+      ...draggedNote,
+      pinned: targetNote.pinned,
+    });
+
+    const orderedNotes = normalizeManualOrder(nextNotes);
+    commitNotes(orderedNotes);
+    await saveNotesOrder(orderedNotes);
   }
 
   async function handleDelete(id: string) {
@@ -1007,6 +1085,9 @@ function App() {
         onEdit={(item) => void openEditor(item)}
         onHeightChange={(id, textHeight) => void patchNote(id, { textHeight })}
         onNewNote={() => void openEditor(null)}
+        onReorder={(draggedId, targetId, placement) =>
+          void reorderNotes(draggedId, targetId, placement)
+        }
         onTogglePin={(id) => {
           const note = notesRef.current.find((item) => item.id === id);
           if (note) {

@@ -389,7 +389,7 @@ export async function startMainWindowDrag() {
   await getCurrentWindow().startDragging();
 }
 
-export async function openEditorWindow(noteId: string | null, alwaysOnTop: boolean) {
+export async function openEditorWindow(noteId: string | null, alwaysOnTop: boolean, title: string) {
   if (!isTauriRuntime()) {
     return;
   }
@@ -405,6 +405,7 @@ export async function openEditorWindow(noteId: string | null, alwaysOnTop: boole
   await invoke("open_editor_window", {
     alwaysOnTop,
     noteId,
+    title,
   });
 }
 

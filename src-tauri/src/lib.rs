@@ -79,6 +79,22 @@ fn migrations() -> Vec<Migration> {
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "add_note_sort_order",
+            sql: r#"
+            ALTER TABLE notes
+                ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+
+            UPDATE notes
+                SET sort_order = -updated_at;
+
+            DROP INDEX IF EXISTS idx_notes_sort;
+            CREATE INDEX IF NOT EXISTS idx_notes_sort
+                ON notes (pinned DESC, sort_order ASC, updated_at DESC);
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -232,10 +248,14 @@ async fn open_editor_window(
     app: tauri::AppHandle,
     note_id: Option<String>,
     always_on_top: bool,
+    title: String,
 ) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("editor") {
         window
             .set_icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())?;
+        window
+            .set_title(&title)
             .map_err(|error| error.to_string())?;
         window
             .set_decorations(true)
@@ -258,7 +278,7 @@ async fn open_editor_window(
     }
 
     let window = WebviewWindowBuilder::new(&app, "editor", WebviewUrl::App("editor.html".into()))
-        .title("Q Note")
+        .title(title)
         .icon(Image::from_bytes(APP_ICON_BYTES).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?
         .inner_size(EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_HEIGHT)

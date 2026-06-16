@@ -5,6 +5,7 @@ export const notesTable = sqliteTable("notes", {
   content: text("content").notNull(),
   color: text("color").notNull(),
   pinned: integer("pinned").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
   textHeight: integer("text_height"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),

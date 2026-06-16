@@ -320,6 +320,12 @@ button {
   background: rgba(255, 255, 255, 0.64);
 }
 
+.primary-button:hover {
+  border-color: rgba(29, 29, 31, 0.18);
+  background: rgba(29, 29, 31, 0.75);
+  color: #fff;
+}
+
 .danger-button:hover {
   transition: background-color 0.3s ease;
   background: #fd5f57;
@@ -414,7 +420,6 @@ button {
     inset 0 1px 0 rgba(255, 255, 255, 0.36),
     0 8px 24px rgba(31, 35, 40, 0.08);
   transition:
-    transform 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease,
     background-color 160ms ease;
@@ -422,8 +427,11 @@ button {
   user-select: none;
 }
 
+body.is-sorting-note {
+  cursor: grabbing;
+}
+
 .note-card:hover {
-  transform: none;
   border-color: rgba(0, 122, 255, 0.36);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
@@ -433,6 +441,18 @@ button {
 
 .note-card.is-pinned {
   border-color: rgba(0, 122, 255, 0.28);
+}
+
+.note-card.is-dragging {
+  opacity: 0.28;
+}
+
+.note-card.is-drag-overlay {
+  cursor: grabbing;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    0 18px 36px rgba(31, 35, 40, 0.2);
 }
 
 .note-card__pin-badge {
@@ -459,6 +479,7 @@ button {
 }
 
 .note-card__body {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -466,7 +487,18 @@ button {
 }
 
 .note-card__content {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
+  justify-self: start;
+  cursor: grab;
+  touch-action: none;
+}
+
+body.is-sorting-note .note-card__content {
+  cursor: grabbing;
 }
 
 .note-card__text {
@@ -534,9 +566,14 @@ button {
 }
 
 .note-card__actions {
+  position: relative;
+  z-index: 3;
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   align-items: flex-start;
   gap: 5px;
+  justify-self: end;
   opacity: 0;
   transform: translateX(4px);
   transition:
@@ -560,6 +597,7 @@ button {
   position: absolute;
   right: 8px;
   bottom: 1px;
+  z-index: 3;
   display: grid;
   width: 24px;
   height: 12px;
