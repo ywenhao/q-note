@@ -58,7 +58,7 @@ export interface ExportPayload extends AppData {
 export const APP_BACKGROUND = "#ffd150";
 export const DOCK_WINDOW_SIZE = 30;
 export const DEFAULT_WINDOW_WIDTH = 300;
-export const DEFAULT_WINDOW_HEIGHT = 400;
+export const DEFAULT_WINDOW_HEIGHT = 450;
 
 export const NOTE_COLORS = [
   "#fff9db",

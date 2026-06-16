@@ -15,9 +15,9 @@
       {
         "title": "Q Note",
         "width": 300,
-        "height": 400,
+        "height": 450,
         "minWidth": 300,
-        "minHeight": 400,
+        "minHeight": 450,
         "decorations": false,
         "resizable": true,
         "transparent": true,
