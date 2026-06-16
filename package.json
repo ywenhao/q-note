@@ -1,6 +1,6 @@
 {
   "name": "q-note",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "license": "MIT",
   "private": true,
   "packageManager": "pnpm@11.7.0",
