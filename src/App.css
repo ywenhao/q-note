@@ -424,10 +424,16 @@ button {
     border-color 160ms ease,
     background-color 160ms ease;
   -webkit-user-select: none;
+  touch-action: none;
+  cursor: grab;
   user-select: none;
 }
 
 body.is-sorting-note {
+  cursor: grabbing;
+}
+
+body.is-sorting-note .note-card {
   cursor: grabbing;
 }
 
@@ -481,9 +487,8 @@ body.is-sorting-note {
 .note-card__body {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 10px 10px 9px;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 10px 28px 9px 10px;
 }
 
 .note-card__content {
@@ -493,12 +498,6 @@ body.is-sorting-note {
   max-width: 100%;
   min-width: 0;
   justify-self: start;
-  cursor: grab;
-  touch-action: none;
-}
-
-body.is-sorting-note .note-card__content {
-  cursor: grabbing;
 }
 
 .note-card__text {
@@ -565,26 +564,100 @@ body.is-sorting-note .note-card__content {
   height: 12px;
 }
 
-.note-card__actions {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  align-items: flex-start;
-  gap: 5px;
-  justify-self: end;
+.note-card__action-dock {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  z-index: 4;
+  width: 20px;
+  height: 30px;
+  transform: translateY(-50%);
+  cursor: default;
   opacity: 0;
-  transform: translateX(4px);
+  pointer-events: none;
   transition:
     opacity 140ms ease,
-    transform 140ms ease;
+    visibility 140ms ease;
+  visibility: hidden;
 }
 
-.note-card:hover .note-card__actions,
-.note-card:focus-within .note-card__actions {
-  opacity: 0.88;
-  transform: translateX(0);
+.note-card:hover .note-card__action-dock,
+.note-card:focus-within .note-card__action-dock {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.note-card__action-dock:hover,
+.note-card__action-dock:focus-within {
+  width: 160px;
+}
+
+.note-card__actions-trigger {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 2;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
+  color: rgba(29, 29, 31, 0.58);
+  box-shadow: none;
+  cursor: pointer;
+  touch-action: auto;
+  transform: translateY(-50%);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.note-card__actions-trigger:hover,
+.note-card__action-dock:focus-within .note-card__actions-trigger {
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(0, 122, 255, 0.86);
+}
+
+.note-card__actions {
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  z-index: 1;
+  display: flex;
+  width: max-content;
+  max-width: calc(100vw - 64px);
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  border-radius: 12px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 24px rgba(31, 35, 40, 0.12);
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(6px, -50%);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    visibility 140ms ease;
+  visibility: hidden;
+}
+
+.note-card__actions .icon-button {
+  cursor: pointer;
+  touch-action: auto;
+}
+
+.note-card__action-dock:hover .note-card__actions,
+.note-card__action-dock:focus-within .note-card__actions {
+  opacity: 0.94;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+  visibility: visible;
 }
 
 .note-card__actions .icon-button.is-active {
@@ -1408,11 +1481,6 @@ body.is-sorting-note .note-card__content {
 
   .note-card__body {
     grid-template-columns: 1fr;
-  }
-
-  .note-card__actions {
-    opacity: 1;
-    transform: none;
   }
 
   .editor-dialog {

@@ -54,10 +54,12 @@ import {
   DOCK_WINDOW_LABEL,
   MAIN_WINDOW_LABEL,
   applyAlwaysOnTop,
+  beginQIconDrag,
   captureWindowState,
   detectSnapEdge,
   hideDockWindow,
   hideMainWindow,
+  moveQIconDrag,
   openEditorWindow,
   positionMainWindowAtStartup,
   revealQIconWindow,
@@ -65,7 +67,7 @@ import {
   showMainWindow,
   snapQIconWindow,
   startMainWindowDrag,
-  startQIconDrag,
+  type QIconDragSession,
 } from "./lib/windowControls";
 import type { AppSettings, DockEdge, Note, WindowState } from "./types";
 
@@ -226,11 +228,14 @@ function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const dockGuardRef = useRef(false);
+  const dockDragRef = useRef(false);
   const iconWindowRef = useRef<WindowState | null>(null);
   const notesRef = useRef<Note[]>([]);
   const settingsRef = useRef(settings);
   const toastTimerRef = useRef<number | null>(null);
   const dockGuardTimerRef = useRef<number | null>(null);
+  const dockDragMovePendingRef = useRef(false);
+  const dockDragSessionRef = useRef<QIconDragSession | null>(null);
   const dockTransitionRef = useRef(false);
 
   const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
@@ -614,10 +619,67 @@ function App() {
   }
 
   async function dragQIcon() {
-    await startQIconDrag();
+    if (dockDragRef.current) {
+      return;
+    }
+
+    dockDragRef.current = true;
+    dockDragSessionRef.current = await beginQIconDrag();
+    if (!dockDragSessionRef.current) {
+      dockDragRef.current = false;
+    }
+  }
+
+  async function moveQIcon() {
+    const session = dockDragSessionRef.current;
+    if (!dockDragRef.current || !session || dockDragMovePendingRef.current) {
+      return;
+    }
+
+    dockDragMovePendingRef.current = true;
+    try {
+      await moveQIconDrag(session);
+    } finally {
+      dockDragMovePendingRef.current = false;
+    }
+  }
+
+  async function finishQIconDrag() {
+    if (!dockDragRef.current) {
+      return;
+    }
+
+    const session = dockDragSessionRef.current;
+    dockDragRef.current = false;
+    dockDragMovePendingRef.current = false;
+    dockDragSessionRef.current = null;
+    if (!settingsRef.current.docked) {
+      return;
+    }
+
+    if (session) {
+      await moveQIconDrag(session);
+    }
+
+    const [edge, snapshot] = await Promise.all([detectSnapEdge(), captureWindowState()]);
+    if (!snapshot) {
+      return;
+    }
+
+    if (edge) {
+      await persistIconSnap(edge);
+      return;
+    }
+
+    iconWindowRef.current = snapshot;
+    await persistSettings({ dockEdge: null });
   }
 
   async function revealDockIcon() {
+    if (dockDragRef.current) {
+      return;
+    }
+
     const edge = settingsRef.current.dockEdge;
     if (!edge) {
       return;
@@ -629,6 +691,10 @@ function App() {
   }
 
   async function concealDockIcon() {
+    if (dockDragRef.current) {
+      return;
+    }
+
     const edge = settingsRef.current.dockEdge;
     if (!edge) {
       return;
@@ -962,6 +1028,14 @@ function App() {
     };
 
     const handleMoved = () => {
+      if (settingsRef.current.docked && dockDragRef.current) {
+        if (moveTimer) {
+          window.clearTimeout(moveTimer);
+          moveTimer = null;
+        }
+        return;
+      }
+
       if (dockGuardRef.current || isSharedDockGuardActive() || editorOpen) {
         saveWindowSoon();
         return;
@@ -1032,6 +1106,8 @@ function App() {
       <>
         <CompactDock
           onContextMenu={(event) => void openDockMenu(event)}
+          onDragEnd={() => void finishQIconDrag()}
+          onDragMove={() => void moveQIcon()}
           onDragStart={() => void dragQIcon()}
           onHoverEnd={() => void concealDockIcon()}
           onHoverStart={() => void revealDockIcon()}

@@ -65,15 +65,9 @@ function SortableNoteCard({
   shouldSuppressCopy,
   t,
 }: SortableNoteCardProps) {
-  const {
-    attributes,
-    isDragging,
-    listeners,
-    setActivatorNodeRef,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: note.id });
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+    id: note.id,
+  });
 
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -83,7 +77,6 @@ function SortableNoteCard({
   return (
     <NoteCard
       dragHandleProps={{ ...attributes, ...listeners } as HTMLAttributes<HTMLElement>}
-      dragHandleRef={setActivatorNodeRef}
       dragging={isDragging || activeId === note.id}
       key={note.id}
       note={note}

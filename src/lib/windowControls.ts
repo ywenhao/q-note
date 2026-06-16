@@ -4,6 +4,7 @@ import {
   PhysicalSize,
   Window,
   currentMonitor,
+  cursorPosition,
   getCurrentWindow,
   monitorFromPoint,
   type Monitor,
@@ -28,6 +29,12 @@ export const DOCK_WINDOW_LABEL = "dock";
 export const EDITOR_WINDOW_LABEL = "editor";
 
 const EDITOR_REQUEST_KEY = "q-note:editor-request";
+
+export interface QIconDragSession {
+  offsetX: number;
+  offsetY: number;
+  window: Window;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
@@ -372,13 +379,32 @@ export async function hideDockWindow() {
   await (await getWindowByLabel(DOCK_WINDOW_LABEL))?.hide();
 }
 
-export async function startQIconDrag() {
+export async function beginQIconDrag(): Promise<QIconDragSession | null> {
   if (!isTauriRuntime()) {
-    return;
+    return null;
   }
 
   const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
-  await window?.startDragging();
+  if (!window) {
+    return null;
+  }
+
+  const [pointer, position] = await Promise.all([cursorPosition(), window.outerPosition()]);
+  return {
+    offsetX: pointer.x - position.x,
+    offsetY: pointer.y - position.y,
+    window,
+  };
+}
+
+export async function moveQIconDrag(session: QIconDragSession) {
+  const pointer = await cursorPosition();
+  await session.window.setPosition(
+    new PhysicalPosition(
+      Math.round(pointer.x - session.offsetX),
+      Math.round(pointer.y - session.offsetY),
+    ),
+  );
 }
 
 export async function startMainWindowDrag() {

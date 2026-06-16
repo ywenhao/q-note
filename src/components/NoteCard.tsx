@@ -1,5 +1,6 @@
 import {
   Check,
+  ChevronLeft,
   Copy,
   FileText,
   GripHorizontal,
@@ -32,7 +33,6 @@ type NoteTextStyle = CSSProperties & {
 
 interface NoteCardProps {
   dragHandleProps?: HTMLAttributes<HTMLElement>;
-  dragHandleRef?: Ref<HTMLDivElement>;
   dragOverlay?: boolean;
   dragging?: boolean;
   note: Note;
@@ -67,7 +67,6 @@ function stopCardPointer(event: PointerEvent) {
 
 export function NoteCard({
   dragHandleProps,
-  dragHandleRef,
   dragOverlay = false,
   dragging = false,
   note,
@@ -164,6 +163,7 @@ export function NoteCard({
 
   return (
     <article
+      {...dragHandleProps}
       className={[
         "note-card",
         note.pinned ? "is-pinned" : "",
@@ -184,7 +184,7 @@ export function NoteCard({
       ) : null}
 
       <div className="note-card__body">
-        <div className="note-card__content" ref={dragHandleRef} {...dragHandleProps}>
+        <div className="note-card__content">
           <p
             className={`note-card__text ${hasText ? "" : "is-muted"}`}
             ref={textRef}
@@ -217,60 +217,75 @@ export function NoteCard({
           ) : null}
         </div>
 
-        <div className="note-card__actions" onClick={stopCardClick} onPointerDown={stopCardPointer}>
-          <IconButton
-            active={note.pinned}
-            icon={note.pinned ? <PinOff size={16} /> : <Pin size={16} />}
-            label={note.pinned ? t.unpin : t.pin}
-            onClick={() => onTogglePin(note.id)}
-            subtle
-          />
-          <IconButton
-            icon={<Pencil size={16} />}
-            label={t.edit}
-            onClick={() => onEdit(note)}
-            subtle
-          />
-          <div className="color-popover-wrap" ref={colorPopoverRef}>
+        <div
+          className="note-card__action-dock"
+          onClick={stopCardClick}
+          onPointerDown={stopCardPointer}
+        >
+          <button
+            aria-label={t.moreActions}
+            className="note-card__actions-trigger"
+            title={t.moreActions}
+            type="button"
+          >
+            <ChevronLeft size={12} />
+          </button>
+
+          <div className="note-card__actions">
             <IconButton
-              icon={<Palette size={16} />}
-              label={t.color}
-              onClick={() => setPaletteOpen((open) => !open)}
+              active={note.pinned}
+              icon={note.pinned ? <PinOff size={16} /> : <Pin size={16} />}
+              label={note.pinned ? t.unpin : t.pin}
+              onClick={() => onTogglePin(note.id)}
               subtle
             />
-            {paletteOpen ? (
-              <div className="color-popover">
-                {NOTE_COLORS.map((color) => (
-                  <button
-                    aria-label={color}
-                    className="color-swatch"
-                    key={color}
-                    onClick={() => {
-                      onColorChange(note.id, color);
-                      setPaletteOpen(false);
-                    }}
-                    style={{ backgroundColor: color }}
-                    type="button"
-                  >
-                    {note.color === color ? <Check size={13} /> : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <IconButton
+              icon={<Pencil size={16} />}
+              label={t.edit}
+              onClick={() => onEdit(note)}
+              subtle
+            />
+            <div className="color-popover-wrap" ref={colorPopoverRef}>
+              <IconButton
+                icon={<Palette size={16} />}
+                label={t.color}
+                onClick={() => setPaletteOpen((open) => !open)}
+                subtle
+              />
+              {paletteOpen ? (
+                <div className="color-popover">
+                  {NOTE_COLORS.map((color) => (
+                    <button
+                      aria-label={color}
+                      className="color-swatch"
+                      key={color}
+                      onClick={() => {
+                        onColorChange(note.id, color);
+                        setPaletteOpen(false);
+                      }}
+                      style={{ backgroundColor: color }}
+                      type="button"
+                    >
+                      {note.color === color ? <Check size={13} /> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <IconButton
+              icon={<Copy size={16} />}
+              label={t.copy}
+              onClick={() => onCopy(note)}
+              subtle
+            />
+            <IconButton
+              className="is-danger"
+              icon={<Trash2 size={16} />}
+              label={t.delete}
+              onClick={() => onDelete(note.id)}
+              subtle
+            />
           </div>
-          <IconButton
-            icon={<Copy size={16} />}
-            label={t.copy}
-            onClick={() => onCopy(note)}
-            subtle
-          />
-          <IconButton
-            className="is-danger"
-            icon={<Trash2 size={16} />}
-            label={t.delete}
-            onClick={() => onDelete(note.id)}
-            subtle
-          />
         </div>
       </div>
 
