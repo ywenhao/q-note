@@ -44,6 +44,7 @@ import {
   deleteAllNotes,
   deleteNote,
   loadAppData,
+  normalizeSettings,
   normalizeImportPayload,
   replaceAppData,
   saveNote,
@@ -260,7 +261,7 @@ function App() {
   }, []);
 
   const persistSettings = useCallback(async (patch: Partial<AppSettings>) => {
-    const nextSettings = { ...settingsRef.current, ...patch };
+    const nextSettings = normalizeSettings({ ...settingsRef.current, ...patch });
     settingsRef.current = nextSettings;
     setSettings(nextSettings);
     await saveSettings(nextSettings);
@@ -661,7 +662,10 @@ function App() {
       await moveQIconDrag(session);
     }
 
-    const [edge, snapshot] = await Promise.all([detectSnapEdge(), captureWindowState()]);
+    const [edge, snapshot] = await Promise.all([
+      detectSnapEdge(DOCK_WINDOW_LABEL),
+      captureWindowState(DOCK_WINDOW_LABEL),
+    ]);
     if (!snapshot) {
       return;
     }
@@ -1009,8 +1013,16 @@ function App() {
     let unlistenMove: (() => void) | null = null;
     let unlistenResize: (() => void) | null = null;
 
+    const isMainWindow = currentWindowLabel === MAIN_WINDOW_LABEL;
+    const isDockRuntimeWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
+
     const saveWindowSoon = () => {
-      if (settingsRef.current.docked || dockGuardRef.current || isSharedDockGuardActive()) {
+      if (
+        !isMainWindow ||
+        settingsRef.current.docked ||
+        dockGuardRef.current ||
+        isSharedDockGuardActive()
+      ) {
         return;
       }
 
@@ -1019,7 +1031,7 @@ function App() {
       }
 
       saveTimer = window.setTimeout(() => {
-        void captureWindowState().then((snapshot) => {
+        void captureWindowState(MAIN_WINDOW_LABEL).then((snapshot) => {
           if (snapshot && !settingsRef.current.docked) {
             void persistSettings({ window: snapshot });
           }
@@ -1028,11 +1040,43 @@ function App() {
     };
 
     const handleMoved = () => {
-      if (settingsRef.current.docked && dockDragRef.current) {
+      if (isDockRuntimeWindow) {
         if (moveTimer) {
           window.clearTimeout(moveTimer);
           moveTimer = null;
         }
+
+        if (!settingsRef.current.docked || dockDragRef.current) {
+          return;
+        }
+
+        if (dockGuardRef.current || isSharedDockGuardActive()) {
+          return;
+        }
+
+        moveTimer = window.setTimeout(() => {
+          void Promise.all([
+            detectSnapEdge(DOCK_WINDOW_LABEL),
+            captureWindowState(DOCK_WINDOW_LABEL),
+          ]).then(([edge, snapshot]) => {
+            if (!snapshot || !settingsRef.current.docked) {
+              return;
+            }
+
+            if (edge) {
+              void persistIconSnap(edge);
+              return;
+            }
+
+            iconWindowRef.current = snapshot;
+            void persistSettings({ dockEdge: null });
+          });
+        }, 220);
+
+        return;
+      }
+
+      if (!isMainWindow) {
         return;
       }
 
@@ -1046,19 +1090,8 @@ function App() {
       }
 
       moveTimer = window.setTimeout(() => {
-        void Promise.all([detectSnapEdge(), captureWindowState()]).then(([edge, snapshot]) => {
+        void captureWindowState(MAIN_WINDOW_LABEL).then((snapshot) => {
           if (!snapshot) {
-            return;
-          }
-
-          if (settingsRef.current.docked) {
-            if (edge) {
-              void persistIconSnap(edge);
-              return;
-            }
-
-            iconWindowRef.current = snapshot;
-            void persistSettings({ dockEdge: null });
             return;
           }
 

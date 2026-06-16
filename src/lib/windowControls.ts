@@ -53,6 +53,44 @@ function getRightCenterMainState(width: number, height: number, monitor: Monitor
   };
 }
 
+function getMainWindowSize(state: WindowState | null) {
+  const width = state?.width;
+  const height = state?.height;
+
+  return {
+    width: Math.max(
+      DEFAULT_WINDOW_WIDTH,
+      typeof width === "number" && Number.isFinite(width)
+        ? Math.round(width)
+        : DEFAULT_WINDOW_WIDTH,
+    ),
+    height: Math.max(
+      DEFAULT_WINDOW_HEIGHT,
+      typeof height === "number" && Number.isFinite(height)
+        ? Math.round(height)
+        : DEFAULT_WINDOW_HEIGHT,
+    ),
+  };
+}
+
+function getClampedMainState(state: WindowState | null, monitor: Monitor): WindowState {
+  const { width, height } = getMainWindowSize(state);
+  if (!state) {
+    return getRightCenterMainState(width, height, monitor);
+  }
+
+  const area = getWorkArea(monitor);
+  const x = Number.isFinite(state.x) ? state.x : area.right - width - MAIN_START_MARGIN;
+  const y = Number.isFinite(state.y) ? state.y : area.top + (area.bottom - area.top - height) / 2;
+
+  return {
+    width,
+    height,
+    x: Math.round(clamp(x, area.left, area.right - width)),
+    y: Math.round(clamp(y, area.top, area.bottom - height)),
+  };
+}
+
 async function getWindowByLabel(label: string) {
   return Window.getByLabel(label);
 }
@@ -139,23 +177,21 @@ export async function restoreWindowState(state: WindowState | null, label = MAIN
   await window.setDecorations(false);
   await window.setShadow(true);
   await window.setMinSize(MAIN_MIN_SIZE);
+  await window.setMaxSize(null);
 
-  if (!state) {
-    await window.setSize(new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
-    const monitor = await currentMonitor();
-    if (monitor) {
-      const nextState = getRightCenterMainState(
-        DEFAULT_WINDOW_WIDTH,
-        DEFAULT_WINDOW_HEIGHT,
-        monitor,
-      );
-      await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
-    }
+  const monitor = await getMonitorForState(state);
+  if (monitor) {
+    const nextState = getClampedMainState(state, monitor);
+    await window.setSize(new PhysicalSize(nextState.width, nextState.height));
+    await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
     return;
   }
 
-  await window.setSize(new PhysicalSize(state.width, state.height));
-  await window.setPosition(new PhysicalPosition(state.x, state.y));
+  const { width, height } = getMainWindowSize(state);
+  await window.setSize(new PhysicalSize(width, height));
+  if (state) {
+    await window.setPosition(new PhysicalPosition(state.x, state.y));
+  }
 }
 
 export async function positionMainWindowAtStartup(state: WindowState | null) {
@@ -169,12 +205,12 @@ export async function positionMainWindowAtStartup(state: WindowState | null) {
     return;
   }
 
-  const width = state?.width ?? DEFAULT_WINDOW_WIDTH;
-  const height = state?.height ?? DEFAULT_WINDOW_HEIGHT;
+  const { width, height } = getMainWindowSize(state);
 
   await window.setDecorations(false);
   await window.setShadow(true);
   await window.setMinSize(MAIN_MIN_SIZE);
+  await window.setMaxSize(null);
   await window.setSize(new PhysicalSize(width, height));
 
   if (monitor) {

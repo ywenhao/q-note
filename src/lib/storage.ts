@@ -14,6 +14,7 @@ import {
   type Language,
   type Note,
   type NoteAttachment,
+  type WindowState,
 } from "../types";
 import { isTauriRuntime } from "./env";
 import { isLikelyImagePath } from "./images";
@@ -83,6 +84,24 @@ function toLanguage(value: unknown): Language {
   return value === "en" ? "en" : "zh";
 }
 
+function normalizeWindowState(value: unknown): WindowState | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const width = Number(value.width);
+  const height = Number(value.height);
+  const x = Number(value.x);
+  const y = Number(value.y);
+
+  return {
+    width: Math.max(DEFAULT_WINDOW_WIDTH, Number.isFinite(width) ? Math.round(width) : 0),
+    height: Math.max(DEFAULT_WINDOW_HEIGHT, Number.isFinite(height) ? Math.round(height) : 0),
+    x: Number.isFinite(x) ? Math.round(x) : 0,
+    y: Number.isFinite(y) ? Math.round(y) : 0,
+  };
+}
+
 function inferAttachmentKind(source: AttachmentSource, value: string): AttachmentKind {
   if (source === "data") {
     return /^data:image\//i.test(value) ? "image" : "file";
@@ -91,21 +110,14 @@ function inferAttachmentKind(source: AttachmentSource, value: string): Attachmen
   return isLikelyImagePath(value) ? "image" : "file";
 }
 
-function normalizeSettings(value: unknown): AppSettings {
+export function normalizeSettings(value: unknown): AppSettings {
   const defaults = createDefaultSettings();
 
   if (!isObject(value)) {
     return defaults;
   }
 
-  const windowState = isObject(value.window)
-    ? {
-        width: Number(value.window.width) || DEFAULT_WINDOW_WIDTH,
-        height: Number(value.window.height) || DEFAULT_WINDOW_HEIGHT,
-        x: Number(value.window.x) || 0,
-        y: Number(value.window.y) || 0,
-      }
-    : null;
+  const windowState = normalizeWindowState(value.window);
   return {
     language: toLanguage(value.language),
     alwaysOnTop: Boolean(value.alwaysOnTop),
@@ -259,19 +271,21 @@ export async function loadAppData(): Promise<AppData> {
 }
 
 export async function saveSettings(settings: AppSettings) {
+  const nextSettings = normalizeSettings(settings);
+
   if (!isTauriRuntime()) {
     const data = loadWebData();
-    saveWebData({ ...data, settings });
+    saveWebData({ ...data, settings: nextSettings });
     return;
   }
 
   const db = await getDrizzleDb();
   await db
     .insert(settingsTable)
-    .values({ key: SETTINGS_KEY, value: JSON.stringify(settings) })
+    .values({ key: SETTINGS_KEY, value: JSON.stringify(nextSettings) })
     .onConflictDoUpdate({
       target: settingsTable.key,
-      set: { value: JSON.stringify(settings) },
+      set: { value: JSON.stringify(nextSettings) },
     });
 }
 
