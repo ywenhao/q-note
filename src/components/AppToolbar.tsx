@@ -3,6 +3,7 @@ import type { Translation } from "../i18n";
 import { IconButton } from "./IconButton";
 
 interface AppToolbarProps {
+  hasUpdate: boolean;
   notesCount: number;
   onDeleteAll: () => void;
   onNewNote: () => void;
@@ -12,6 +13,7 @@ interface AppToolbarProps {
 }
 
 export function AppToolbar({
+  hasUpdate,
   notesCount,
   onDeleteAll,
   onNewNote,
@@ -29,7 +31,12 @@ export function AppToolbar({
         label={t.deleteAll}
         onClick={onDeleteAll}
       />
-      <IconButton icon={<Settings size={18} />} label={t.settings} onClick={onOpenSettings} />
+      <IconButton
+        badge={hasUpdate}
+        icon={<Settings size={18} />}
+        label={t.settings}
+        onClick={onOpenSettings}
+      />
       <IconButton icon={<Languages size={18} />} label={t.language} onClick={onToggleLanguage}>
         {t.language}
       </IconButton>

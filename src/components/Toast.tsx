@@ -2,10 +2,11 @@ import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface ToastProps {
+  icon?: boolean;
   message: string | null;
 }
 
-export function Toast({ message }: ToastProps) {
+export function Toast({ icon = true, message }: ToastProps) {
   const [visibleMessage, setVisibleMessage] = useState(message);
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function Toast({ message }: ToastProps) {
       }}
       role="status"
     >
-      <Check aria-hidden="true" />
+      {icon ? <Check aria-hidden="true" /> : null}
       <span>{visibleMessage}</span>
     </div>
   );

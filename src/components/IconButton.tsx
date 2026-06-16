@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
+  badge?: boolean;
   icon: ReactNode;
   label: string;
   subtle?: boolean;
@@ -9,6 +10,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function IconButton({
   active = false,
+  badge = false,
   children,
   className = "",
   icon,
@@ -20,7 +22,7 @@ export function IconButton({
   return (
     <button
       aria-label={label}
-      className={`icon-button ${active ? "is-active" : ""} ${subtle ? "is-subtle" : ""} ${className}`}
+      className={`icon-button ${active ? "is-active" : ""} ${badge ? "is-badged" : ""} ${subtle ? "is-subtle" : ""} ${className}`}
       title={label}
       type={type}
       {...props}

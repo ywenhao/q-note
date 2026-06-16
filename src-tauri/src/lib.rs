@@ -1,4 +1,8 @@
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use tauri::{
     image::Image,
@@ -7,6 +11,8 @@ use tauri::{
     Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 use tauri_plugin_sql::{Migration, MigrationKind};
+
+mod update;
 
 const DOCK_WINDOW_SIZE: f64 = 30.0;
 const EDITOR_WINDOW_WIDTH: f64 = 520.0;
@@ -306,6 +312,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(TrayMenuState::default())
+        .manage(Arc::new(update::UpdateDownloadState::default()))
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .app_name("Q Note")
@@ -338,7 +345,10 @@ pub fn run() {
             quit_app,
             get_database_url,
             set_tray_menu_labels,
-            open_editor_window
+            open_editor_window,
+            update::check_update,
+            update::download_update,
+            update::cancel_update_download
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

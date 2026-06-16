@@ -281,6 +281,7 @@ button {
 }
 
 .icon-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -303,6 +304,28 @@ button {
 .icon-button > svg {
   width: 13px;
   height: 13px;
+}
+
+.icon-button.is-badged::after,
+.update-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #ff3b30;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.82);
+  content: "";
+}
+
+.icon-button.is-badged::after {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+}
+
+.spin-icon {
+  animation: spin 780ms linear infinite;
 }
 
 .icon-button:hover,
@@ -855,62 +878,253 @@ body.is-sorting-note .note-card {
 
 .settings-dialog {
   display: flex;
-  width: min(340px, calc(100vw - 36px));
+  width: min(300px, calc(100vw - 36px));
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 8px;
-  padding: 12px;
-  background: rgba(255, 253, 244, 0.88);
+  padding: 10px;
+  background: rgba(255, 253, 244, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.52),
-    0 24px 60px rgba(31, 35, 40, 0.22);
+    0 18px 42px rgba(31, 35, 40, 0.18);
   backdrop-filter: blur(24px) saturate(160%);
   animation: rise-in 140ms ease;
 }
 
-.settings-dialog header,
+.settings-dialog__header,
 .settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .settings-dialog h2 {
   margin: 0;
   color: #1d1d1f;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.settings-close {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(120, 120, 128, 0.12);
+  color: rgba(29, 29, 31, 0.7);
+}
+
+.settings-close:hover {
+  background: rgba(120, 120, 128, 0.18);
+}
+
+.settings-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .settings-row {
-  min-height: 40px;
-  border: 1px solid rgba(60, 60, 67, 0.12);
+  min-height: 32px;
+  border: 0;
   border-radius: 8px;
-  padding: 0 10px;
-  background: rgba(255, 255, 255, 0.62);
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.52);
   color: #1d1d1f;
-  transition:
-    transform 140ms ease,
-    border-color 140ms ease,
-    background-color 140ms ease;
+  transition: background-color 140ms ease;
 }
 
 .settings-row:hover {
-  transform: translateY(-1px);
-  border-color: rgba(60, 60, 67, 0.18);
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.7);
 }
 
-.settings-row span:first-child {
+.settings-row:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.settings-row:disabled:hover {
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.settings-row__label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
+  min-width: 0;
 }
 
 .settings-row svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
+  color: rgba(29, 29, 31, 0.72);
+}
+
+.settings-row__value {
+  flex: 0 0 auto;
+  color: rgba(60, 60, 67, 0.68);
+  font-size: 0.78rem;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.settings-action {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.5);
+  color: #1d1d1f;
+  transition: background-color 140ms ease;
+}
+
+.settings-action:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.settings-action svg {
+  width: 13px;
+  height: 13px;
+  color: rgba(29, 29, 31, 0.72);
+}
+
+.settings-footer {
+  display: flex;
+  min-height: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-version {
+  align-self: center;
+  border: 0;
+  padding: 0 5px;
+  background: transparent;
+  color: rgba(60, 60, 67, 0.72);
+  font-size: 0.78rem;
+}
+
+.settings-version:hover {
+  color: #007aff;
+}
+
+.update-download-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(31, 35, 40, 0.16);
+  backdrop-filter: blur(10px);
+  animation: fade-in 120ms ease;
+}
+
+.update-download-dialog {
+  display: flex;
+  width: min(320px, calc(100vw - 36px));
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 18px 46px rgba(31, 35, 40, 0.18);
+  backdrop-filter: blur(22px) saturate(160%);
+  animation: pop-in 110ms ease;
+}
+
+.update-download-dialog header,
+.update-download-dialog footer,
+.update-download-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.update-download-dialog header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1d1d1f;
+  font-weight: 600;
+}
+
+.update-download-dialog header button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(120, 120, 128, 0.12);
+  color: rgba(29, 29, 31, 0.72);
+}
+
+.update-download-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.update-download-body strong,
+.update-download-body span,
+.update-download-body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-download-body span,
+.update-download-body small,
+.update-download-meta {
+  color: rgba(60, 60, 67, 0.72);
+  font-size: 0.82rem;
+}
+
+.update-progress {
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.18);
+}
+
+.update-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #007aff;
+  transition: width 140ms ease;
+}
+
+.update-download-dialog footer {
+  justify-content: flex-end;
+}
+
+.update-download-dialog footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .switch {
@@ -1455,6 +1669,12 @@ body.is-sorting-note .note-card {
   from {
     transform: scale(0.98);
     opacity: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

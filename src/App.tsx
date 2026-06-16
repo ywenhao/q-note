@@ -34,6 +34,9 @@ import { QMark } from "./components/QMark";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { StatusBar } from "./components/StatusBar";
 import { Toast } from "./components/Toast";
+import { UpdateDownloadDialog } from "./components/UpdateDownloadDialog";
+import { useToast } from "./hooks/useToast";
+import { useUpdateManager } from "./hooks/useUpdateManager";
 import { translations } from "./i18n";
 import { applyAutoStart, readAutoStartEnabled } from "./lib/autoStart";
 import { createId, isTauriRuntime } from "./lib/env";
@@ -234,14 +237,13 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { showToast, toast } = useToast();
 
   const dockGuardRef = useRef(false);
   const dockDragRef = useRef(false);
   const iconWindowRef = useRef<WindowState | null>(null);
   const notesRef = useRef<Note[]>([]);
   const settingsRef = useRef(settings);
-  const toastTimerRef = useRef<number | null>(null);
   const dockGuardTimerRef = useRef<number | null>(null);
   const dockDragMovePendingRef = useRef(false);
   const dockDragSessionRef = useRef<QIconDragSession | null>(null);
@@ -250,6 +252,24 @@ function App() {
   const currentWindowLabel = isTauriRuntime() ? getCurrentWindow().label : MAIN_WINDOW_LABEL;
   const isDockWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
   const t = translations[settings.language];
+  const {
+    appVersion,
+    checkingUpdate,
+    handleCancelUpdateDownload,
+    handleCheckUpdate,
+    handleOpenCurrentRelease,
+    handleRevealDownloadedUpdate,
+    setUpdateDialogOpen,
+    updateDialogOpen,
+    updateDownloadProgress,
+    updateDownloadResult,
+    updateInfo,
+  } = useUpdateManager({
+    currentWindowLabel,
+    language: settings.language,
+    ready,
+    showToast,
+  });
   const editorOpen = editorNote !== undefined;
   const dockToggleLabel = settings.docked ? t.switchMainWindow : t.switchFloatingBall;
   const alwaysOnLabel = settings.alwaysOnTop ? t.alwaysOff : t.alwaysOn;
@@ -258,14 +278,6 @@ function App() {
     const sorted = sortNotes(nextNotes);
     notesRef.current = sorted;
     setNotes(sorted);
-  }, []);
-
-  const showToast = useCallback((message: string) => {
-    setToast(message);
-    if (toastTimerRef.current) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 1700);
   }, []);
 
   const persistSettings = useCallback(async (patch: Partial<AppSettings>) => {
@@ -1174,7 +1186,7 @@ function App() {
             y={menu.y}
           />
         ) : null}
-        <Toast message={toast} />
+        <Toast icon={toast?.icon} message={toast?.message ?? null} />
       </>
     );
   }
@@ -1196,6 +1208,7 @@ function App() {
       />
 
       <AppToolbar
+        hasUpdate={Boolean(updateInfo)}
         notesCount={notes.length}
         onDeleteAll={() => setShowDeleteAllConfirm(true)}
         onNewNote={() => void openEditor(null)}
@@ -1235,12 +1248,28 @@ function App() {
       ) : null}
       {showSettings ? (
         <SettingsDialog
+          appVersion={appVersion}
           autoStart={settings.autoStart}
+          checkingUpdate={checkingUpdate}
+          hasUpdate={Boolean(updateInfo)}
+          onCheckUpdate={() => void handleCheckUpdate()}
           onClose={() => setShowSettings(false)}
           onExport={() => void handleExport()}
           onImport={() => void handleImport()}
+          onOpenCurrentRelease={() => void handleOpenCurrentRelease()}
           onToggleAutoStart={() => void toggleAutoStart()}
           t={t}
+        />
+      ) : null}
+      {updateDialogOpen && updateInfo ? (
+        <UpdateDownloadDialog
+          onCancel={() => void handleCancelUpdateDownload()}
+          onClose={() => setUpdateDialogOpen(false)}
+          onReveal={(path) => void handleRevealDownloadedUpdate(path)}
+          progress={updateDownloadProgress}
+          result={updateDownloadResult}
+          t={t}
+          update={updateInfo}
         />
       ) : null}
 
@@ -1275,7 +1304,7 @@ function App() {
         <QMark />
       </button>
       <StatusBar notes={notes} t={t} />
-      <Toast message={toast} />
+      <Toast icon={toast?.icon} message={toast?.message ?? null} />
     </main>
   );
 }

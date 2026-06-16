@@ -1,0 +1,538 @@
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::{Duration, Instant},
+};
+
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use tauri::{AppHandle, Emitter, Manager};
+
+const GITHUB_LATEST_RELEASE_API: &str =
+    "https://api.github.com/repos/ywenhao/q-note/releases/latest";
+const USER_AGENT: &str = concat!("Q-Note/", env!("CARGO_PKG_VERSION"));
+const DOWNLOAD_PROGRESS_EVENT: &str = "q-note-update-download-progress";
+
+#[derive(Default)]
+pub struct UpdateDownloadState {
+    active: Mutex<bool>,
+    cancel_requested: AtomicBool,
+}
+
+struct ActiveDownloadGuard {
+    state: Arc<UpdateDownloadState>,
+}
+
+impl Drop for ActiveDownloadGuard {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.state.active.lock() {
+            *active = false;
+        }
+        self.state.cancel_requested.store(false, Ordering::SeqCst);
+    }
+}
+
+impl UpdateDownloadState {
+    fn begin(self: &Arc<Self>) -> Result<ActiveDownloadGuard, String> {
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|_| "Unable to lock update download state".to_string())?;
+
+        if *active {
+            return Err("update-download-active".to_string());
+        }
+
+        *active = true;
+        self.cancel_requested.store(false, Ordering::SeqCst);
+        Ok(ActiveDownloadGuard {
+            state: self.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
+enum UpdateDownloadError {
+    Cancelled,
+    Failed(String),
+}
+
+impl From<std::io::Error> for UpdateDownloadError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Failed(error.to_string())
+    }
+}
+
+impl From<reqwest::Error> for UpdateDownloadError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::Failed(error.to_string())
+    }
+}
+
+#[derive(Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    html_url: String,
+    draft: bool,
+    prerelease: bool,
+    assets: Vec<GithubAsset>,
+}
+
+#[derive(Deserialize)]
+struct GithubAsset {
+    name: String,
+    size: u64,
+    digest: Option<String>,
+    browser_download_url: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDownloadSource {
+    label: String,
+    url: String,
+    official: bool,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAsset {
+    name: String,
+    size: u64,
+    digest: Option<String>,
+    browser_download_url: String,
+    download_urls: Vec<UpdateDownloadSource>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    latest_version: String,
+    tag_name: String,
+    html_url: String,
+    asset: Option<UpdateAsset>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDownloadRequest {
+    asset: UpdateAsset,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateDownloadProgress {
+    downloaded: u64,
+    file_name: String,
+    percent: f64,
+    source_label: String,
+    total: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDownloadResult {
+    file_name: String,
+    path: String,
+    source_label: String,
+}
+
+fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(900))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+fn parse_version_parts(value: &str) -> Vec<u64> {
+    value
+        .trim()
+        .trim_start_matches('v')
+        .split(|character: char| !character.is_ascii_digit())
+        .filter(|part| !part.is_empty())
+        .filter_map(|part| part.parse::<u64>().ok())
+        .collect()
+}
+
+fn is_newer_version(remote: &str, current: &str) -> bool {
+    let remote_parts = parse_version_parts(remote);
+    let current_parts = parse_version_parts(current);
+    let max_len = remote_parts.len().max(current_parts.len());
+
+    for index in 0..max_len {
+        let remote_part = *remote_parts.get(index).unwrap_or(&0);
+        let current_part = *current_parts.get(index).unwrap_or(&0);
+
+        if remote_part > current_part {
+            return true;
+        }
+        if remote_part < current_part {
+            return false;
+        }
+    }
+
+    false
+}
+
+fn asset_score(name: &str) -> i32 {
+    let lower_name = name.to_ascii_lowercase();
+
+    if lower_name.ends_with(".sig") || lower_name.ends_with(".zip") {
+        return -1;
+    }
+
+    match std::env::consts::OS {
+        "windows" => {
+            if lower_name.ends_with("-setup.exe") {
+                120
+            } else if lower_name.ends_with(".exe") {
+                110
+            } else if lower_name.ends_with(".msi") {
+                100
+            } else {
+                -1
+            }
+        }
+        "macos" => {
+            if !lower_name.ends_with(".dmg") {
+                return -1;
+            }
+
+            match std::env::consts::ARCH {
+                "aarch64" if lower_name.contains("aarch64") || lower_name.contains("arm64") => 120,
+                "x86_64" if lower_name.contains("x64") || lower_name.contains("x86_64") => 120,
+                _ => 100,
+            }
+        }
+        "linux" => {
+            let package_score = if lower_name.ends_with(".appimage") {
+                120
+            } else if lower_name.ends_with(".deb") {
+                110
+            } else if lower_name.ends_with(".rpm") {
+                100
+            } else {
+                -1
+            };
+
+            if package_score < 0 {
+                return -1;
+            }
+
+            match std::env::consts::ARCH {
+                "x86_64" if lower_name.contains("amd64") || lower_name.contains("x86_64") => {
+                    package_score + 10
+                }
+                "aarch64" if lower_name.contains("aarch64") || lower_name.contains("arm64") => {
+                    package_score + 10
+                }
+                _ => package_score,
+            }
+        }
+        _ => -1,
+    }
+}
+
+fn build_download_sources(official_url: &str) -> Vec<UpdateDownloadSource> {
+    let mut sources = Vec::new();
+
+    if official_url.starts_with("https://github.com/") {
+        for (label, prefix) in [
+            ("gh-proxy.com", "https://gh-proxy.com/"),
+            ("ghproxy.net", "https://ghproxy.net/"),
+            ("ghproxy.site", "https://ghproxy.site/"),
+        ] {
+            sources.push(UpdateDownloadSource {
+                label: label.to_string(),
+                url: format!("{prefix}{official_url}"),
+                official: false,
+            });
+        }
+    }
+
+    sources.push(UpdateDownloadSource {
+        label: "GitHub".to_string(),
+        url: official_url.to_string(),
+        official: true,
+    });
+
+    sources
+}
+
+fn pick_release_asset(assets: Vec<GithubAsset>) -> Option<UpdateAsset> {
+    assets
+        .into_iter()
+        .filter_map(|asset| {
+            let score = asset_score(&asset.name);
+            (score >= 0).then_some((score, asset))
+        })
+        .max_by_key(|(score, _)| *score)
+        .map(|(_, asset)| UpdateAsset {
+            download_urls: build_download_sources(&asset.browser_download_url),
+            browser_download_url: asset.browser_download_url,
+            digest: asset.digest,
+            name: asset.name,
+            size: asset.size,
+        })
+}
+
+fn expected_sha256(digest: &Option<String>) -> Option<String> {
+    digest
+        .as_deref()
+        .and_then(|value| value.strip_prefix("sha256:"))
+        .map(str::to_ascii_lowercase)
+}
+
+fn safe_file_name(name: &str) -> String {
+    let sanitized = name
+        .chars()
+        .map(|character| match character {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            _ => character,
+        })
+        .collect::<String>()
+        .trim()
+        .to_string();
+
+    if sanitized.is_empty() {
+        "q-note-update.bin".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn downloads_dir() -> Result<PathBuf, String> {
+    let mut dir = super::home_dir()?;
+    dir.push("Downloads");
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    Ok(dir)
+}
+
+fn unique_path(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_stem()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "q-note-update".to_string());
+    let extension = path
+        .extension()
+        .map(|value| value.to_string_lossy().to_string());
+
+    for index in 1..1000 {
+        let file_name = match &extension {
+            Some(extension) => format!("{stem} ({index}).{extension}"),
+            None => format!("{stem} ({index})"),
+        };
+        let candidate = parent.join(file_name);
+
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    path
+}
+
+fn emit_progress(
+    app: &AppHandle,
+    file_name: &str,
+    downloaded: u64,
+    total: Option<u64>,
+    source_label: &str,
+) {
+    let percent = total
+        .filter(|value| *value > 0)
+        .map(|value| (downloaded as f64 / value as f64 * 100.0).clamp(0.0, 100.0))
+        .unwrap_or(0.0);
+
+    let _ = app.emit_to(
+        "main",
+        DOWNLOAD_PROGRESS_EVENT,
+        UpdateDownloadProgress {
+            downloaded,
+            file_name: file_name.to_string(),
+            percent,
+            source_label: source_label.to_string(),
+            total,
+        },
+    );
+}
+
+async fn download_from_source(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    source: &UpdateDownloadSource,
+    asset: &UpdateAsset,
+    target_path: &Path,
+    temp_path: &Path,
+    state: &UpdateDownloadState,
+) -> Result<UpdateDownloadResult, UpdateDownloadError> {
+    if state.cancel_requested.load(Ordering::SeqCst) {
+        return Err(UpdateDownloadError::Cancelled);
+    }
+
+    emit_progress(
+        app,
+        &asset.name,
+        0,
+        Some(asset.size).filter(|size| *size > 0),
+        &source.label,
+    );
+
+    let response = client
+        .get(&source.url)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(UpdateDownloadError::Failed(format!(
+            "{} returned {}",
+            source.label,
+            response.status()
+        )));
+    }
+
+    let total = response
+        .content_length()
+        .filter(|value| *value > 0)
+        .or_else(|| Some(asset.size).filter(|value| *value > 0));
+    let mut stream = response.bytes_stream();
+    let mut file = fs::File::create(temp_path)?;
+    let mut hasher = Sha256::new();
+    let mut downloaded = 0u64;
+    let mut last_emit = Instant::now();
+
+    while let Some(chunk) = stream.next().await {
+        if state.cancel_requested.load(Ordering::SeqCst) {
+            return Err(UpdateDownloadError::Cancelled);
+        }
+
+        let chunk = chunk?;
+        file.write_all(&chunk)?;
+        hasher.update(&chunk);
+        downloaded += chunk.len() as u64;
+
+        if last_emit.elapsed() >= Duration::from_millis(120) {
+            emit_progress(app, &asset.name, downloaded, total, &source.label);
+            last_emit = Instant::now();
+        }
+    }
+
+    if state.cancel_requested.load(Ordering::SeqCst) {
+        return Err(UpdateDownloadError::Cancelled);
+    }
+
+    file.flush()?;
+    drop(file);
+
+    if let Some(expected_digest) = expected_sha256(&asset.digest) {
+        let actual_digest = format!("{:x}", hasher.finalize());
+        if actual_digest != expected_digest {
+            return Err(UpdateDownloadError::Failed(format!(
+                "{} checksum mismatch",
+                source.label
+            )));
+        }
+    }
+
+    fs::rename(temp_path, target_path)?;
+    emit_progress(app, &asset.name, downloaded, total, &source.label);
+
+    Ok(UpdateDownloadResult {
+        file_name: asset.name.clone(),
+        path: target_path.to_string_lossy().to_string(),
+        source_label: source.label.clone(),
+    })
+}
+
+#[tauri::command]
+pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>, String> {
+    let release = http_client()?
+        .get(GITHUB_LATEST_RELEASE_API)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?
+        .error_for_status()
+        .map_err(|error| error.to_string())?
+        .json::<GithubRelease>()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if release.draft || release.prerelease || !is_newer_version(&release.tag_name, &current_version)
+    {
+        return Ok(None);
+    }
+
+    Ok(Some(UpdateInfo {
+        asset: pick_release_asset(release.assets),
+        html_url: release.html_url,
+        latest_version: release.tag_name.trim_start_matches('v').to_string(),
+        tag_name: release.tag_name,
+    }))
+}
+
+#[tauri::command]
+pub async fn download_update(
+    app: AppHandle,
+    request: UpdateDownloadRequest,
+) -> Result<UpdateDownloadResult, String> {
+    let state = app.state::<Arc<UpdateDownloadState>>().inner().clone();
+    let _guard = state.begin()?;
+    let client = http_client()?;
+    let file_name = safe_file_name(&request.asset.name);
+    let target_path = unique_path(downloads_dir()?.join(&file_name));
+    let temp_path = target_path.with_extension(format!(
+        "{}download",
+        target_path
+            .extension()
+            .map(|value| format!("{}.", value.to_string_lossy()))
+            .unwrap_or_default()
+    ));
+    let mut last_error = "No download source is available".to_string();
+
+    for source in &request.asset.download_urls {
+        match download_from_source(
+            &app,
+            &client,
+            source,
+            &request.asset,
+            &target_path,
+            &temp_path,
+            &state,
+        )
+        .await
+        {
+            Ok(result) => return Ok(result),
+            Err(UpdateDownloadError::Cancelled) => {
+                let _ = fs::remove_file(&temp_path);
+                return Err("update-download-cancelled".to_string());
+            }
+            Err(UpdateDownloadError::Failed(error)) => {
+                let _ = fs::remove_file(&temp_path);
+                last_error = error;
+            }
+        }
+    }
+
+    Err(last_error)
+}
+
+#[tauri::command]
+pub fn cancel_update_download(app: AppHandle) {
+    let state = app.state::<Arc<UpdateDownloadState>>().inner().clone();
+    state.cancel_requested.store(true, Ordering::SeqCst);
+}
