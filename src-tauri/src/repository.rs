@@ -59,3 +59,12 @@ pub fn github_latest_release_api_url() -> String {
         github_repository_path()
     )
 }
+
+pub fn github_update_manifest_urls() -> Vec<String> {
+    let repository = github_repository_path();
+
+    vec![
+        format!("https://cdn.jsdelivr.net/gh/{repository}@main/update.json"),
+        format!("https://raw.githubusercontent.com/{repository}/main/update.json"),
+    ]
+}

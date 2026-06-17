@@ -1,0 +1,50 @@
+{
+  "tag_name": "v0.0.11",
+  "html_url": "https://github.com/ywenhao/q-note/releases/tag/v0.0.11",
+  "draft": false,
+  "prerelease": false,
+  "assets": [
+    {
+      "name": "Q.Note_0.0.11_aarch64.dmg",
+      "size": 6526418,
+      "digest": "sha256:09a62d46f7855f127d59617dc383eb54e78bfcb93375c324e11f885e6d02b7ac",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note_0.0.11_aarch64.dmg"
+    },
+    {
+      "name": "Q.Note_0.0.11_amd64.AppImage",
+      "size": 82258424,
+      "digest": "sha256:93d735898198f6f4a1df2c97560869ff0213a251bd0f621cfa150195a51dbd1b",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note_0.0.11_amd64.AppImage"
+    },
+    {
+      "name": "Q.Note_0.0.11_amd64.deb",
+      "size": 8105054,
+      "digest": "sha256:253f435e8e7075e28009c7330e4c38d104e690f771a542975e6658bcae79e768",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note_0.0.11_amd64.deb"
+    },
+    {
+      "name": "Q.Note_0.0.11_x64_en-US.msi",
+      "size": 6414336,
+      "digest": "sha256:ac815901fef6642e30066c16865c6693b0711b7de4b7d1b8262c5e440bba0a3f",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note_0.0.11_x64_en-US.msi"
+    },
+    {
+      "name": "Q.Note_0.0.11_x64-setup.exe",
+      "size": 4543915,
+      "digest": "sha256:108fadc566c1ac3cc798cc8e404220bac96cdfd67b89631bfce579d57d06632f",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note_0.0.11_x64-setup.exe"
+    },
+    {
+      "name": "Q.Note_aarch64.app.tar.gz",
+      "size": 6479885,
+      "digest": "sha256:6dc579dd29b1725e0a0428eed1f1dc6715b40c1e6beeeeda32c2157725425c07",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note_aarch64.app.tar.gz"
+    },
+    {
+      "name": "Q.Note-0.0.11-1.x86_64.rpm",
+      "size": 8105035,
+      "digest": "sha256:1d6d8460f0085dc8255fddb0e93fcb903d26f3604e4ee2f3b46f1e7d5c28d164",
+      "browser_download_url": "https://github.com/ywenhao/q-note/releases/download/v0.0.11/Q.Note-0.0.11-1.x86_64.rpm"
+    }
+  ]
+}

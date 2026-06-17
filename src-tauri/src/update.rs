@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::repository::github_latest_release_api_url;
+use crate::repository::{github_latest_release_api_url, github_update_manifest_urls};
 
 const USER_AGENT: &str = concat!("Q-Note/", env!("CARGO_PKG_VERSION"));
 const DOWNLOAD_PROGRESS_EVENT: &str = "q-note-update-download-progress";
@@ -194,6 +194,68 @@ async fn fetch_country_code(client: &reqwest::Client, url: &str, keys: &[&str]) 
         .ok()?;
 
     read_country_code(&payload, keys)
+}
+
+async fn fetch_release_metadata(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<GithubRelease, String> {
+    client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?
+        .error_for_status()
+        .map_err(|error| error.to_string())?
+        .json::<GithubRelease>()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+fn release_metadata_urls_for_region(use_china_mirrors: bool) -> Vec<String> {
+    let api_url = github_latest_release_api_url();
+
+    if !use_china_mirrors {
+        return vec![api_url];
+    }
+
+    let mut urls = github_update_manifest_urls();
+    urls.push(api_url);
+    urls
+}
+
+async fn check_release_sources(
+    client: &reqwest::Client,
+    current_version: &str,
+    urls: Vec<String>,
+) -> Result<Option<GithubRelease>, String> {
+    let mut saw_release = false;
+    let mut last_error = "No update source is available".to_string();
+
+    for url in urls {
+        match fetch_release_metadata(client, &url).await {
+            Ok(release) => {
+                saw_release = true;
+
+                if release.draft
+                    || release.prerelease
+                    || !is_newer_version(&release.tag_name, current_version)
+                {
+                    continue;
+                }
+
+                return Ok(Some(release));
+            }
+            Err(error) => last_error = error,
+        }
+    }
+
+    if saw_release {
+        Ok(None)
+    } else {
+        Err(last_error)
+    }
 }
 
 async fn should_use_china_download_mirrors() -> bool {
@@ -614,25 +676,12 @@ async fn download_from_source(
 
 #[tauri::command]
 pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>, String> {
-    let latest_release_api_url = github_latest_release_api_url();
-    let release = http_client()?
-        .get(latest_release_api_url)
-        .header(reqwest::header::USER_AGENT, USER_AGENT)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .error_for_status()
-        .map_err(|error| error.to_string())?
-        .json::<GithubRelease>()
-        .await
-        .map_err(|error| error.to_string())?;
-
-    if release.draft || release.prerelease || !is_newer_version(&release.tag_name, &current_version)
-    {
-        return Ok(None);
-    }
-
+    let client = http_client()?;
     let use_china_mirrors = should_use_china_download_mirrors().await;
+    let urls = release_metadata_urls_for_region(use_china_mirrors);
+    let Some(release) = check_release_sources(&client, &current_version, urls).await? else {
+        return Ok(None);
+    };
 
     Ok(Some(UpdateInfo {
         asset: pick_release_asset(release.assets, use_china_mirrors),
