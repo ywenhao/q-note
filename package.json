@@ -24,6 +24,7 @@
     "release:minor": "pnpm run release --release minor",
     "release:patch": "pnpm run release --release patch",
     "update:manifest": "node scripts/generate-update-manifest.mjs",
+    "update:manifest:upload": "node scripts/upload-update-manifest.mjs",
     "tauri": "tauri",
     "format": "vp format",
     "format:check": "vp format --check",

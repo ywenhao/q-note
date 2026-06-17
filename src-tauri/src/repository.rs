@@ -2,7 +2,6 @@ use serde::Deserialize;
 
 const PACKAGE_JSON: &str = include_str!("../../package.json");
 const FALLBACK_GITHUB_REPOSITORY: &str = "ywenhao/q-note";
-const UPDATE_MANIFEST_BRANCH: &str = "update-manifest";
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -63,11 +62,18 @@ pub fn github_latest_release_api_url() -> String {
 
 pub fn github_update_manifest_urls() -> Vec<String> {
     let repository = github_repository_path();
+    let official_url =
+        format!("https://github.com/{repository}/releases/latest/download/update.json");
+    let mut urls = Vec::new();
 
-    vec![
-        format!("https://cdn.jsdelivr.net/gh/{repository}@{UPDATE_MANIFEST_BRANCH}/update.json"),
-        format!(
-            "https://raw.githubusercontent.com/{repository}/{UPDATE_MANIFEST_BRANCH}/update.json"
-        ),
-    ]
+    for prefix in [
+        "https://gh-proxy.com/",
+        "https://ghproxy.net/",
+        "https://ghproxy.site/",
+    ] {
+        urls.push(format!("{prefix}{official_url}"));
+    }
+
+    urls.push(official_url);
+    urls
 }

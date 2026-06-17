@@ -5,7 +5,7 @@ import packageJson from "../package.json" with { type: "json" };
 
 const FALLBACK_REPOSITORY = "ywenhao/q-note";
 const UPDATE_MANIFEST_PATH =
-  process.env.UPDATE_MANIFEST_PATH ?? new URL("../update.json", import.meta.url);
+  process.env.UPDATE_MANIFEST_PATH ?? new URL("../.manifest/update.json", import.meta.url);
 
 function repositoryPathFromPackage() {
   const repository = packageJson.repository;
