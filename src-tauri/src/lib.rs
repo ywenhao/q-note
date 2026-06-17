@@ -349,7 +349,8 @@ pub fn run() {
             open_editor_window,
             update::check_update,
             update::download_update,
-            update::cancel_update_download
+            update::cancel_update_download,
+            update::install_update_package
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

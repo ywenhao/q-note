@@ -8,6 +8,7 @@ import {
   cancelUpdateDownload,
   checkForUpdate,
   downloadUpdate,
+  installDownloadedUpdate,
   openCurrentRelease,
   openReleaseUrl,
   readAppVersion,
@@ -120,6 +121,11 @@ export function useUpdateManager({
       try {
         const result = await downloadUpdate(update);
         setUpdateDownloadResult(result);
+        try {
+          await installDownloadedUpdate(result.path);
+        } catch {
+          showToast(translations[languageRef.current].updateInstallFailed);
+        }
       } catch (error) {
         setUpdateDialogOpen(false);
         if (String(error).includes("update-download-cancelled")) {

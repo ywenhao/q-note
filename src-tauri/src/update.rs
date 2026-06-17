@@ -635,3 +635,34 @@ pub fn cancel_update_download(app: AppHandle) {
     let state = app.state::<Arc<UpdateDownloadState>>().inner().clone();
     state.cancel_requested.store(true, Ordering::SeqCst);
 }
+
+#[tauri::command]
+pub fn install_update_package(path: String) -> Result<(), String> {
+    let package_path = PathBuf::from(path);
+    if !package_path.is_file() {
+        return Err("update-package-missing".to_string());
+    }
+
+    #[cfg(target_os = "linux")]
+    if package_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("appimage"))
+    {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+
+        let mut permissions = fs::metadata(&package_path)
+            .map_err(|error| error.to_string())?
+            .permissions();
+        permissions.set_mode(permissions.mode() | 0o755);
+        fs::set_permissions(&package_path, permissions).map_err(|error| error.to_string())?;
+
+        Command::new(&package_path)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+
+    tauri_plugin_opener::open_path(package_path, None::<&str>).map_err(|error| error.to_string())
+}

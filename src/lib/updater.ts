@@ -105,3 +105,11 @@ export async function revealDownloadedUpdate(path: string) {
 
   await revealItemInDir(path);
 }
+
+export async function installDownloadedUpdate(path: string) {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  await invoke("install_update_package", { path });
+}
