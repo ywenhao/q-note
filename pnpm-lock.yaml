@@ -50,7 +50,7 @@ importers:
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.0
-        version: 4.3.0(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))
+        version: 4.3.0(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
       '@tauri-apps/cli':
         specifier: ^2.11.2
         version: 2.11.2
@@ -62,7 +62,10 @@ importers:
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react':
         specifier: ^6.0.2
-        version: 6.0.2(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))
+        version: 6.0.2(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+      bumpp:
+        specifier: ^11.1.0
+        version: 11.1.0
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.0
@@ -71,10 +74,10 @@ importers:
         version: 6.0.3
       vite:
         specifier: ^8.0.16
-        version: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)
+        version: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0)
       vite-plus:
         specifier: ^0.1.24
-        version: 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))
+        version: 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)
 
 packages:
 
@@ -586,6 +589,9 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
+  '@quansync/fs@1.0.0':
+    resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
+
   '@rolldown/binding-android-arm64@1.0.3':
     resolution: {integrity: sha512-454rs7jHngixp/NMxd5srYD57OnzSlZ/eFTETjORQHLwJG1lRtmNOJcBerZlfu4GjKqeq8aCCIQrMdHyhI51Hw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1051,12 +1057,27 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  args-tokenizer@0.3.0:
+    resolution: {integrity: sha512-xXAd7G2Mll5W8uo37GETpQ2VrE84M181Z7ugHFGQnJZ50M2mbOv0osSZ9VsSgPfJQ+LVG0prSi0th+ELMsno7Q==}
+
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
+  bumpp@11.1.0:
+    resolution: {integrity: sha512-jdwOGMyX8JIqpQ0N2RMRR87DHZaoJnUtui5lU9LqFfFK5JC0H8qY9uWqXoa+dEWt/K7rOmmsoyiZB8RBM7RPBQ==}
+    engines: {node: '>=20.19.0'}
+    hasBin: true
+
+  cac@7.0.0:
+    resolution: {integrity: sha512-tixWYgm5ZoOD+3g6UTea91eow5z6AAHaho3g0V9CNSNb45gM8SmflpAc+GRd1InC4AqN/07Unrgp56Y94N9hJQ==}
+    engines: {node: '>=20.19.0'}
+
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  defu@6.1.7:
+    resolution: {integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==}
 
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
@@ -1187,6 +1208,9 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
+
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
     engines: {node: '>= 12.0.0'}
@@ -1312,6 +1336,9 @@ packages:
       vite-plus:
         optional: true
 
+  package-manager-detector@1.6.0:
+    resolution: {integrity: sha512-61A5ThoTiDG/C8s8UMZwSorAGwMJ0ERVGj2OjoW5pAalsNOg15+iQiPzrLJ4jhZ1HJzmC2PIHT2oEiH3R5fzNA==}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -1331,6 +1358,9 @@ packages:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  quansync@1.0.0:
+    resolution: {integrity: sha512-5xZacEEufv3HSTPQuchrvV6soaiACMFnq1H8wkVioctoH3TRha9Sz66lOxRwPK/qZj7HPiSveih9yAyh98gvqA==}
+
   react-dom@19.2.7:
     resolution: {integrity: sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==}
     peerDependencies:
@@ -1347,6 +1377,11 @@ packages:
 
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
+
+  semver@7.8.4:
+    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
+    engines: {node: '>=10'}
+    hasBin: true
 
   sirv@3.0.2:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
@@ -1392,6 +1427,12 @@ packages:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
+
+  unconfig-core@7.5.0:
+    resolution: {integrity: sha512-Su3FauozOGP44ZmKdHy2oE6LPjk51M/TRRjHv2HNCWiDvfvCoxC2lno6jevMA91MYAdCdwP05QnWdWpSbncX/w==}
+
+  unconfig@7.5.0:
+    resolution: {integrity: sha512-oi8Qy2JV4D3UQ0PsopR28CzdQ3S/5A1zwsUwp/rosSbfhJ5z7b90bIyTwi/F7hCLD4SGcZVjDzd4XoUQcEanvA==}
 
   vite-plus@0.1.24:
     resolution: {integrity: sha512-b3fr6WtCiEhetjuzW/4KcEMOAMuZxoxZATWaXKmPzOLf1upG+pzKJOFZTb94D6wiPBlwcjxoaUtF7C3uAN+VjQ==}
@@ -1452,6 +1493,11 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
 
 snapshots:
 
@@ -1747,6 +1793,10 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
+  '@quansync/fs@1.0.0':
+    dependencies:
+      quansync: 1.0.0
+
   '@rolldown/binding-android-arm64@1.0.3':
     optional: true
 
@@ -1861,12 +1911,12 @@ snapshots:
       '@tailwindcss/oxide-win32-arm64-msvc': 4.3.0
       '@tailwindcss/oxide-win32-x64-msvc': 4.3.0
 
-  '@tailwindcss/vite@4.3.0(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))':
+  '@tailwindcss/vite@4.3.0(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@tailwindcss/node': 4.3.0
       '@tailwindcss/oxide': 4.3.0
       tailwindcss: 4.3.0
-      vite: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)
+      vite: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0)
 
   '@tauri-apps/api@2.11.0': {}
 
@@ -1957,12 +2007,12 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  '@vitejs/plugin-react@6.0.2(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))':
+  '@vitejs/plugin-react@6.0.2(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)
+      vite: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0)
 
-  '@voidzero-dev/vite-plus-core@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)':
+  '@voidzero-dev/vite-plus-core@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(yaml@2.9.0)':
     dependencies:
       '@oxc-project/runtime': 0.133.0
       '@oxc-project/types': 0.133.0
@@ -1973,6 +2023,7 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.7.0
       typescript: 6.0.3
+      yaml: 2.9.0
 
   '@voidzero-dev/vite-plus-darwin-arm64@0.1.24':
     optional: true
@@ -1992,11 +2043,11 @@ snapshots:
   '@voidzero-dev/vite-plus-linux-x64-musl@0.1.24':
     optional: true
 
-  '@voidzero-dev/vite-plus-test@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))':
+  '@voidzero-dev/vite-plus-test@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
-      '@voidzero-dev/vite-plus-core': 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)
+      '@voidzero-dev/vite-plus-core': 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(yaml@2.9.0)
       es-module-lexer: 1.7.0
       obug: 2.1.2
       pixelmatch: 7.2.0
@@ -2006,7 +2057,7 @@ snapshots:
       tinybench: 2.9.0
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
-      vite: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)
+      vite: 8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0)
       ws: 8.21.0
     transitivePeerDependencies:
       - '@arethetypeswrong/core'
@@ -2036,9 +2087,27 @@ snapshots:
   '@voidzero-dev/vite-plus-win32-x64-msvc@0.1.24':
     optional: true
 
+  args-tokenizer@0.3.0: {}
+
   assertion-error@2.0.1: {}
 
+  bumpp@11.1.0:
+    dependencies:
+      args-tokenizer: 0.3.0
+      cac: 7.0.0
+      jsonc-parser: 3.3.1
+      package-manager-detector: 1.6.0
+      semver: 7.8.4
+      tinyexec: 1.2.4
+      tinyglobby: 0.2.17
+      unconfig: 7.5.0
+      yaml: 2.9.0
+
+  cac@7.0.0: {}
+
   csstype@3.2.3: {}
+
+  defu@6.1.7: {}
 
   detect-libc@2.1.2: {}
 
@@ -2091,6 +2160,8 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   jiti@2.7.0: {}
+
+  jsonc-parser@3.3.1: {}
 
   lightningcss-android-arm64@1.32.0:
     optional: true
@@ -2155,7 +2226,7 @@ snapshots:
 
   obug@2.1.2: {}
 
-  oxfmt@0.52.0(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))):
+  oxfmt@0.52.0(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)):
     dependencies:
       tinypool: 2.1.0
     optionalDependencies:
@@ -2178,7 +2249,7 @@ snapshots:
       '@oxfmt/binding-win32-arm64-msvc': 0.52.0
       '@oxfmt/binding-win32-ia32-msvc': 0.52.0
       '@oxfmt/binding-win32-x64-msvc': 0.52.0
-      vite-plus: 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))
+      vite-plus: 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)
 
   oxlint-tsgolint@0.23.0:
     optionalDependencies:
@@ -2189,7 +2260,7 @@ snapshots:
       '@oxlint-tsgolint/win32-arm64': 0.23.0
       '@oxlint-tsgolint/win32-x64': 0.23.0
 
-  oxlint@1.67.0(oxlint-tsgolint@0.23.0)(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))):
+  oxlint@1.67.0(oxlint-tsgolint@0.23.0)(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)):
     optionalDependencies:
       '@oxlint/binding-android-arm-eabi': 1.67.0
       '@oxlint/binding-android-arm64': 1.67.0
@@ -2211,7 +2282,9 @@ snapshots:
       '@oxlint/binding-win32-ia32-msvc': 1.67.0
       '@oxlint/binding-win32-x64-msvc': 1.67.0
       oxlint-tsgolint: 0.23.0
-      vite-plus: 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))
+      vite-plus: 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)
+
+  package-manager-detector@1.6.0: {}
 
   picocolors@1.1.1: {}
 
@@ -2228,6 +2301,8 @@ snapshots:
       nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  quansync@1.0.0: {}
 
   react-dom@19.2.7(react@19.2.7):
     dependencies:
@@ -2258,6 +2333,8 @@ snapshots:
       '@rolldown/binding-win32-x64-msvc': 1.0.3
 
   scheduler@0.27.0: {}
+
+  semver@7.8.4: {}
 
   sirv@3.0.2:
     dependencies:
@@ -2290,14 +2367,27 @@ snapshots:
 
   typescript@6.0.3: {}
 
-  vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)):
+  unconfig-core@7.5.0:
+    dependencies:
+      '@quansync/fs': 1.0.0
+      quansync: 1.0.0
+
+  unconfig@7.5.0:
+    dependencies:
+      '@quansync/fs': 1.0.0
+      defu: 6.1.7
+      jiti: 2.7.0
+      quansync: 1.0.0
+      unconfig-core: 7.5.0
+
+  vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0):
     dependencies:
       '@oxc-project/types': 0.133.0
       '@oxlint/plugins': 1.61.0
-      '@voidzero-dev/vite-plus-core': 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)
-      '@voidzero-dev/vite-plus-test': 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0))
-      oxfmt: 0.52.0(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)))
-      oxlint: 1.67.0(oxlint-tsgolint@0.23.0)(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)))
+      '@voidzero-dev/vite-plus-core': 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(yaml@2.9.0)
+      '@voidzero-dev/vite-plus-test': 0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)
+      oxfmt: 0.52.0(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0))
+      oxlint: 1.67.0(oxlint-tsgolint@0.23.0)(vite-plus@0.1.24(esbuild@0.27.7)(jiti@2.7.0)(typescript@6.0.3)(vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0))
       oxlint-tsgolint: 0.23.0
     optionalDependencies:
       '@voidzero-dev/vite-plus-darwin-arm64': 0.1.24
@@ -2340,7 +2430,7 @@ snapshots:
       - vite
       - yaml
 
-  vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0):
+  vite@8.0.16(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.4
@@ -2351,5 +2441,8 @@ snapshots:
       esbuild: 0.27.7
       fsevents: 2.3.3
       jiti: 2.7.0
+      yaml: 2.9.0
 
   ws@8.21.0: {}
+
+  yaml@2.9.0: {}
