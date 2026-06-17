@@ -878,22 +878,21 @@ body.is-sorting-note .note-card {
 
 .settings-dialog {
   display: flex;
-  width: min(300px, calc(100vw - 36px));
+  width: min(276px, calc(100vw - 32px));
   flex-direction: column;
-  gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  border-radius: 8px;
-  padding: 10px;
-  background: rgba(255, 253, 244, 0.9);
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(255, 253, 244, 0.92);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.52),
-    0 18px 42px rgba(31, 35, 40, 0.18);
+    0 16px 38px rgba(31, 35, 40, 0.16);
   backdrop-filter: blur(24px) saturate(160%);
   animation: rise-in 140ms ease;
 }
 
-.settings-dialog__header,
-.settings-row {
+.settings-dialog__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -903,7 +902,7 @@ body.is-sorting-note .note-card {
 .settings-dialog h2 {
   margin: 0;
   color: #1d1d1f;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
@@ -923,26 +922,38 @@ body.is-sorting-note .note-card {
   background: rgba(120, 120, 128, 0.18);
 }
 
-.settings-list {
+.settings-panel {
   display: grid;
-  gap: 1px;
+  gap: 4px;
   overflow: hidden;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.5);
+  border-radius: 9px;
+  padding: 2px 0;
+  background: rgba(60, 60, 67, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 4px 12px rgba(31, 35, 40, 0.035);
 }
 
 .settings-row {
-  min-height: 32px;
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   border: 0;
-  border-radius: 8px;
-  padding: 0 8px;
-  background: rgba(255, 255, 255, 0.52);
+  border-radius: 0;
+  padding: 0 9px;
+  background: rgba(255, 255, 255, 0.58);
   color: #1d1d1f;
   transition: background-color 140ms ease;
 }
 
 .settings-row:hover {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.settings-row--center {
+  justify-content: center;
 }
 
 .settings-row:disabled {
@@ -951,19 +962,21 @@ body.is-sorting-note .note-card {
 }
 
 .settings-row:disabled:hover {
-  background: rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .settings-row__label {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
+  font-size: 0.86rem;
+  font-weight: 450;
 }
 
 .settings-row svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   color: rgba(29, 29, 31, 0.72);
 }
 
@@ -976,51 +989,56 @@ body.is-sorting-note .note-card {
 .settings-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 1px;
 }
 
 .settings-action {
   display: inline-flex;
   min-width: 0;
-  min-height: 30px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   gap: 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.58);
   color: #1d1d1f;
+  font-size: 0.86rem;
+  font-weight: 450;
   transition: background-color 140ms ease;
 }
 
 .settings-action:hover {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .settings-action svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   color: rgba(29, 29, 31, 0.72);
 }
 
 .settings-footer {
   display: flex;
-  min-height: 18px;
+  min-height: 16px;
   align-items: center;
   justify-content: center;
+  margin-top: 1px;
 }
 
 .settings-version {
   align-self: center;
   border: 0;
-  padding: 0 5px;
+  border-radius: 999px;
+  padding: 1px 6px;
   background: transparent;
   color: rgba(60, 60, 67, 0.72);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .settings-version:hover {
+  background: rgba(255, 255, 255, 0.45);
   color: #007aff;
 }
 

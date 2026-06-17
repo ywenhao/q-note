@@ -7,13 +7,15 @@ interface ToastProps {
 }
 
 export function Toast({ icon = true, message }: ToastProps) {
+  const [visibleIcon, setVisibleIcon] = useState(icon);
   const [visibleMessage, setVisibleMessage] = useState(message);
 
   useEffect(() => {
     if (message) {
+      setVisibleIcon(icon);
       setVisibleMessage(message);
     }
-  }, [message]);
+  }, [icon, message]);
 
   return (
     <div
@@ -26,7 +28,7 @@ export function Toast({ icon = true, message }: ToastProps) {
       }}
       role="status"
     >
-      {icon ? <Check aria-hidden="true" /> : null}
+      {visibleIcon ? <Check aria-hidden="true" /> : null}
       <span>{visibleMessage}</span>
     </div>
   );

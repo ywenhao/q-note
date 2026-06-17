@@ -561,6 +561,7 @@ function App() {
         onOpenSettings={() => setShowSettings(true)}
         onToggleLanguage={() => void toggleLanguage()}
         t={t}
+        updateVersion={updateInfo?.latestVersion}
       />
 
       <NoteList

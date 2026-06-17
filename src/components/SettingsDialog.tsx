@@ -43,46 +43,46 @@ export function SettingsDialog({
           </button>
         </header>
 
-        <div className="settings-list">
+        <div className="settings-panel">
           <button className="settings-row" onClick={onToggleAutoStart} type="button">
             <span className="settings-row__label">
-              <Power size={18} />
+              <Power size={14} />
               {t.startupSetting}
             </span>
             <span className={`switch ${autoStart ? "is-on" : ""}`} aria-hidden="true">
               <span />
             </span>
           </button>
-        </div>
 
-        <div className="settings-actions">
-          <button className="settings-action" onClick={onImport} type="button">
-            <Upload size={18} />
-            {t.import}
-          </button>
-          <button className="settings-action" onClick={onExport} type="button">
-            <Download size={18} />
-            {t.export}
+          <div className="settings-actions">
+            <button className="settings-action" onClick={onImport} type="button">
+              <Upload size={14} />
+              {t.import}
+            </button>
+            <button className="settings-action" onClick={onExport} type="button">
+              <Download size={14} />
+              {t.export}
+            </button>
+          </div>
+
+          <button
+            className={`settings-row settings-row--center ${checkingUpdate ? "is-loading" : ""}`}
+            disabled={checkingUpdate}
+            onClick={onCheckUpdate}
+            type="button"
+          >
+            <span className="settings-row__label">
+              {checkingUpdate ? (
+                <LoaderCircle className="spin-icon" size={14} />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {hasUpdate ? <span className="update-dot" aria-hidden="true" /> : null}
+              {t.checkUpdate}
+            </span>
+            {hasUpdate ? <span className="settings-row__value">{t.updateAvailable}</span> : null}
           </button>
         </div>
-
-        <button
-          className={`settings-row ${checkingUpdate ? "is-loading" : ""}`}
-          disabled={checkingUpdate}
-          onClick={onCheckUpdate}
-          type="button"
-        >
-          <span className="settings-row__label">
-            {checkingUpdate ? (
-              <LoaderCircle className="spin-icon" size={18} />
-            ) : (
-              <RefreshCw size={18} />
-            )}
-            {hasUpdate ? <span className="update-dot" aria-hidden="true" /> : null}
-            {t.checkUpdate}
-          </span>
-          {hasUpdate ? <span className="settings-row__value">{t.updateAvailable}</span> : null}
-        </button>
 
         <footer className="settings-footer">
           <button className="settings-version" onClick={onOpenCurrentRelease} type="button">

@@ -10,6 +10,7 @@ interface AppToolbarProps {
   onOpenSettings: () => void;
   onToggleLanguage: () => void;
   t: Translation;
+  updateVersion?: string;
 }
 
 export function AppToolbar({
@@ -20,7 +21,11 @@ export function AppToolbar({
   onOpenSettings,
   onToggleLanguage,
   t,
+  updateVersion,
 }: AppToolbarProps) {
+  const settingsLabel =
+    hasUpdate && updateVersion ? t.updateAvailableTitle(updateVersion) : t.settings;
+
   return (
     <div className="toolbar">
       <IconButton icon={<Plus size={18} />} label={t.newNote} onClick={onNewNote} />
@@ -34,7 +39,7 @@ export function AppToolbar({
       <IconButton
         badge={hasUpdate}
         icon={<Settings size={18} />}
-        label={t.settings}
+        label={settingsLabel}
         onClick={onOpenSettings}
       />
       <IconButton icon={<Languages size={18} />} label={t.language} onClick={onToggleLanguage}>
