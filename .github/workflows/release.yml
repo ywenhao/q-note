@@ -98,7 +98,7 @@ jobs:
             git switch --force-create update-manifest origin/update-manifest
           else
             git switch --orphan update-manifest
-            git rm -rf .
+            git rm -rf --ignore-unmatch .
           fi
           cp /tmp/q-note-update.json update.json
           git add update.json
