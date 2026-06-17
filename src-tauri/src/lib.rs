@@ -309,6 +309,7 @@ async fn open_editor_window(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db_url = database_url().expect("failed to resolve Q Note database path");
+    let _ = update::cleanup_installed_update_packages();
 
     tauri::Builder::default()
         .manage(TrayMenuState::default())

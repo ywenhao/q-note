@@ -18,6 +18,8 @@ const GITHUB_LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/ywenhao/q-note/releases/latest";
 const USER_AGENT: &str = concat!("Q-Note/", env!("CARGO_PKG_VERSION"));
 const DOWNLOAD_PROGRESS_EVENT: &str = "q-note-update-download-progress";
+const UPDATE_TMP_DIR_NAME: &str = "tmp";
+const UPDATE_CLEANUP_FILE_NAME: &str = "update-packages.json";
 
 #[derive(Default)]
 pub struct UpdateDownloadState {
@@ -123,6 +125,7 @@ pub struct UpdateInfo {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateDownloadRequest {
     asset: UpdateAsset,
+    version: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -141,6 +144,13 @@ pub struct UpdateDownloadResult {
     file_name: String,
     path: String,
     source_label: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DownloadedUpdatePackage {
+    path: String,
+    version: String,
 }
 
 fn http_client() -> Result<reqwest::Client, String> {
@@ -309,11 +319,97 @@ fn safe_file_name(name: &str) -> String {
     }
 }
 
-fn downloads_dir() -> Result<PathBuf, String> {
-    let mut dir = super::home_dir()?;
-    dir.push("Downloads");
+fn update_tmp_dir() -> Result<PathBuf, String> {
+    let dir = super::home_dir()?
+        .join(super::DATA_DIR_NAME)
+        .join(UPDATE_TMP_DIR_NAME);
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     Ok(dir)
+}
+
+fn update_cleanup_file() -> Result<PathBuf, String> {
+    Ok(update_tmp_dir()?.join(UPDATE_CLEANUP_FILE_NAME))
+}
+
+fn read_downloaded_update_packages() -> Vec<DownloadedUpdatePackage> {
+    let Ok(path) = update_cleanup_file() else {
+        return Vec::new();
+    };
+
+    let Ok(content) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+
+    serde_json::from_str::<Vec<DownloadedUpdatePackage>>(&content).unwrap_or_default()
+}
+
+fn write_downloaded_update_packages(packages: &[DownloadedUpdatePackage]) -> Result<(), String> {
+    let path = update_cleanup_file()?;
+
+    if packages.is_empty() {
+        if path.exists() {
+            fs::remove_file(path).map_err(|error| error.to_string())?;
+        }
+        return Ok(());
+    }
+
+    let content = serde_json::to_string_pretty(packages).map_err(|error| error.to_string())?;
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
+fn remember_downloaded_update_package(path: &Path, version: &str) -> Result<(), String> {
+    let path = path.to_string_lossy().to_string();
+    let mut packages = read_downloaded_update_packages();
+    packages.retain(|package| package.path != path);
+    packages.push(DownloadedUpdatePackage {
+        path,
+        version: version.to_string(),
+    });
+    write_downloaded_update_packages(&packages)
+}
+
+fn cleanup_partial_update_downloads() -> Result<(), String> {
+    let dir = update_tmp_dir()?;
+
+    for entry in fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        let is_partial = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("download"));
+
+        if is_partial {
+            let _ = fs::remove_file(path);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn cleanup_installed_update_packages() -> Result<(), String> {
+    cleanup_partial_update_downloads()?;
+
+    let packages = read_downloaded_update_packages();
+    if packages.is_empty() {
+        return Ok(());
+    }
+
+    let mut pending = Vec::new();
+    for package in packages {
+        if is_newer_version(&package.version, env!("CARGO_PKG_VERSION")) {
+            pending.push(package);
+            continue;
+        }
+
+        match fs::remove_file(&package.path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => pending.push(package),
+        }
+    }
+
+    write_downloaded_update_packages(&pending)
 }
 
 fn unique_path(path: PathBuf) -> PathBuf {
@@ -494,7 +590,7 @@ pub async fn download_update(
     let _guard = state.begin()?;
     let client = http_client()?;
     let file_name = safe_file_name(&request.asset.name);
-    let target_path = unique_path(downloads_dir()?.join(&file_name));
+    let target_path = unique_path(update_tmp_dir()?.join(&file_name));
     let temp_path = target_path.with_extension(format!(
         "{}download",
         target_path
@@ -516,7 +612,10 @@ pub async fn download_update(
         )
         .await
         {
-            Ok(result) => return Ok(result),
+            Ok(result) => {
+                remember_downloaded_update_package(&target_path, &request.version)?;
+                return Ok(result);
+            }
             Err(UpdateDownloadError::Cancelled) => {
                 let _ = fs::remove_file(&temp_path);
                 return Err("update-download-cancelled".to_string());

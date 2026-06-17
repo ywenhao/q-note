@@ -85,6 +85,7 @@ export async function downloadUpdate(update: UpdateInfo) {
   return invoke<UpdateDownloadResult>("download_update", {
     request: {
       asset: update.asset,
+      version: update.latestVersion,
     },
   });
 }
