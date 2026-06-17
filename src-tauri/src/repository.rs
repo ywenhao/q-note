@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 const PACKAGE_JSON: &str = include_str!("../../package.json");
 const FALLBACK_GITHUB_REPOSITORY: &str = "ywenhao/q-note";
+const UPDATE_MANIFEST_BRANCH: &str = "update-manifest";
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -64,7 +65,9 @@ pub fn github_update_manifest_urls() -> Vec<String> {
     let repository = github_repository_path();
 
     vec![
-        format!("https://cdn.jsdelivr.net/gh/{repository}@main/update.json"),
-        format!("https://raw.githubusercontent.com/{repository}/main/update.json"),
+        format!("https://cdn.jsdelivr.net/gh/{repository}@{UPDATE_MANIFEST_BRANCH}/update.json"),
+        format!(
+            "https://raw.githubusercontent.com/{repository}/{UPDATE_MANIFEST_BRANCH}/update.json"
+        ),
     ]
 }

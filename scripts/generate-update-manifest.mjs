@@ -1,8 +1,11 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import packageJson from "../package.json" with { type: "json" };
 
 const FALLBACK_REPOSITORY = "ywenhao/q-note";
-const UPDATE_MANIFEST_PATH = new URL("../update.json", import.meta.url);
+const UPDATE_MANIFEST_PATH =
+  process.env.UPDATE_MANIFEST_PATH ?? new URL("../update.json", import.meta.url);
 
 function repositoryPathFromPackage() {
   const repository = packageJson.repository;
@@ -64,10 +67,17 @@ function toUpdateManifest(release) {
   };
 }
 
+async function ensureOutputDir(outputPath) {
+  const filePath = outputPath instanceof URL ? fileURLToPath(outputPath) : outputPath;
+
+  await mkdir(dirname(filePath), { recursive: true });
+}
+
 const repository = repositoryPathFromPackage();
 const tagName = process.env.GITHUB_REF_NAME ?? `v${packageJson.version}`;
 const release = await readRelease(repository, tagName);
 const manifest = toUpdateManifest(release);
 
+await ensureOutputDir(UPDATE_MANIFEST_PATH);
 await writeFile(UPDATE_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`Generated update.json for ${repository}@${manifest.tag_name}`);

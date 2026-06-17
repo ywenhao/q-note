@@ -12,7 +12,9 @@ dist
 dist-ssr
 coverage
 .vite
+.manifest
 *.local
+/update.json
 .env
 .env.*
 !.env.example
