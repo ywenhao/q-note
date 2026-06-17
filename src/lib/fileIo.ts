@@ -5,12 +5,31 @@ import { isTauriRuntime } from "./env";
 
 const JSON_FILTER = [{ name: "Q Note", extensions: ["json"] }];
 
+function formatExportTimestamp(date = new Date()) {
+  const parts = [
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+  ];
+
+  return parts
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
+    .join("");
+}
+
+function createExportFileName() {
+  return `q-note_${formatExportTimestamp()}.json`;
+}
+
 export async function exportJson(payload: ExportPayload) {
   const content = JSON.stringify(payload, null, 2);
+  const fileName = createExportFileName();
 
   if (isTauriRuntime()) {
     const filePath = await save({
-      defaultPath: `q-note-${new Date().toISOString().slice(0, 10)}.json`,
+      defaultPath: fileName,
       filters: JSON_FILTER,
     });
 
@@ -25,7 +44,7 @@ export async function exportJson(payload: ExportPayload) {
   const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = "q-note.json";
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
   return true;
