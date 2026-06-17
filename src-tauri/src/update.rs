@@ -14,12 +14,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
 
-const GITHUB_LATEST_RELEASE_API: &str =
-    "https://api.github.com/repos/ywenhao/q-note/releases/latest";
+use crate::repository::github_latest_release_api_url;
+
 const USER_AGENT: &str = concat!("Q-Note/", env!("CARGO_PKG_VERSION"));
 const DOWNLOAD_PROGRESS_EVENT: &str = "q-note-update-download-progress";
 const UPDATE_TMP_DIR_NAME: &str = "tmp";
 const UPDATE_CLEANUP_FILE_NAME: &str = "update-packages.json";
+const IP_REGION_TIMEOUT_SECONDS: u64 = 3;
 
 #[derive(Default)]
 pub struct UpdateDownloadState {
@@ -162,6 +163,60 @@ fn http_client() -> Result<reqwest::Client, String> {
         .map_err(|error| error.to_string())
 }
 
+fn ip_region_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(IP_REGION_TIMEOUT_SECONDS))
+        .timeout(Duration::from_secs(IP_REGION_TIMEOUT_SECONDS))
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+fn read_country_code(payload: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| payload.get(*key)?.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_ascii_uppercase)
+}
+
+async fn fetch_country_code(client: &reqwest::Client, url: &str, keys: &[&str]) -> Option<String> {
+    let payload = client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json::<serde_json::Value>()
+        .await
+        .ok()?;
+
+    read_country_code(&payload, keys)
+}
+
+async fn should_use_china_download_mirrors() -> bool {
+    let Ok(client) = ip_region_client() else {
+        return false;
+    };
+
+    // Use mirrors only when the public IP region is confirmed as China.
+    for (url, keys) in [
+        ("https://ipapi.co/json/", &["country_code"][..]),
+        ("https://ipinfo.io/json", &["country"][..]),
+        ("https://ipwho.is/", &["country_code"][..]),
+    ] {
+        match fetch_country_code(&client, url, keys).await.as_deref() {
+            Some("CN") => return true,
+            Some(_) => return false,
+            None => {}
+        }
+    }
+
+    false
+}
+
 fn parse_version_parts(value: &str) -> Vec<u64> {
     value
         .trim()
@@ -251,10 +306,13 @@ fn asset_score(name: &str) -> i32 {
     }
 }
 
-fn build_download_sources(official_url: &str) -> Vec<UpdateDownloadSource> {
+fn build_download_sources(
+    official_url: &str,
+    use_china_mirrors: bool,
+) -> Vec<UpdateDownloadSource> {
     let mut sources = Vec::new();
 
-    if official_url.starts_with("https://github.com/") {
+    if use_china_mirrors && official_url.starts_with("https://github.com/") {
         for (label, prefix) in [
             ("gh-proxy.com", "https://gh-proxy.com/"),
             ("ghproxy.net", "https://ghproxy.net/"),
@@ -277,7 +335,7 @@ fn build_download_sources(official_url: &str) -> Vec<UpdateDownloadSource> {
     sources
 }
 
-fn pick_release_asset(assets: Vec<GithubAsset>) -> Option<UpdateAsset> {
+fn pick_release_asset(assets: Vec<GithubAsset>, use_china_mirrors: bool) -> Option<UpdateAsset> {
     assets
         .into_iter()
         .filter_map(|asset| {
@@ -286,7 +344,7 @@ fn pick_release_asset(assets: Vec<GithubAsset>) -> Option<UpdateAsset> {
         })
         .max_by_key(|(score, _)| *score)
         .map(|(_, asset)| UpdateAsset {
-            download_urls: build_download_sources(&asset.browser_download_url),
+            download_urls: build_download_sources(&asset.browser_download_url, use_china_mirrors),
             browser_download_url: asset.browser_download_url,
             digest: asset.digest,
             name: asset.name,
@@ -556,8 +614,9 @@ async fn download_from_source(
 
 #[tauri::command]
 pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>, String> {
+    let latest_release_api_url = github_latest_release_api_url();
     let release = http_client()?
-        .get(GITHUB_LATEST_RELEASE_API)
+        .get(latest_release_api_url)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .send()
         .await
@@ -573,8 +632,10 @@ pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>,
         return Ok(None);
     }
 
+    let use_china_mirrors = should_use_china_download_mirrors().await;
+
     Ok(Some(UpdateInfo {
-        asset: pick_release_asset(release.assets),
+        asset: pick_release_asset(release.assets, use_china_mirrors),
         html_url: release.html_url,
         latest_version: release.tag_name.trim_start_matches('v').to_string(),
         tag_name: release.tag_name,

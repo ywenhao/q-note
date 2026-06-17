@@ -1,13 +1,12 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
-import packageJson from "../../package.json";
 import { isTauriRuntime } from "./env";
+import { getReleaseTagUrl, PACKAGE_VERSION } from "./repository";
 
 export const UPDATE_DOWNLOAD_PROGRESS_EVENT = "q-note-update-download-progress";
 
-export const FALLBACK_VERSION = packageJson.version;
-const RELEASE_BASE_URL = "https://github.com/ywenhao/q-note/releases";
+export const FALLBACK_VERSION = PACKAGE_VERSION;
 
 export interface UpdateDownloadSource {
   label: string;
@@ -53,7 +52,7 @@ export async function readAppVersion() {
 }
 
 export function getReleaseUrl(version: string) {
-  return `${RELEASE_BASE_URL}/tag/v${version}`;
+  return getReleaseTagUrl(version);
 }
 
 export async function openReleaseUrl(url: string) {

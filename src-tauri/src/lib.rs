@@ -12,6 +12,7 @@ use tauri::{
 };
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod repository;
 mod update;
 
 const DOCK_WINDOW_SIZE: f64 = 30.0;

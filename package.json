@@ -1,8 +1,17 @@
 {
   "name": "q-note",
-  "version": "0.0.10",
+  "version": "0.0.11",
+  "description": "A lightweight desktop note app built with Tauri.",
   "license": "MIT",
   "private": true,
+  "homepage": "https://github.com/ywenhao/q-note#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ywenhao/q-note.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ywenhao/q-note/issues"
+  },
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
