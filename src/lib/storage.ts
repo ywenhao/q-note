@@ -28,9 +28,27 @@ let dbUrlPromise: Promise<string> | null = null;
 let dbPromise: Promise<Database> | null = null;
 let drizzlePromise: Promise<SqliteRemoteDatabase<typeof schema>> | null = null;
 
+function readSystemLanguage() {
+  if (typeof navigator === "undefined") {
+    return "en";
+  }
+
+  return navigator.language || navigator.languages?.[0] || "en";
+}
+
+function detectDefaultLanguage(): Language {
+  const language = readSystemLanguage().toLowerCase();
+
+  if (language.startsWith("zh")) {
+    return "zh";
+  }
+
+  return "en";
+}
+
 export function createDefaultSettings(): AppSettings {
   return {
-    language: "zh",
+    language: detectDefaultLanguage(),
     alwaysOnTop: false,
     autoStart: false,
     dockOnEdge: false,
@@ -81,7 +99,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function toLanguage(value: unknown): Language {
-  return value === "en" ? "en" : "zh";
+  if (value === "zh" || value === "en") {
+    return value;
+  }
+
+  return detectDefaultLanguage();
 }
 
 function normalizeWindowState(value: unknown): WindowState | null {
