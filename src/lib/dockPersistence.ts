@@ -13,6 +13,7 @@ const DOCK_REVEAL_ANCHOR_KEY = "q-note:dock-reveal-anchor";
 const DOCK_GUARD_MS = 800;
 const DOCK_REVEAL_ANCHOR_MAX_AGE = 5 * 60 * 1000;
 
+export const DOCK_RETURN_SNAP_EVENT = "q-note-snap-dock-after-return";
 export const DOCK_RETURN_SNAP_DELAY = 500;
 
 function isDockEdge(value: unknown): value is DockEdge {

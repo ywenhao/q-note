@@ -1,5 +1,7 @@
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 import {
+  DOCK_RETURN_SNAP_EVENT,
   DOCK_RETURN_SNAP_DELAY,
   beginDockTransition,
   clearDockRevealAnchor,
@@ -27,13 +29,28 @@ import {
 import type { AppSettings, DockEdge, WindowState } from "../types";
 
 interface UseDockModeOptions {
+  currentWindowLabel: string;
   persistSettings: (patch: Partial<AppSettings>) => Promise<void>;
   settingsRef: MutableRefObject<AppSettings>;
 }
 
-export function useDockMode({ persistSettings, settingsRef }: UseDockModeOptions) {
+interface DockReturnSnapPayload {
+  edge: DockEdge;
+  token: string;
+}
+
+function isDockEdge(value: unknown): value is DockEdge {
+  return value === "left" || value === "right" || value === "top" || value === "bottom";
+}
+
+export function useDockMode({
+  currentWindowLabel,
+  persistSettings,
+  settingsRef,
+}: UseDockModeOptions) {
   const dockGuardRef = useRef(false);
   const dockGuardTimerRef = useRef<number | null>(null);
+  const dockReturnSnapTimerRef = useRef<number | null>(null);
   const dockDragRef = useRef(false);
   const dockDragMovePendingRef = useRef(false);
   const dockDragSessionRef = useRef<QIconDragSession | null>(null);
@@ -124,16 +141,14 @@ export function useDockMode({ persistSettings, settingsRef }: UseDockModeOptions
         );
 
         if (isActiveDockTransition(token) && settingsRef.current.docked) {
-          await hideMainWindow();
           if (revealAnchor) {
-            window.setTimeout(() => {
-              if (!isActiveDockTransition(token) || !settingsRef.current.docked) {
-                return;
-              }
-
-              void persistIconSnap(revealAnchor.edge);
-            }, DOCK_RETURN_SNAP_DELAY);
+            await emitTo(DOCK_WINDOW_LABEL, DOCK_RETURN_SNAP_EVENT, {
+              edge: revealAnchor.edge,
+              token,
+            } satisfies DockReturnSnapPayload);
           }
+
+          await hideMainWindow();
         } else if (getActiveDockTransitionTarget() === "main") {
           await hideDockWindow();
         }
@@ -264,9 +279,57 @@ export function useDockMode({ persistSettings, settingsRef }: UseDockModeOptions
       if (dockGuardTimerRef.current) {
         window.clearTimeout(dockGuardTimerRef.current);
       }
+      if (dockReturnSnapTimerRef.current) {
+        window.clearTimeout(dockReturnSnapTimerRef.current);
+      }
     },
     [],
   );
+
+  useEffect(() => {
+    if (currentWindowLabel !== DOCK_WINDOW_LABEL) {
+      return;
+    }
+
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+
+    void listen<DockReturnSnapPayload>(DOCK_RETURN_SNAP_EVENT, (event) => {
+      const { edge, token } = event.payload;
+      if (!isDockEdge(edge) || typeof token !== "string") {
+        return;
+      }
+
+      if (dockReturnSnapTimerRef.current) {
+        window.clearTimeout(dockReturnSnapTimerRef.current);
+      }
+
+      dockReturnSnapTimerRef.current = window.setTimeout(() => {
+        dockReturnSnapTimerRef.current = null;
+        if (!isActiveDockTransition(token) || !settingsRef.current.docked || dockDragRef.current) {
+          return;
+        }
+
+        void persistIconSnap(edge);
+      }, DOCK_RETURN_SNAP_DELAY);
+    }).then((handler) => {
+      if (disposed) {
+        handler();
+        return;
+      }
+
+      unlisten = handler;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+      if (dockReturnSnapTimerRef.current) {
+        window.clearTimeout(dockReturnSnapTimerRef.current);
+        dockReturnSnapTimerRef.current = null;
+      }
+    };
+  }, [currentWindowLabel, persistIconSnap, settingsRef]);
 
   return {
     collapseToQIcon,

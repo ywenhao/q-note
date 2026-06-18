@@ -84,6 +84,7 @@ function App() {
     revealDockIcon,
     toggleDockOnEdge,
   } = useDockMode({
+    currentWindowLabel,
     persistSettings,
     settingsRef,
   });
