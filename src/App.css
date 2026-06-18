@@ -1530,6 +1530,14 @@ body.is-sorting-note .note-card {
   color: #fff;
 }
 
+.toast--error svg {
+  background: #ff3b30;
+}
+
+.toast--info svg {
+  background: #007aff;
+}
+
 .toast span {
   overflow: hidden;
   text-overflow: ellipsis;

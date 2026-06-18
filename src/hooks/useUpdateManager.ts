@@ -82,13 +82,13 @@ export function useUpdateManager({
         setUpdateInfo(nextUpdate);
 
         if (manual && !nextUpdate) {
-          showToast(translations[languageRef.current].updateNone, { icon: false });
+          showToast(translations[languageRef.current].updateNone, { icon: false, kind: "info" });
         }
 
         return nextUpdate;
       } catch {
         if (manual) {
-          showToast(translations[languageRef.current].updateCheckFailed);
+          showToast(translations[languageRef.current].updateCheckFailed, { kind: "error" });
         }
 
         return null;
@@ -107,7 +107,7 @@ export function useUpdateManager({
       }
 
       if (!update.asset) {
-        showToast(translations[languageRef.current].updateNoAsset);
+        showToast(translations[languageRef.current].updateNoAsset, { kind: "info" });
         await openReleaseUrl(update.htmlUrl);
         return;
       }
@@ -124,14 +124,14 @@ export function useUpdateManager({
         try {
           await installDownloadedUpdate(result.path);
         } catch {
-          showToast(translations[languageRef.current].updateInstallFailed);
+          showToast(translations[languageRef.current].updateInstallFailed, { kind: "error" });
         }
       } catch (error) {
         setUpdateDialogOpen(false);
         if (String(error).includes("update-download-cancelled")) {
-          showToast(translations[languageRef.current].updateDownloadCancelled);
+          showToast(translations[languageRef.current].updateDownloadCancelled, { kind: "info" });
         } else {
-          showToast(translations[languageRef.current].updateDownloadFailed);
+          showToast(translations[languageRef.current].updateDownloadFailed, { kind: "error" });
         }
       } finally {
         downloadingUpdateRef.current = false;
