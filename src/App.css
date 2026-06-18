@@ -81,9 +81,11 @@ button {
   height: 100vh;
   flex-direction: column;
   overflow: hidden;
+  border-radius: 12px;
   padding: 8px 10px 28px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 46%), #ffd150;
+  clip-path: inset(0 round 12px);
 }
 
 .app-shell.is-loading {
