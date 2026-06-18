@@ -1,8 +1,8 @@
 [package]
 name = "q-note"
 version = "0.0.20"
-description = "A Tauri App"
-authors = ["you"]
+description = "A lightweight desktop note app built with Tauri."
+authors = ["ywenhao"]
 license = "MIT"
 edition = "2021"
 
