@@ -3071,7 +3071,7 @@ dependencies = [
 
 [[package]]
 name = "q-note"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "futures-util",
  "reqwest 0.12.28",
