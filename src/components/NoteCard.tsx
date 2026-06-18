@@ -85,6 +85,7 @@ export function NoteCard({
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLParagraphElement>(null);
   const suppressCopyUntilRef = useRef(0);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [draftHeight, setDraftHeight] = useState<number | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -161,6 +162,21 @@ export function NoteCard({
     onCopy(note);
   }
 
+  function closeActionPanel() {
+    setActionsOpen(false);
+    setPaletteOpen(false);
+
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  }
+
+  function runAndClose(action: () => void) {
+    action();
+    closeActionPanel();
+  }
+
   return (
     <article
       {...dragHandleProps}
@@ -218,8 +234,11 @@ export function NoteCard({
         </div>
 
         <div
-          className="note-card__action-dock"
+          className={`note-card__action-dock ${actionsOpen ? "is-actions-open" : ""}`}
           onClick={stopCardClick}
+          onFocusCapture={() => setActionsOpen(true)}
+          onPointerEnter={() => setActionsOpen(true)}
+          onPointerLeave={closeActionPanel}
           onPointerDown={stopCardPointer}
         >
           <button
@@ -236,20 +255,23 @@ export function NoteCard({
               active={note.pinned}
               icon={note.pinned ? <PinOff size={16} /> : <Pin size={16} />}
               label={note.pinned ? t.unpin : t.pin}
-              onClick={() => onTogglePin(note.id)}
+              onClick={() => runAndClose(() => onTogglePin(note.id))}
               subtle
             />
             <IconButton
               icon={<Pencil size={16} />}
               label={t.edit}
-              onClick={() => onEdit(note)}
+              onClick={() => runAndClose(() => onEdit(note))}
               subtle
             />
             <div className="color-popover-wrap" ref={colorPopoverRef}>
               <IconButton
                 icon={<Palette size={16} />}
                 label={t.color}
-                onClick={() => setPaletteOpen((open) => !open)}
+                onClick={() => {
+                  setActionsOpen(true);
+                  setPaletteOpen((open) => !open);
+                }}
                 subtle
               />
               {paletteOpen ? (
@@ -261,7 +283,7 @@ export function NoteCard({
                       key={color}
                       onClick={() => {
                         onColorChange(note.id, color);
-                        setPaletteOpen(false);
+                        closeActionPanel();
                       }}
                       style={{ backgroundColor: color }}
                       type="button"
@@ -275,14 +297,14 @@ export function NoteCard({
             <IconButton
               icon={<Copy size={16} />}
               label={t.copy}
-              onClick={() => onCopy(note)}
+              onClick={() => runAndClose(() => onCopy(note))}
               subtle
             />
             <IconButton
               className="is-danger"
               icon={<Trash2 size={16} />}
               label={t.delete}
-              onClick={() => onDelete(note.id)}
+              onClick={() => runAndClose(() => onDelete(note.id))}
               subtle
             />
           </div>

@@ -611,8 +611,7 @@ body.is-sorting-note .note-card {
   visibility: visible;
 }
 
-.note-card__action-dock:hover,
-.note-card__action-dock:focus-within {
+.note-card__action-dock.is-actions-open {
   width: 160px;
 }
 
@@ -639,7 +638,7 @@ body.is-sorting-note .note-card {
 }
 
 .note-card__actions-trigger:hover,
-.note-card__action-dock:focus-within .note-card__actions-trigger {
+.note-card__action-dock.is-actions-open .note-card__actions-trigger {
   background: rgba(255, 255, 255, 0.78);
   color: rgba(0, 122, 255, 0.86);
 }
@@ -675,8 +674,7 @@ body.is-sorting-note .note-card {
   touch-action: auto;
 }
 
-.note-card__action-dock:hover .note-card__actions,
-.note-card__action-dock:focus-within .note-card__actions {
+.note-card__action-dock.is-actions-open .note-card__actions {
   opacity: 0.94;
   pointer-events: auto;
   transform: translate(0, -50%);
@@ -731,7 +729,7 @@ body.is-sorting-note .note-card {
 .color-popover {
   position: absolute;
   top: 36px;
-  left: -2px;
+  left: 50%;
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(4, 20px);
@@ -741,7 +739,8 @@ body.is-sorting-note .note-card {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 16px 34px rgba(31, 35, 40, 0.16);
-  animation: pop-in 120ms ease;
+  transform: translateX(-50%);
+  animation: color-pop-in 120ms ease;
 }
 
 .color-swatch {
@@ -1694,6 +1693,13 @@ body.is-sorting-note .note-card {
 @keyframes pop-in {
   from {
     transform: scale(0.98);
+    opacity: 0;
+  }
+}
+
+@keyframes color-pop-in {
+  from {
+    transform: translateX(-50%) scale(0.98);
     opacity: 0;
   }
 }
