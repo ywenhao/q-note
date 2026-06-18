@@ -8,7 +8,8 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -185,7 +186,11 @@ fn position_editor_window(app: &tauri::AppHandle, editor: &WebviewWindow) {
         return;
     };
 
-    let target_x = main_position.x - editor_size.width as i32 - EDITOR_WINDOW_GAP;
+    let gap = editor
+        .scale_factor()
+        .map(|scale_factor| (EDITOR_WINDOW_GAP as f64 * scale_factor).round() as i32)
+        .unwrap_or(EDITOR_WINDOW_GAP);
+    let target_x = main_position.x - editor_size.width as i32 - gap;
     let target_y = main_position.y + (main_size.height as i32 - editor_size.height as i32) / 2;
 
     if let Ok(Some(monitor)) = main.current_monitor() {
@@ -205,6 +210,36 @@ fn position_editor_window(app: &tauri::AppHandle, editor: &WebviewWindow) {
     }
 
     let _ = editor.set_position(PhysicalPosition::new(target_x, target_y));
+}
+
+fn editor_window_size() -> LogicalSize<f64> {
+    LogicalSize::new(EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_HEIGHT)
+}
+
+fn editor_window_min_size() -> LogicalSize<f64> {
+    LogicalSize::new(EDITOR_WINDOW_MIN_WIDTH, EDITOR_WINDOW_MIN_HEIGHT)
+}
+
+fn apply_editor_window_size_constraints(window: &WebviewWindow) -> Result<(), String> {
+    window
+        .set_min_size(Some(editor_window_min_size()))
+        .map_err(|error| error.to_string())?;
+
+    let scale_factor = window.scale_factor().map_err(|error| error.to_string())?;
+    let logical_size = window
+        .inner_size()
+        .map_err(|error| error.to_string())?
+        .to_logical::<f64>(scale_factor);
+
+    if logical_size.width < EDITOR_WINDOW_MIN_WIDTH
+        || logical_size.height < EDITOR_WINDOW_MIN_HEIGHT
+    {
+        window
+            .set_size(editor_window_size())
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -268,6 +303,7 @@ async fn open_editor_window(
             .set_decorations(true)
             .map_err(|error| error.to_string())?;
         window.set_shadow(true).map_err(|error| error.to_string())?;
+        apply_editor_window_size_constraints(&window)?;
         window
             .set_always_on_top(always_on_top)
             .map_err(|error| error.to_string())?;

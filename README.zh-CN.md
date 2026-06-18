@@ -109,6 +109,24 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
+## macOS 信任应用
+
+Q Note 目前没有使用 Apple Developer ID 证书签名和公证。macOS 安装后可能会提示“Q Note 已损坏，无法打开”。如果你确认安装包来自官方 GitHub Release，并且信任这个应用，可以手动允许打开：
+
+1. 打开 **系统设置**。
+2. 进入 **隐私与安全性**。
+3. 在安全性区域找到 Q Note 的拦截提示，点击 **仍要打开**。
+4. 也可以右键点击 **Q Note.app**，选择 **打开**，再确认系统提示。
+
+如果 macOS 仍然拦截，可以在终端移除下载隔离标记：
+
+```bash
+sudo xattr -rd com.apple.quarantine "/Applications/Q Note.app"
+open "/Applications/Q Note.app"
+```
+
+请只对你确认来自可信 Release 页面的应用执行这个命令。
+
 ## 许可证
 
 本项目使用 [MIT](./LICENSE) 协议。

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
+  LogicalSize,
   PhysicalPosition,
   PhysicalSize,
   Window,
@@ -21,9 +22,7 @@ import { isTauriRuntime } from "./env";
 const DOCK_MARGIN = 12;
 const MAIN_START_MARGIN = 40;
 const SNAP_THRESHOLD = 28;
-const EDGE_PEEK_SIZE = DOCK_WINDOW_SIZE / 2;
 const DOCK_SLIDE_DURATION = 130;
-const MAIN_MIN_SIZE = new PhysicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
 export const MAIN_WINDOW_LABEL = "main";
 export const DOCK_WINDOW_LABEL = "dock";
 export const EDITOR_WINDOW_LABEL = "editor";
@@ -40,47 +39,97 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
-function getRightCenterMainState(width: number, height: number, monitor: Monitor): WindowState {
+async function logicalPixelsToPhysical(window: Window, value: number) {
+  return Math.round(value * (await window.scaleFactor()));
+}
+
+function getRightCenterMainState(
+  width: number,
+  height: number,
+  monitor: Monitor,
+  margin: number,
+): WindowState {
   const area = getWorkArea(monitor);
 
   return {
     width,
     height,
-    x: Math.round(clamp(area.right - width - MAIN_START_MARGIN, area.left, area.right - width)),
+    x: Math.round(clamp(area.right - width - margin, area.left, area.right - width)),
     y: Math.round(
       clamp(area.top + (area.bottom - area.top - height) / 2, area.top, area.bottom - height),
     ),
   };
 }
 
-function getMainWindowSize(state: WindowState | null) {
+function createLogicalMainSize() {
+  return new LogicalSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+}
+
+function createLogicalDockSize() {
+  return new LogicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE);
+}
+
+async function getDefaultMainPhysicalSize(window: Window) {
+  const scaleFactor = await window.scaleFactor();
+  const size = createLogicalMainSize().toPhysical(scaleFactor);
+
+  return {
+    width: Math.round(size.width),
+    height: Math.round(size.height),
+  };
+}
+
+async function getDockPhysicalSize(window: Window) {
+  const scaleFactor = await window.scaleFactor();
+  const size = createLogicalDockSize().toPhysical(scaleFactor);
+
+  return new PhysicalSize(Math.round(size.width), Math.round(size.height));
+}
+
+async function applyDockWindowSize(window: Window) {
+  const size = await getDockPhysicalSize(window);
+
+  await window.setDecorations(false);
+  await window.setShadow(false);
+  await window.setMinSize(createLogicalDockSize());
+  await window.setMaxSize(createLogicalDockSize());
+  await window.setSize(createLogicalDockSize());
+
+  return size;
+}
+
+async function getMainWindowSize(window: Window, state: WindowState | null) {
+  const defaultSize = await getDefaultMainPhysicalSize(window);
   const width = state?.width;
   const height = state?.height;
 
   return {
     width: Math.max(
-      DEFAULT_WINDOW_WIDTH,
-      typeof width === "number" && Number.isFinite(width)
-        ? Math.round(width)
-        : DEFAULT_WINDOW_WIDTH,
+      defaultSize.width,
+      typeof width === "number" && Number.isFinite(width) ? Math.round(width) : defaultSize.width,
     ),
     height: Math.max(
-      DEFAULT_WINDOW_HEIGHT,
+      defaultSize.height,
       typeof height === "number" && Number.isFinite(height)
         ? Math.round(height)
-        : DEFAULT_WINDOW_HEIGHT,
+        : defaultSize.height,
     ),
   };
 }
 
-function getClampedMainState(state: WindowState | null, monitor: Monitor): WindowState {
-  const { width, height } = getMainWindowSize(state);
+async function getClampedMainState(
+  window: Window,
+  state: WindowState | null,
+  monitor: Monitor,
+): Promise<WindowState> {
+  const { width, height } = await getMainWindowSize(window, state);
+  const margin = await logicalPixelsToPhysical(window, MAIN_START_MARGIN);
   if (!state) {
-    return getRightCenterMainState(width, height, monitor);
+    return getRightCenterMainState(width, height, monitor, margin);
   }
 
   const area = getWorkArea(monitor);
-  const x = Number.isFinite(state.x) ? state.x : area.right - width - MAIN_START_MARGIN;
+  const x = Number.isFinite(state.x) ? state.x : area.right - width - margin;
   const y = Number.isFinite(state.y) ? state.y : area.top + (area.bottom - area.top - height) / 2;
 
   return {
@@ -176,18 +225,18 @@ export async function restoreWindowState(state: WindowState | null, label = MAIN
 
   await window.setDecorations(false);
   await window.setShadow(true);
-  await window.setMinSize(MAIN_MIN_SIZE);
+  await window.setMinSize(createLogicalMainSize());
   await window.setMaxSize(null);
 
   const monitor = await getMonitorForState(state);
   if (monitor) {
-    const nextState = getClampedMainState(state, monitor);
+    const nextState = await getClampedMainState(window, state, monitor);
     await window.setSize(new PhysicalSize(nextState.width, nextState.height));
     await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
     return;
   }
 
-  const { width, height } = getMainWindowSize(state);
+  const { width, height } = await getMainWindowSize(window, state);
   await window.setSize(new PhysicalSize(width, height));
   if (state) {
     await window.setPosition(new PhysicalPosition(state.x, state.y));
@@ -205,16 +254,17 @@ export async function positionMainWindowAtStartup(state: WindowState | null) {
     return;
   }
 
-  const { width, height } = getMainWindowSize(state);
+  const { width, height } = await getMainWindowSize(window, state);
 
   await window.setDecorations(false);
   await window.setShadow(true);
-  await window.setMinSize(MAIN_MIN_SIZE);
+  await window.setMinSize(createLogicalMainSize());
   await window.setMaxSize(null);
   await window.setSize(new PhysicalSize(width, height));
 
   if (monitor) {
-    const nextState = getRightCenterMainState(width, height, monitor);
+    const margin = await logicalPixelsToPhysical(window, MAIN_START_MARGIN);
+    const nextState = getRightCenterMainState(width, height, monitor, margin);
     await window.setPosition(new PhysicalPosition(nextState.x, nextState.y));
   }
 
@@ -248,14 +298,14 @@ export async function hideMainWindow() {
   await (await getWindowByLabel(MAIN_WINDOW_LABEL))?.hide();
 }
 
-function getDefaultDockState(monitor: Monitor): WindowState {
+function getDefaultDockState(monitor: Monitor, size: PhysicalSize, margin: number): WindowState {
   const area = getWorkArea(monitor);
 
   return {
-    width: DOCK_WINDOW_SIZE,
-    height: DOCK_WINDOW_SIZE,
-    x: Math.round(area.right - DOCK_WINDOW_SIZE - DOCK_MARGIN),
-    y: Math.round(area.bottom - DOCK_WINDOW_SIZE - DOCK_MARGIN),
+    width: size.width,
+    height: size.height,
+    x: Math.round(area.right - size.width - margin),
+    y: Math.round(area.bottom - size.height - margin),
   };
 }
 
@@ -269,25 +319,26 @@ function getDockEdgeState(
   const area = getWorkArea(monitor);
   const centerX = position.x + size.width / 2;
   const centerY = position.y + size.height / 2;
-  const halfHidden = hidden ? EDGE_PEEK_SIZE : 0;
+  const halfHiddenX = hidden ? size.width / 2 : 0;
+  const halfHiddenY = hidden ? size.height / 2 : 0;
 
   const x =
     edge === "left"
-      ? area.left - halfHidden
+      ? area.left - halfHiddenX
       : edge === "right"
-        ? area.right - DOCK_WINDOW_SIZE + halfHidden
-        : clamp(centerX - DOCK_WINDOW_SIZE / 2, area.left, area.right - DOCK_WINDOW_SIZE);
+        ? area.right - size.width + halfHiddenX
+        : clamp(centerX - size.width / 2, area.left, area.right - size.width);
 
   const y =
     edge === "top"
-      ? area.top - halfHidden
+      ? area.top - halfHiddenY
       : edge === "bottom"
-        ? area.bottom - DOCK_WINDOW_SIZE + halfHidden
-        : clamp(centerY - DOCK_WINDOW_SIZE / 2, area.top, area.bottom - DOCK_WINDOW_SIZE);
+        ? area.bottom - size.height + halfHiddenY
+        : clamp(centerY - size.height / 2, area.top, area.bottom - size.height);
 
   return {
-    width: DOCK_WINDOW_SIZE,
-    height: DOCK_WINDOW_SIZE,
+    width: size.width,
+    height: size.height,
     x: Math.round(x),
     y: Math.round(y),
   };
@@ -333,9 +384,14 @@ async function moveDockWindow(window: Window, state: WindowState, animate = fals
   });
 }
 
-function normalizeDockState(state: WindowState | null, monitor: Monitor): WindowState {
+function normalizeDockState(
+  state: WindowState | null,
+  monitor: Monitor,
+  size: PhysicalSize,
+  margin: number,
+): WindowState {
   if (!state) {
-    return getDefaultDockState(monitor);
+    return getDefaultDockState(monitor, size, margin);
   }
 
   const area = getWorkArea(monitor);
@@ -345,14 +401,14 @@ function normalizeDockState(state: WindowState | null, monitor: Monitor): Window
     centerX >= area.left && centerX <= area.right && centerY >= area.top && centerY <= area.bottom;
 
   if (!centerInWorkArea) {
-    return getDefaultDockState(monitor);
+    return getDefaultDockState(monitor, size, margin);
   }
 
   return {
-    width: DOCK_WINDOW_SIZE,
-    height: DOCK_WINDOW_SIZE,
-    x: Math.round(clamp(centerX - DOCK_WINDOW_SIZE / 2, area.left, area.right - DOCK_WINDOW_SIZE)),
-    y: Math.round(clamp(centerY - DOCK_WINDOW_SIZE / 2, area.top, area.bottom - DOCK_WINDOW_SIZE)),
+    width: size.width,
+    height: size.height,
+    x: Math.round(clamp(centerX - size.width / 2, area.left, area.right - size.width)),
+    y: Math.round(clamp(centerY - size.height / 2, area.top, area.bottom - size.height)),
   };
 }
 
@@ -366,23 +422,19 @@ export async function applyQIconWindow(state: WindowState | null): Promise<Windo
     return null;
   }
 
+  const dockSize = await applyDockWindowSize(window);
+  const dockMargin = await logicalPixelsToPhysical(window, DOCK_MARGIN);
   const monitor = await getMonitorForState(state);
   const nextState = monitor
-    ? normalizeDockState(state, monitor)
+    ? normalizeDockState(state, monitor, dockSize, dockMargin)
     : state
       ? {
-          width: DOCK_WINDOW_SIZE,
-          height: DOCK_WINDOW_SIZE,
+          width: dockSize.width,
+          height: dockSize.height,
           x: state.x,
           y: state.y,
         }
       : null;
-
-  await window.setDecorations(false);
-  await window.setShadow(false);
-  await window.setMinSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
-  await window.setMaxSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
-  await window.setSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
 
   if (nextState) {
     await moveDockWindow(window, nextState);
@@ -515,13 +567,14 @@ export async function detectSnapEdge(label?: string): Promise<DockEdge | null> {
   }
 
   const area = getWorkArea(monitor);
+  const threshold = SNAP_THRESHOLD * (await window.scaleFactor());
   const distances: Array<[DockEdge, number]> = [
     ["left", Math.abs(position.x - area.left)],
     ["right", Math.abs(area.right - (position.x + size.width))],
     ["top", Math.abs(position.y - area.top)],
     ["bottom", Math.abs(area.bottom - (position.y + size.height))],
   ];
-  const candidates = distances.filter(([, distance]) => distance <= SNAP_THRESHOLD);
+  const candidates = distances.filter(([, distance]) => distance <= threshold);
 
   candidates.sort((a, b) => a[1] - b[1]);
   return candidates[0]?.[0] ?? null;
@@ -537,6 +590,7 @@ export async function snapQIconWindow(edge: DockEdge) {
     return null;
   }
 
+  await applyDockWindowSize(window);
   const [position, size] = await Promise.all([window.outerPosition(), window.outerSize()]);
   const monitor = await getMonitorForDockWindow(edge, position, size);
 
@@ -546,11 +600,6 @@ export async function snapQIconWindow(edge: DockEdge) {
 
   const nextState = getDockEdgeState(edge, monitor, position, size, true);
 
-  await window.setDecorations(false);
-  await window.setShadow(false);
-  await window.setMinSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
-  await window.setMaxSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
-  await window.setSize(new PhysicalSize(DOCK_WINDOW_SIZE, DOCK_WINDOW_SIZE));
   await moveDockWindow(window, nextState, true);
 
   return nextState;
@@ -566,6 +615,7 @@ export async function revealQIconWindow(edge: DockEdge) {
     return null;
   }
 
+  await applyDockWindowSize(window);
   const [position, size] = await Promise.all([window.outerPosition(), window.outerSize()]);
   const monitor = await getMonitorForDockWindow(edge, position, size);
 
