@@ -19,7 +19,7 @@
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "release": "bumpp package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock --git-check --commit \"release: v%s\" --tag \"v%s\"",
+    "release": "bumpp package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml --git-check --execute \"cargo update --manifest-path src-tauri/Cargo.toml -p q-note\" --commit \"release: v%s\" --tag \"v%s\"",
     "release:major": "pnpm run release --release major",
     "release:minor": "pnpm run release --release minor",
     "release:patch": "pnpm run release --release patch",
