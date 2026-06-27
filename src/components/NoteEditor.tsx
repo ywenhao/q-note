@@ -19,6 +19,7 @@ import {
   resolveDraggedImageUrls,
 } from "../lib/images";
 import { DEFAULT_NOTE_COLOR, NOTE_COLORS, type Note, type NoteAttachment } from "../types";
+import { ImagePreview, type ImagePreviewItem } from "./ImagePreview";
 import { IconButton } from "./IconButton";
 
 export interface NoteDraft {
@@ -51,9 +52,15 @@ export function NoteEditor({
   const [content, setContent] = useState("");
   const [dragging, setDragging] = useState(false);
   const [mediaValue, setMediaValue] = useState("");
-  const [previewAttachment, setPreviewAttachment] = useState<NoteAttachment | null>(null);
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
   const [pinned, setPinned] = useState(false);
   const isWindowMode = mode === "window";
+  const imageAttachments = attachments.filter(isImageAttachment);
+  const previewImages: ImagePreviewItem[] = imageAttachments.map((attachment) => ({
+    alt: attachment.name ?? t.addImage,
+    id: attachment.id,
+    src: getAttachmentSrc(attachment),
+  }));
 
   useEffect(() => {
     setAttachments(note?.attachments ?? []);
@@ -61,7 +68,7 @@ export function NoteEditor({
     setContent(note?.content ?? "");
     setMediaValue("");
     setPinned(note?.pinned ?? false);
-    setPreviewAttachment(null);
+    setPreviewImageIndex(null);
   }, [note]);
 
   function createAttachment(
@@ -311,7 +318,11 @@ export function NoteEditor({
                 <figure className="editor-image" key={attachment.id}>
                   <button
                     className="editor-image__preview"
-                    onClick={() => setPreviewAttachment(attachment)}
+                    onClick={() =>
+                      setPreviewImageIndex(
+                        imageAttachments.findIndex((item) => item.id === attachment.id),
+                      )
+                    }
                     title={attachment.name ?? t.addImage}
                     type="button"
                   >
@@ -372,28 +383,13 @@ export function NoteEditor({
         </footer>
       </section>
 
-      {previewAttachment ? (
-        <div
-          className="image-preview"
-          onMouseDown={(event) => {
-            event.stopPropagation();
-            setPreviewAttachment(null);
-          }}
-        >
-          <button
-            aria-label={t.cancel}
-            className="image-preview__close"
-            onClick={() => setPreviewAttachment(null)}
-            type="button"
-          >
-            <X size={18} />
-          </button>
-          <img
-            alt={previewAttachment.name ?? t.addImage}
-            onMouseDown={(event) => event.stopPropagation()}
-            src={getAttachmentSrc(previewAttachment)}
-          />
-        </div>
+      {previewImageIndex !== null && previewImages.length > 0 ? (
+        <ImagePreview
+          initialIndex={previewImageIndex}
+          items={previewImages}
+          onClose={() => setPreviewImageIndex(null)}
+          t={t}
+        />
       ) : null}
     </div>
   );

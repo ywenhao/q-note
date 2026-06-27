@@ -23,6 +23,7 @@ import {
 import type { Translation } from "../i18n";
 import { getAttachmentSrc, isImageAttachment } from "../lib/images";
 import { NOTE_COLORS, type Note } from "../types";
+import type { ImagePreviewItem } from "./ImagePreview";
 import { IconButton } from "./IconButton";
 
 const LINE_HEIGHT = 22;
@@ -42,6 +43,7 @@ interface NoteCardProps {
   onDelete: (id: string) => void;
   onEdit: (note: Note) => void;
   onHeightChange: (id: string, height: number) => void;
+  onPreviewImages: (items: ImagePreviewItem[], index: number) => void;
   onTogglePin: (id: string) => void;
   rootRef?: Ref<HTMLElement>;
   shouldSuppressCopy: () => boolean;
@@ -76,6 +78,7 @@ export function NoteCard({
   onDelete,
   onEdit,
   onHeightChange,
+  onPreviewImages,
   onTogglePin,
   rootRef,
   shouldSuppressCopy,
@@ -94,6 +97,11 @@ export function NoteCard({
   const textLines = Math.max(1, Math.round(textHeight / LINE_HEIGHT));
   const hasText = note.content.trim().length > 0;
   const imageAttachments = note.attachments.filter(isImageAttachment);
+  const previewImages: ImagePreviewItem[] = imageAttachments.map((attachment) => ({
+    alt: attachment.name ?? t.addImage,
+    id: attachment.id,
+    src: getAttachmentSrc(attachment),
+  }));
   const fileAttachments = note.attachments.filter((attachment) => !isImageAttachment(attachment));
 
   useEffect(() => {
@@ -210,13 +218,24 @@ export function NoteCard({
           </p>
 
           {imageAttachments.length > 0 ? (
-            <div className="note-card__images" onClick={stopCardClick}>
-              {imageAttachments.slice(0, 4).map((attachment) => (
-                <img
-                  alt={attachment.name ?? t.addImage}
+            <div
+              className="note-card__images"
+              onClick={stopCardClick}
+              onPointerDown={stopCardPointer}
+            >
+              {imageAttachments.slice(0, 4).map((attachment, index) => (
+                <button
+                  className="note-card__image"
                   key={attachment.id}
-                  src={getAttachmentSrc(attachment)}
-                />
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onPreviewImages(previewImages, index);
+                  }}
+                  title={attachment.name ?? t.addImage}
+                  type="button"
+                >
+                  <img alt={attachment.name ?? t.addImage} src={getAttachmentSrc(attachment)} />
+                </button>
               ))}
             </div>
           ) : null}

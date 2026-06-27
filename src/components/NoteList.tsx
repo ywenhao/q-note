@@ -20,6 +20,7 @@ import {
 import type { Translation } from "../i18n";
 import type { Note } from "../types";
 import { EmptyState } from "./EmptyState";
+import type { ImagePreviewItem } from "./ImagePreview";
 import { NoteCard } from "./NoteCard";
 
 type DropPlacement = "before" | "after";
@@ -33,6 +34,7 @@ interface NoteListProps {
   onEdit: (note: Note) => void;
   onHeightChange: (id: string, textHeight: number) => void;
   onNewNote: () => void;
+  onPreviewImages: (items: ImagePreviewItem[], index: number) => void;
   onReorder: (draggedId: string, targetId: string, placement: DropPlacement) => void;
   onTogglePin: (id: string) => void;
   t: Translation;
@@ -47,6 +49,7 @@ interface SortableNoteCardProps {
   onDelete: (id: string) => void;
   onEdit: (note: Note) => void;
   onHeightChange: (id: string, textHeight: number) => void;
+  onPreviewImages: (items: ImagePreviewItem[], index: number) => void;
   onTogglePin: (id: string) => void;
   shouldSuppressCopy: () => boolean;
   t: Translation;
@@ -61,6 +64,7 @@ function SortableNoteCard({
   onDelete,
   onEdit,
   onHeightChange,
+  onPreviewImages,
   onTogglePin,
   shouldSuppressCopy,
   t,
@@ -86,6 +90,7 @@ function SortableNoteCard({
       onDelete={onDelete}
       onEdit={onEdit}
       onHeightChange={onHeightChange}
+      onPreviewImages={onPreviewImages}
       onTogglePin={onTogglePin}
       rootRef={setNodeRef}
       shouldSuppressCopy={shouldSuppressCopy}
@@ -106,6 +111,7 @@ export function NoteList({
   onEdit,
   onHeightChange,
   onNewNote,
+  onPreviewImages,
   onReorder,
   onTogglePin,
   t,
@@ -182,6 +188,7 @@ export function NoteList({
               onDelete={onDelete}
               onEdit={onEdit}
               onHeightChange={onHeightChange}
+              onPreviewImages={onPreviewImages}
               onTogglePin={onTogglePin}
               shouldSuppressCopy={shouldSuppressCopy}
               t={t}
@@ -200,6 +207,7 @@ export function NoteList({
             onDelete={noop}
             onEdit={noop}
             onHeightChange={noop}
+            onPreviewImages={noop}
             onTogglePin={noop}
             shouldSuppressCopy={() => true}
             t={t}

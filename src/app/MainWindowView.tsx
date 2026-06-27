@@ -1,8 +1,9 @@
-import type { MouseEvent, PointerEvent } from "react";
+import { useState, type MouseEvent, type PointerEvent } from "react";
 import { AppHeader } from "../components/AppHeader";
 import { AppToolbar } from "../components/AppToolbar";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ContextMenu, type ContextMenuItem } from "../components/ContextMenu";
+import { ImagePreview, type ImagePreviewItem } from "../components/ImagePreview";
 import { NoteEditor, type NoteDraft } from "../components/NoteEditor";
 import { NoteList } from "../components/NoteList";
 import { QMark } from "../components/QMark";
@@ -70,6 +71,11 @@ interface MainWindowViewProps {
   updateInfo: UpdateInfo | null;
 }
 
+interface ImagePreviewState {
+  index: number;
+  items: ImagePreviewItem[];
+}
+
 export function MainWindowView({
   alwaysOnLabel,
   alwaysOnTop,
@@ -123,6 +129,8 @@ export function MainWindowView({
   updateDownloadResult,
   updateInfo,
 }: MainWindowViewProps) {
+  const [imagePreview, setImagePreview] = useState<ImagePreviewState | null>(null);
+
   if (!ready) {
     return (
       <main className="app-shell is-loading">
@@ -163,6 +171,7 @@ export function MainWindowView({
         onEdit={onEditNote}
         onHeightChange={onHeightChange}
         onNewNote={onNewNote}
+        onPreviewImages={(items, index) => setImagePreview({ index, items })}
         onReorder={onReorderNotes}
         onTogglePin={onToggleNotePin}
         t={t}
@@ -225,6 +234,14 @@ export function MainWindowView({
       </button>
       <StatusBar notes={notes} t={t} />
       <Toast icon={toast?.icon} kind={toast?.kind} message={toast?.message ?? null} />
+      {imagePreview ? (
+        <ImagePreview
+          initialIndex={imagePreview.index}
+          items={imagePreview.items}
+          onClose={() => setImagePreview(null)}
+          t={t}
+        />
+      ) : null}
     </main>
   );
 }
