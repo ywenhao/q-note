@@ -7,7 +7,6 @@ import {
   PinOff,
   Plus,
   Power,
-  Settings,
   Trash2,
 } from "lucide-react";
 import type { ContextMenuItem } from "../components/ContextMenu";
@@ -23,7 +22,7 @@ interface CommonMenuOptions {
   t: Translation;
 }
 
-interface MainMenuOptions extends CommonMenuOptions {
+interface MainMenuOptions {
   note: Note | null;
   notesCount: number;
   onCopyNote: (note: Note) => void;
@@ -31,9 +30,9 @@ interface MainMenuOptions extends CommonMenuOptions {
   onDeleteNote: (id: string) => void;
   onEditNote: (note: Note) => void;
   onNewNote: () => void;
-  onOpenSettings: () => void;
-  onToggleAutoStart: () => void;
   onToggleNotePin: (note: Note) => void;
+  settings: AppSettings;
+  t: Translation;
 }
 
 interface DockMenuOptions extends CommonMenuOptions {
@@ -42,8 +41,6 @@ interface DockMenuOptions extends CommonMenuOptions {
 }
 
 export function createMainContextItems({
-  alwaysOnLabel,
-  dockToggleLabel,
   note,
   notesCount,
   onCopyNote,
@@ -51,10 +48,6 @@ export function createMainContextItems({
   onDeleteNote,
   onEditNote,
   onNewNote,
-  onOpenSettings,
-  onToggleAlwaysOnTop,
-  onToggleAutoStart,
-  onToggleDock,
   onToggleNotePin,
   settings,
   t,
@@ -107,33 +100,6 @@ export function createMainContextItems({
       });
     }
   }
-
-  items.push(
-    {
-      id: "settings",
-      icon: <Settings size={16} />,
-      label: t.settings,
-      onSelect: onOpenSettings,
-    },
-    {
-      id: "topmost",
-      icon: settings.alwaysOnTop ? <PinOff size={16} /> : <Pin size={16} />,
-      label: alwaysOnLabel,
-      onSelect: onToggleAlwaysOnTop,
-    },
-    {
-      id: "autostart",
-      icon: <Power size={16} />,
-      label: settings.autoStart ? t.autoStartOff : t.autoStartOn,
-      onSelect: onToggleAutoStart,
-    },
-    {
-      id: "dock-edge",
-      icon: <PanelRightClose size={16} />,
-      label: dockToggleLabel,
-      onSelect: onToggleDock,
-    },
-  );
 
   return items;
 }

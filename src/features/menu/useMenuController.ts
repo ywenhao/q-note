@@ -21,14 +21,12 @@ interface UseMenuControllerOptions {
   notesCount: number;
   notesRef: MutableRefObject<Note[]>;
   onDeleteAll: () => void;
-  onOpenSettings: () => void;
   openEditor: (note: Note | null) => Promise<void>;
   patchNote: (id: string, patch: Partial<Note>) => Promise<void>;
   quitApp: () => Promise<void>;
   settings: AppSettings;
   t: Translation;
   toggleAlwaysOnTop: () => Promise<void>;
-  toggleAutoStart: () => Promise<void>;
   toggleDockOnEdge: () => Promise<void>;
   toggleLanguage: () => Promise<void>;
 }
@@ -41,14 +39,12 @@ export function useMenuController({
   notesCount,
   notesRef,
   onDeleteAll,
-  onOpenSettings,
   openEditor,
   patchNote,
   quitApp,
   settings,
   t,
   toggleAlwaysOnTop,
-  toggleAutoStart,
   toggleDockOnEdge,
   toggleLanguage,
 }: UseMenuControllerOptions) {
@@ -122,8 +118,6 @@ export function useMenuController({
   const getContextItems = useCallback((): ContextMenuItem[] => {
     const note = menu?.noteId ? notesRef.current.find((item) => item.id === menu.noteId) : null;
     return createMainContextItems({
-      alwaysOnLabel,
-      dockToggleLabel,
       note: note ?? null,
       notesCount,
       onCopyNote: (item) => void handleCopy(item),
@@ -131,31 +125,21 @@ export function useMenuController({
       onDeleteNote: (id) => void handleDelete(id),
       onEditNote: (item) => void openEditor(item),
       onNewNote: () => void openEditor(null),
-      onOpenSettings,
-      onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
-      onToggleAutoStart: () => void toggleAutoStart(),
-      onToggleDock: () => void toggleDockOnEdge(),
       onToggleNotePin: (item) => void patchNote(item.id, { pinned: !item.pinned }),
       settings,
       t,
     });
   }, [
-    alwaysOnLabel,
-    dockToggleLabel,
     handleCopy,
     handleDelete,
     menu?.noteId,
     notesCount,
     notesRef,
     onDeleteAll,
-    onOpenSettings,
     openEditor,
     patchNote,
     settings,
     t,
-    toggleAlwaysOnTop,
-    toggleAutoStart,
-    toggleDockOnEdge,
   ]);
 
   const getDockMenuItems = useCallback(

@@ -31,7 +31,8 @@
     "typecheck": "tsc --build --noEmit",
     "check": "vp check",
     "check:fix": "vp check --fix",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "test:context-menu": "node --test tests/contextMenuPosition.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

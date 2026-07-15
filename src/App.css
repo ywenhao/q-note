@@ -1549,15 +1549,18 @@ body.is-sorting-note .note-card {
 .context-menu {
   position: fixed;
   z-index: 80;
-  min-width: 190px;
-  overflow: hidden;
+  min-width: 152px;
+  max-width: min(220px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.52);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(255, 253, 244, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.52),
-    0 18px 42px rgba(31, 35, 40, 0.16);
-  backdrop-filter: blur(22px) saturate(160%);
+    0 10px 24px rgba(31, 35, 40, 0.14);
+  backdrop-filter: blur(18px) saturate(155%);
   animation: pop-in 100ms ease;
   -webkit-user-select: none;
   user-select: none;
@@ -1567,11 +1570,13 @@ body.is-sorting-note .note-card {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   border: 0;
-  padding: 8px 10px;
+  padding: 6px 8px;
   background: transparent;
   color: #1d1d1f;
+  font-size: 13px;
+  line-height: 1.2;
   text-align: left;
   transition:
     background-color 120ms ease,
@@ -1579,8 +1584,15 @@ body.is-sorting-note .note-card {
 }
 
 .context-menu button svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.context-menu button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .context-menu button:hover {
