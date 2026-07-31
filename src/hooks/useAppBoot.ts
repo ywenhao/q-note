@@ -1,11 +1,14 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { translations } from "../i18n";
 import { readAutoStartEnabled } from "../lib/autoStart";
 import { sortNotes } from "../lib/noteOrdering";
-import { loadAppData, saveSettings } from "../lib/storage";
+import { loadAppData, loadPendingUpdateDraft, saveSettings } from "../lib/storage";
+import { restorePendingUpdateEditor } from "../lib/updateRecovery";
 import {
   MAIN_WINDOW_LABEL,
   applyAlwaysOnTop,
   hideDockWindow,
+  openEditorWindow,
   positionMainWindowAtStartup,
 } from "../lib/windowControls";
 import type { AppSettings, Note } from "../types";
@@ -64,6 +67,14 @@ export function useAppBoot({
       if (currentWindowLabel === MAIN_WINDOW_LABEL) {
         await positionMainWindowAtStartup(bootSettings.window);
         await hideDockWindow();
+        const t = translations[bootSettings.language];
+        await restorePendingUpdateEditor(loadPendingUpdateDraft, (noteId) =>
+          openEditorWindow(
+            noteId,
+            bootSettings.alwaysOnTop,
+            noteId ? t.editorEditTitle : t.editorNewTitle,
+          ),
+        ).catch(() => false);
       }
 
       setReady(true);

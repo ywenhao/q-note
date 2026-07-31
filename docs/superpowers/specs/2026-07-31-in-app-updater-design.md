@@ -40,7 +40,7 @@ Add an `UpdateEditorDraft` record containing the edited note id, draft fields, a
 - If it is visible and dirty, it stores the draft and then acknowledges.
 - If persistence fails or no acknowledgement arrives before the timeout, the update is aborted before installation.
 
-On startup, `EditorWindow` reads the pending draft. When present, it loads the matching note, applies the saved draft, shows and focuses the editor, and continues persisting changes until the user saves or cancels. Saving or canceling clears the pending draft. This preserves recovery without silently turning an unfinished draft into a formal note.
+On startup, the main window detects a pending draft and recreates the editor window. `EditorWindow` then reads the record, loads the matching note, applies the saved draft, shows and focuses the editor, and continues persisting changes until the user saves or cancels. Saving or canceling clears the pending draft. This preserves recovery without silently turning an unfinished draft into a formal note.
 
 ### App-state flush
 

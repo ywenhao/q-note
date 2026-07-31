@@ -58,3 +58,4 @@ jobs:
           releaseName: Q Note ${{ github.ref_name }}
           releaseDraft: false
           prerelease: false
+          updaterJsonPreferNsis: true

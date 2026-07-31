@@ -31,7 +31,7 @@
     "check:fix": "vp check --fix",
     "prepare": "vp config",
     "test:context-menu": "node --test tests/contextMenuPosition.test.ts",
-    "test:update-draft": "node --test tests/updateDraft.test.ts",
+    "test:update-draft": "node --test tests/updateDraft.test.ts tests/updateRecovery.test.ts",
     "test:updater": "node --test tests/updateProgress.test.ts"
   },
   "dependencies": {
