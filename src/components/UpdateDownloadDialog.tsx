@@ -1,13 +1,11 @@
-import { Download, FolderOpen, X } from "lucide-react";
+import { Download } from "lucide-react";
 import type { Translation } from "../i18n";
-import type { UpdateDownloadProgress, UpdateDownloadResult, UpdateInfo } from "../lib/updater";
+import type { UpdateDownloadProgress } from "../lib/updateProgress";
+import type { UpdateInfo, UpdatePhase } from "../lib/updater";
 
 interface UpdateDownloadDialogProps {
-  onCancel: () => void;
-  onClose: () => void;
-  onReveal: (path: string) => void;
+  phase: UpdatePhase;
   progress: UpdateDownloadProgress | null;
-  result: UpdateDownloadResult | null;
   t: Translation;
   update: UpdateInfo;
 }
@@ -29,19 +27,14 @@ function formatBytes(value: number) {
   return `${nextValue.toFixed(nextValue >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-export function UpdateDownloadDialog({
-  onCancel,
-  onClose,
-  onReveal,
-  progress,
-  result,
-  t,
-  update,
-}: UpdateDownloadDialogProps) {
-  const percent = result ? 100 : Math.round(progress?.percent ?? 0);
-  const total = progress?.total ?? update.asset?.size ?? 0;
-  const downloaded = progress?.downloaded ?? 0;
-  const sourceLabel = result?.sourceLabel ?? progress?.sourceLabel;
+export function UpdateDownloadDialog({ phase, progress, t, update }: UpdateDownloadDialogProps) {
+  const percent = phase === "downloading" ? Math.round(progress?.percent ?? 0) : 100;
+  const status =
+    phase === "downloading"
+      ? t.updateDownloading
+      : phase === "preparing"
+        ? t.updatePreparing
+        : t.updateInstalling;
 
   return (
     <div className="update-download-backdrop">
@@ -49,56 +42,32 @@ export function UpdateDownloadDialog({
         <header>
           <span>
             <Download size={15} />
-            {result ? t.updateDownloaded : t.updateDownloading}
+            {status}
           </span>
-          <button aria-label={t.closePanel} onClick={result ? onClose : onCancel} type="button">
-            <X size={14} />
-          </button>
         </header>
 
         <div className="update-download-body">
           <strong>{`Q Note v${update.latestVersion}`}</strong>
-          <span>{update.asset?.name ?? update.tagName}</span>
-          {sourceLabel ? <small>{`${t.updateSource}: ${sourceLabel}`}</small> : null}
+          {update.body ? <small>{update.body}</small> : null}
         </div>
 
         <div
           aria-label={t.updateDownloadProgress}
           aria-valuemax={100}
           aria-valuemin={0}
-          aria-valuenow={percent}
-          className="update-progress"
+          aria-valuenow={phase === "downloading" ? percent : undefined}
+          className={`update-progress ${phase === "downloading" ? "" : "is-indeterminate"}`}
           role="progressbar"
         >
-          <span style={{ width: `${percent}%` }} />
+          <span style={{ width: phase === "downloading" ? `${percent}%` : "35%" }} />
         </div>
 
         <div className="update-download-meta">
-          <span>{`${percent}%`}</span>
-          {total > 0 ? <span>{`${formatBytes(downloaded)} / ${formatBytes(total)}`}</span> : null}
+          <span>{phase === "downloading" ? `${percent}%` : status}</span>
+          {phase === "downloading" && progress?.total ? (
+            <span>{`${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)}`}</span>
+          ) : null}
         </div>
-
-        <footer>
-          {result ? (
-            <>
-              <button className="text-button" onClick={onClose} type="button">
-                {t.closePanel}
-              </button>
-              <button
-                className="primary-button"
-                onClick={() => onReveal(result.path)}
-                type="button"
-              >
-                <FolderOpen size={14} />
-                {t.openDownloadedFile}
-              </button>
-            </>
-          ) : (
-            <button className="text-button" onClick={onCancel} type="button">
-              {t.cancel}
-            </button>
-          )}
-        </footer>
       </section>
     </div>
   );

@@ -1,47 +1,20 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke } from "@tauri-apps/api/core";
-import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { isTauriRuntime } from "./env";
 import { getReleaseTagUrl, PACKAGE_VERSION } from "./repository";
 
-export const UPDATE_DOWNLOAD_PROGRESS_EVENT = "q-note-update-download-progress";
-
 export const FALLBACK_VERSION = PACKAGE_VERSION;
 
-export interface UpdateDownloadSource {
-  label: string;
-  official: boolean;
-  url: string;
-}
-
-export interface UpdateAsset {
-  browserDownloadUrl: string;
-  digest: string | null;
-  downloadUrls: UpdateDownloadSource[];
-  name: string;
-  size: number;
-}
-
 export interface UpdateInfo {
-  asset: UpdateAsset | null;
-  htmlUrl: string;
+  body: string | null;
   latestVersion: string;
-  tagName: string;
 }
 
-export interface UpdateDownloadProgress {
-  downloaded: number;
-  fileName: string;
-  percent: number;
-  sourceLabel: string;
-  total: number | null;
-}
+export type UpdatePhase = "downloading" | "preparing" | "installing";
 
-export interface UpdateDownloadResult {
-  fileName: string;
-  path: string;
-  sourceLabel: string;
-}
+export type AppUpdate = Update;
 
 export async function readAppVersion() {
   if (!isTauriRuntime()) {
@@ -68,47 +41,29 @@ export async function openCurrentRelease(version: string) {
   await openReleaseUrl(getReleaseUrl(version));
 }
 
-export async function checkForUpdate(currentVersion: string) {
+export async function checkForUpdate() {
   if (!isTauriRuntime()) {
     return null;
   }
 
-  return invoke<UpdateInfo | null>("check_update", { currentVersion });
+  return check();
 }
 
-export async function downloadUpdate(update: UpdateInfo) {
-  if (!update.asset) {
-    throw new Error("update-asset-missing");
-  }
-
-  return invoke<UpdateDownloadResult>("download_update", {
-    request: {
-      asset: update.asset,
-      version: update.latestVersion,
-    },
-  });
+export function toUpdateInfo(update: Update): UpdateInfo {
+  return {
+    body: update.body ?? null,
+    latestVersion: update.version,
+  };
 }
 
-export async function cancelUpdateDownload() {
-  if (!isTauriRuntime()) {
-    return;
-  }
-
-  await invoke("cancel_update_download");
+export async function downloadUpdate(update: Update, onEvent: (event: DownloadEvent) => void) {
+  await update.download(onEvent);
 }
 
-export async function revealDownloadedUpdate(path: string) {
-  if (!isTauriRuntime()) {
-    return;
-  }
-
-  await revealItemInDir(path);
+export async function installDownloadedUpdate(update: Update) {
+  await update.install();
 }
 
-export async function installDownloadedUpdate(path: string) {
-  if (!isTauriRuntime()) {
-    return;
-  }
-
-  await invoke("install_update_package", { path });
+export async function relaunchUpdatedApp() {
+  await relaunch();
 }

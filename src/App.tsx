@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import "./App.css";
 import { DockWindowView } from "./app/DockWindowView";
 import { MainWindowView } from "./app/MainWindowView";
@@ -16,7 +16,8 @@ import { useUpdateManager } from "./hooks/useUpdateManager";
 import { useWindowStatePersistence } from "./hooks/useWindowStatePersistence";
 import { translations } from "./i18n";
 import { isTauriRuntime } from "./lib/env";
-import { DOCK_WINDOW_LABEL, MAIN_WINDOW_LABEL } from "./lib/windowControls";
+import { prepareEditorForUpdate } from "./lib/updatePreparation";
+import { DOCK_WINDOW_LABEL, MAIN_WINDOW_LABEL, captureWindowState } from "./lib/windowControls";
 import type { Note } from "./types";
 
 function App() {
@@ -36,25 +37,6 @@ function App() {
   const editorOpen = editorNote !== undefined;
 
   const {
-    appVersion,
-    checkingUpdate,
-    handleCancelUpdateDownload,
-    handleCheckUpdate,
-    handleOpenCurrentRelease,
-    handleRevealDownloadedUpdate,
-    setUpdateDialogOpen,
-    updateDialogOpen,
-    updateDownloadProgress,
-    updateDownloadResult,
-    updateInfo,
-  } = useUpdateManager({
-    currentWindowLabel,
-    language: settings.language,
-    ready,
-    showToast,
-  });
-
-  const {
     handleExport,
     handleImport,
     persistSettings,
@@ -68,6 +50,34 @@ function App() {
     settingsRef,
     showToast,
     t,
+  });
+
+  const prepareForUpdate = useCallback(async () => {
+    if (!settingsRef.current.docked) {
+      const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
+      await persistSettings(snapshot ? { window: snapshot } : {});
+    } else {
+      await persistSettings({});
+    }
+
+    await prepareEditorForUpdate();
+  }, [persistSettings, settingsRef]);
+
+  const {
+    appVersion,
+    checkingUpdate,
+    handleCheckUpdate,
+    handleOpenCurrentRelease,
+    updateDialogOpen,
+    updateDownloadProgress,
+    updateInfo,
+    updatePhase,
+  } = useUpdateManager({
+    currentWindowLabel,
+    language: settings.language,
+    prepareForUpdate,
+    ready,
+    showToast,
   });
 
   const {
@@ -206,12 +216,10 @@ function App() {
       menu={menu}
       notes={notes}
       onCancelEditor={() => void closeEditor()}
-      onCancelUpdateDownload={() => void handleCancelUpdateDownload()}
       onCheckUpdate={() => void handleCheckUpdate()}
       onCloseConfirmDeleteAll={() => setShowDeleteAllConfirm(false)}
       onCloseMenu={closeMenu}
       onCloseSettings={() => setShowSettings(false)}
-      onCloseUpdateDialog={() => setUpdateDialogOpen(false)}
       onCloseWindow={() => void closeWindow()}
       onCollapseToDock={() => void collapseToQIcon({ useRevealAnchor: true })}
       onColorChange={(id, color) => void patchNote(id, { color })}
@@ -235,7 +243,6 @@ function App() {
       onReorderNotes={(draggedId, targetId, placement) =>
         void reorderNotes(draggedId, targetId, placement)
       }
-      onRevealDownloadedUpdate={(path) => void handleRevealDownloadedUpdate(path)}
       onSaveDraft={(draft) => void handleSaveDraft(draft)}
       onToggleAlwaysOnTop={() => void toggleAlwaysOnTop()}
       onToggleAutoStart={() => void toggleAutoStart()}
@@ -253,8 +260,8 @@ function App() {
       toast={toast}
       updateDialogOpen={updateDialogOpen}
       updateDownloadProgress={updateDownloadProgress}
-      updateDownloadResult={updateDownloadResult}
       updateInfo={updateInfo}
+      updatePhase={updatePhase}
     />
   );
 }

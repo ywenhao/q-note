@@ -14,7 +14,8 @@ import { UpdateDownloadDialog } from "../components/UpdateDownloadDialog";
 import type { MenuState } from "../features/menu/useMenuController";
 import type { ToastState } from "../hooks/useToast";
 import type { Translation } from "../i18n";
-import type { UpdateDownloadProgress, UpdateDownloadResult, UpdateInfo } from "../lib/updater";
+import type { UpdateDownloadProgress } from "../lib/updateProgress";
+import type { UpdateInfo, UpdatePhase } from "../lib/updater";
 import type { Note } from "../types";
 
 interface MainWindowViewProps {
@@ -30,12 +31,10 @@ interface MainWindowViewProps {
   menu: MenuState | null;
   notes: Note[];
   onCancelEditor: () => void;
-  onCancelUpdateDownload: () => void;
   onCheckUpdate: () => void;
   onCloseConfirmDeleteAll: () => void;
   onCloseMenu: () => void;
   onCloseSettings: () => void;
-  onCloseUpdateDialog: () => void;
   onCloseWindow: () => void;
   onCollapseToDock: () => void;
   onColorChange: (id: string, color: string) => void;
@@ -54,7 +53,6 @@ interface MainWindowViewProps {
   onOpenMenu: (event: MouseEvent<HTMLElement>, noteId?: string) => void;
   onOpenSettings: () => void;
   onReorderNotes: (draggedId: string, targetId: string, placement: "before" | "after") => void;
-  onRevealDownloadedUpdate: (path: string) => void;
   onSaveDraft: (draft: NoteDraft) => void;
   onToggleAlwaysOnTop: () => void;
   onToggleAutoStart: () => void;
@@ -67,8 +65,8 @@ interface MainWindowViewProps {
   toast: ToastState | null;
   updateDialogOpen: boolean;
   updateDownloadProgress: UpdateDownloadProgress | null;
-  updateDownloadResult: UpdateDownloadResult | null;
   updateInfo: UpdateInfo | null;
+  updatePhase: UpdatePhase;
 }
 
 interface ImagePreviewState {
@@ -89,12 +87,10 @@ export function MainWindowView({
   menu,
   notes,
   onCancelEditor,
-  onCancelUpdateDownload,
   onCheckUpdate,
   onCloseConfirmDeleteAll,
   onCloseMenu,
   onCloseSettings,
-  onCloseUpdateDialog,
   onCloseWindow,
   onCollapseToDock,
   onColorChange,
@@ -113,7 +109,6 @@ export function MainWindowView({
   onOpenMenu,
   onOpenSettings,
   onReorderNotes,
-  onRevealDownloadedUpdate,
   onSaveDraft,
   onToggleAlwaysOnTop,
   onToggleAutoStart,
@@ -126,8 +121,8 @@ export function MainWindowView({
   toast,
   updateDialogOpen,
   updateDownloadProgress,
-  updateDownloadResult,
   updateInfo,
+  updatePhase,
 }: MainWindowViewProps) {
   const [imagePreview, setImagePreview] = useState<ImagePreviewState | null>(null);
 
@@ -197,11 +192,8 @@ export function MainWindowView({
       ) : null}
       {updateDialogOpen && updateInfo ? (
         <UpdateDownloadDialog
-          onCancel={onCancelUpdateDownload}
-          onClose={onCloseUpdateDialog}
-          onReveal={onRevealDownloadedUpdate}
+          phase={updatePhase}
           progress={updateDownloadProgress}
-          result={updateDownloadResult}
           t={t}
           update={updateInfo}
         />
