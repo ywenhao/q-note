@@ -129,6 +129,9 @@ export function EditorWindow() {
               if (pending) {
                 await savePendingUpdateDraft(pending);
                 recoveryActiveRef.current = true;
+              } else {
+                await clearPendingUpdateDraft();
+                recoveryActiveRef.current = false;
               }
 
               await emitTo(MAIN_WINDOW_LABEL, PREPARE_UPDATE_ACK_EVENT, {

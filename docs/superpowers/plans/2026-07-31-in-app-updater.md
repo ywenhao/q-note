@@ -457,7 +457,7 @@ Set `TAURI_SIGNING_PRIVATE_KEY` for the current PowerShell process from `C:\User
 
 Run: `pnpm tauri build --bundles nsis`
 
-Expected: exit 0 and creation of a normal setup executable, an updater archive, and its `.sig` signature under `src-tauri/target/release/bundle/nsis`.
+Expected: exit 0 and creation of a normal setup executable plus its updater `.sig` signature under `src-tauri/target/release/bundle/nsis`.
 
 - [ ] **Step 3: Inspect artifact names and repository state**
 

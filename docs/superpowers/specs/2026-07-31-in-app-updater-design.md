@@ -26,7 +26,7 @@ The frontend deliberately calls `download()` and `install()` separately instead 
 
 ### Release pipeline and signing
 
-The release workflow supplies `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from GitHub Actions secrets. Tauri creates platform updater archives and signatures; `tauri-action` publishes them with `latest.json`. The public key is embedded in the app configuration. The private key never enters the repository.
+The release workflow supplies `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from GitHub Actions secrets. Tauri creates signed platform updater artifacts; `tauri-action` publishes them with `latest.json`. The public key is embedded in the app configuration. The private key never enters the repository.
 
 The first release containing this change remains compatible with the existing custom updater because it still publishes the normal NSIS/MSI, DMG, and Linux bundles. Clients on that older version may need to complete one final legacy installation; all later updates use the signed in-app flow.
 
