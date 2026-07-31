@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -43,6 +44,15 @@
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc1NUUxNzZGOEYzRjNFQkMKUldTOFBqK1BieGRlZFVaZFZsVmxhY1M4MGQ5cVBjSHlVRGFFQ3N1S0pJZGFTcFl2WkRkbE4reSsK",
+      "endpoints": ["https://github.com/ywenhao/q-note/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }
