@@ -67,6 +67,31 @@ export function isEditorDraftDirty(draft: NoteDraft, note: Note | null) {
   return JSON.stringify(draft) !== JSON.stringify(createNoteDraft(note));
 }
 
+export function createPendingUpdateDraft({
+  draft,
+  note,
+  now,
+  visible,
+}: {
+  draft: NoteDraft;
+  note: Note | null;
+  now: number;
+  visible: boolean;
+}): PendingUpdateDraft | null {
+  if (!visible || !isEditorDraftDirty(draft, note)) {
+    return null;
+  }
+
+  return {
+    draft: {
+      ...draft,
+      attachments: draft.attachments.map((attachment) => ({ ...attachment })),
+    },
+    noteId: note?.id ?? null,
+    savedAt: now,
+  };
+}
+
 export function normalizePendingUpdateDraft(value: unknown): PendingUpdateDraft | null {
   if (!isObject(value) || !isObject(value.draft)) {
     return null;

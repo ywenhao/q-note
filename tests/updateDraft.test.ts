@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createNoteDraft,
+  createPendingUpdateDraft,
   isEditorDraftDirty,
   normalizePendingUpdateDraft,
   parsePendingUpdateDraft,
@@ -137,4 +138,48 @@ test("serializes and parses a pending draft", () => {
 test("returns null for malformed pending draft JSON", () => {
   assert.equal(parsePendingUpdateDraft("not-json"), null);
   assert.equal(parsePendingUpdateDraft(JSON.stringify({ noteId: "note-1" })), null);
+});
+
+test("does not persist a hidden editor", () => {
+  assert.equal(
+    createPendingUpdateDraft({
+      draft: emptyDraft({ content: "recover me" }),
+      note: null,
+      now: 300,
+      visible: false,
+    }),
+    null,
+  );
+});
+
+test("does not persist an unchanged visible editor", () => {
+  const note = makeNote();
+
+  assert.equal(
+    createPendingUpdateDraft({
+      draft: createNoteDraft(note),
+      note,
+      now: 300,
+      visible: true,
+    }),
+    null,
+  );
+});
+
+test("creates a pending record for a dirty visible editor", () => {
+  const draft = emptyDraft({ content: "recover me" });
+
+  assert.deepEqual(
+    createPendingUpdateDraft({
+      draft,
+      note: null,
+      now: 300,
+      visible: true,
+    }),
+    {
+      draft,
+      noteId: null,
+      savedAt: 300,
+    },
+  );
 });

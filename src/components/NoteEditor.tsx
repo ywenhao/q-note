@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Translation } from "../i18n";
 import { createId, isTauriRuntime } from "../lib/env";
+import { createNoteDraft } from "../lib/updateDraft";
 import {
   getAttachmentSrc,
   isLikelyImagePath,
@@ -31,18 +32,22 @@ import { IconButton } from "./IconButton";
 export type { NoteDraft } from "../types";
 
 interface NoteEditorProps {
+  initialDraft?: NoteDraft | null;
   mode?: "modal" | "window";
   note: Note | null;
   onCancel: () => void;
+  onDraftChange?: (draft: NoteDraft) => void;
   onDragStart?: (event: PointerEvent<HTMLElement>) => void;
   onSave: (draft: NoteDraft) => void;
   t: Translation;
 }
 
 export function NoteEditor({
+  initialDraft,
   mode = "modal",
   note,
   onCancel,
+  onDraftChange,
   onDragStart,
   onSave,
   t,
@@ -64,13 +69,18 @@ export function NoteEditor({
   }));
 
   useEffect(() => {
-    setAttachments(note?.attachments ?? []);
-    setColor(note?.color ?? DEFAULT_NOTE_COLOR);
-    setContent(note?.content ?? "");
+    const draft = initialDraft ?? createNoteDraft(note);
+    setAttachments(draft.attachments);
+    setColor(draft.color);
+    setContent(draft.content);
     setMediaValue("");
-    setPinned(note?.pinned ?? false);
+    setPinned(draft.pinned);
     setPreviewImageIndex(null);
-  }, [note]);
+  }, [initialDraft, note]);
+
+  useEffect(() => {
+    onDraftChange?.({ attachments, color, content, pinned });
+  }, [attachments, color, content, onDraftChange, pinned]);
 
   function createAttachment(
     value: string,
