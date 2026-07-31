@@ -32,7 +32,7 @@ The first release containing this change remains compatible with the existing cu
 
 ### Draft persistence
 
-Add an `UpdateEditorDraft` record containing the edited note id, draft fields, original note snapshot, and save timestamp. Store it through `src/lib/storage.ts` under a dedicated settings-table key so it is durable but excluded from normal settings and data export.
+Add an `UpdateEditorDraft` record containing the edited note id, draft fields, and save timestamp. Store it through `src/lib/storage.ts` under a dedicated settings-table key so it is durable but excluded from normal settings and data export. The matching note is loaded from SQLite when comparing or restoring the draft.
 
 `NoteEditor` reports its current draft to `EditorWindow`. When the main window sends a prepare-update request, the editor compares the current draft with its original note:
 
