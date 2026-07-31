@@ -32,7 +32,8 @@
     "check": "vp check",
     "check:fix": "vp check --fix",
     "prepare": "vp config",
-    "test:context-menu": "node --test tests/contextMenuPosition.test.ts"
+    "test:context-menu": "node --test tests/contextMenuPosition.test.ts",
+    "test:update-draft": "node --test tests/updateDraft.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

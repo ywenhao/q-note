@@ -25,6 +25,13 @@ export interface Note {
   updatedAt: number;
 }
 
+export interface NoteDraft {
+  attachments: NoteAttachment[];
+  color: string;
+  content: string;
+  pinned: boolean;
+}
+
 export type DockEdge = "left" | "right" | "top" | "bottom";
 
 export interface WindowState {

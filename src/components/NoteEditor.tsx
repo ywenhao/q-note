@@ -18,16 +18,17 @@ import {
   resolveDraggedFileUrls,
   resolveDraggedImageUrls,
 } from "../lib/images";
-import { DEFAULT_NOTE_COLOR, NOTE_COLORS, type Note, type NoteAttachment } from "../types";
+import {
+  DEFAULT_NOTE_COLOR,
+  NOTE_COLORS,
+  type Note,
+  type NoteAttachment,
+  type NoteDraft,
+} from "../types";
 import { ImagePreview, type ImagePreviewItem } from "./ImagePreview";
 import { IconButton } from "./IconButton";
 
-export interface NoteDraft {
-  attachments: NoteAttachment[];
-  color: string;
-  content: string;
-  pinned: boolean;
-}
+export type { NoteDraft } from "../types";
 
 interface NoteEditorProps {
   mode?: "modal" | "window";
