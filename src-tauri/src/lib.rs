@@ -1,7 +1,7 @@
 use std::{
     fs,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Mutex,
 };
 
 use tauri::{
@@ -12,9 +12,6 @@ use tauri::{
     WebviewWindowBuilder,
 };
 use tauri_plugin_sql::{Migration, MigrationKind};
-
-mod repository;
-mod update;
 
 const DOCK_WINDOW_SIZE: f64 = 30.0;
 const EDITOR_WINDOW_WIDTH: f64 = 520.0;
@@ -346,11 +343,9 @@ async fn open_editor_window(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db_url = database_url().expect("failed to resolve Q Note database path");
-    let _ = update::cleanup_installed_update_packages();
 
     tauri::Builder::default()
         .manage(TrayMenuState::default())
-        .manage(Arc::new(update::UpdateDownloadState::default()))
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .app_name("Q Note")
@@ -385,11 +380,7 @@ pub fn run() {
             quit_app,
             get_database_url,
             set_tray_menu_labels,
-            open_editor_window,
-            update::check_update,
-            update::download_update,
-            update::cancel_update_download,
-            update::install_update_package
+            open_editor_window
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
