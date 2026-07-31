@@ -4,6 +4,8 @@ import {
   createNoteDraft,
   isEditorDraftDirty,
   normalizePendingUpdateDraft,
+  parsePendingUpdateDraft,
+  serializePendingUpdateDraft,
 } from "../src/lib/updateDraft.ts";
 import {
   DEFAULT_NOTE_COLOR,
@@ -120,4 +122,19 @@ test("rejects malformed pending draft fields", () => {
     }),
     null,
   );
+});
+
+test("serializes and parses a pending draft", () => {
+  const value = {
+    draft: emptyDraft({ content: "recover me" }),
+    noteId: "note-1",
+    savedAt: 300,
+  };
+
+  assert.deepEqual(parsePendingUpdateDraft(serializePendingUpdateDraft(value)), value);
+});
+
+test("returns null for malformed pending draft JSON", () => {
+  assert.equal(parsePendingUpdateDraft("not-json"), null);
+  assert.equal(parsePendingUpdateDraft(JSON.stringify({ noteId: "note-1" })), null);
 });

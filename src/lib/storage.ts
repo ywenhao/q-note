@@ -19,10 +19,17 @@ import {
 import { isTauriRuntime } from "./env";
 import { isLikelyImagePath } from "./images";
 import { attachmentsTable, notesTable, schema, settingsTable } from "./schema";
+import {
+  parsePendingUpdateDraft,
+  serializePendingUpdateDraft,
+  type PendingUpdateDraft,
+} from "./updateDraft";
 
 const FALLBACK_DB_URL = "sqlite:q-note.db";
 const SETTINGS_KEY = "app";
+const PENDING_UPDATE_DRAFT_KEY = "pending-update-editor-draft";
 const WEB_STORAGE_KEY = "q-note:web-data";
+const WEB_PENDING_UPDATE_DRAFT_KEY = "q-note:pending-update-editor-draft";
 
 let dbUrlPromise: Promise<string> | null = null;
 let dbPromise: Promise<Database> | null = null;
@@ -309,6 +316,49 @@ export async function saveSettings(settings: AppSettings) {
       target: settingsTable.key,
       set: { value: JSON.stringify(nextSettings) },
     });
+}
+
+export async function loadPendingUpdateDraft(): Promise<PendingUpdateDraft | null> {
+  if (!isTauriRuntime()) {
+    const value = localStorage.getItem(WEB_PENDING_UPDATE_DRAFT_KEY);
+    return value ? parsePendingUpdateDraft(value) : null;
+  }
+
+  const db = await getDrizzleDb();
+  const rows = await db
+    .select({ value: settingsTable.value })
+    .from(settingsTable)
+    .where(eq(settingsTable.key, PENDING_UPDATE_DRAFT_KEY))
+    .limit(1);
+
+  return rows[0]?.value ? parsePendingUpdateDraft(rows[0].value) : null;
+}
+
+export async function savePendingUpdateDraft(value: PendingUpdateDraft) {
+  const serialized = serializePendingUpdateDraft(value);
+  if (!isTauriRuntime()) {
+    localStorage.setItem(WEB_PENDING_UPDATE_DRAFT_KEY, serialized);
+    return;
+  }
+
+  const db = await getDrizzleDb();
+  await db
+    .insert(settingsTable)
+    .values({ key: PENDING_UPDATE_DRAFT_KEY, value: serialized })
+    .onConflictDoUpdate({
+      target: settingsTable.key,
+      set: { value: serialized },
+    });
+}
+
+export async function clearPendingUpdateDraft() {
+  if (!isTauriRuntime()) {
+    localStorage.removeItem(WEB_PENDING_UPDATE_DRAFT_KEY);
+    return;
+  }
+
+  const db = await getDrizzleDb();
+  await db.delete(settingsTable).where(eq(settingsTable.key, PENDING_UPDATE_DRAFT_KEY));
 }
 
 export async function saveNote(note: Note) {

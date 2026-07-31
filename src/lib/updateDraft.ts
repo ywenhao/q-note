@@ -101,3 +101,15 @@ export function normalizePendingUpdateDraft(value: unknown): PendingUpdateDraft 
     savedAt,
   };
 }
+
+export function serializePendingUpdateDraft(value: PendingUpdateDraft) {
+  return JSON.stringify(value);
+}
+
+export function parsePendingUpdateDraft(value: string) {
+  try {
+    return normalizePendingUpdateDraft(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
