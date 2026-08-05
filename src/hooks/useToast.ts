@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { onBeforeUnmount, ref } from "vue";
 
 export type ToastKind = "success" | "error" | "info";
 
@@ -11,34 +11,29 @@ export interface ToastState {
 export type ShowToast = (message: string, options?: { icon?: boolean; kind?: ToastKind }) => void;
 
 export function useToast() {
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const toastTimerRef = useRef<number | null>(null);
+  const toast = ref<ToastState | null>(null);
+  let toastTimer: number | null = null;
 
-  const showToast = useCallback<ShowToast>((message, options = {}) => {
-    setToast({
+  const showToast: ShowToast = (message, options = {}) => {
+    toast.value = {
       icon: options.icon ?? true,
       kind: options.kind ?? "success",
       message,
-    });
-
-    if (toastTimerRef.current) {
-      window.clearTimeout(toastTimerRef.current);
+    };
+    if (toastTimer) {
+      window.clearTimeout(toastTimer);
     }
-
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 1700);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (toastTimerRef.current) {
-        window.clearTimeout(toastTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  return {
-    showToast,
-    toast,
+    toastTimer = window.setTimeout(() => {
+      toast.value = null;
+      toastTimer = null;
+    }, 1700);
   };
+
+  onBeforeUnmount(() => {
+    if (toastTimer) {
+      window.clearTimeout(toastTimer);
+    }
+  });
+
+  return { showToast, toast };
 }

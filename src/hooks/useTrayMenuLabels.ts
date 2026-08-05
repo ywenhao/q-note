@@ -1,31 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect } from "react";
+import { watchEffect, type ComputedRef, type Ref } from "vue";
 import type { Translation } from "../i18n";
 import { isTauriRuntime } from "../lib/env";
 
 interface UseTrayMenuLabelsOptions {
-  alwaysOnLabel: string;
-  dockToggleLabel: string;
-  ready: boolean;
-  t: Translation;
+  alwaysOnLabel: ComputedRef<string>;
+  dockToggleLabel: ComputedRef<string>;
+  ready: Ref<boolean>;
+  t: ComputedRef<Translation>;
 }
 
-export function useTrayMenuLabels({
-  alwaysOnLabel,
-  dockToggleLabel,
-  ready,
-  t,
-}: UseTrayMenuLabelsOptions) {
-  useEffect(() => {
-    if (!ready || !isTauriRuntime()) {
+export function useTrayMenuLabels(options: UseTrayMenuLabelsOptions) {
+  watchEffect(() => {
+    if (!options.ready.value || !isTauriRuntime()) {
       return;
     }
-
     void invoke("set_tray_menu_labels", {
-      topmost: alwaysOnLabel,
-      quit: t.quit,
-      toggleDock: dockToggleLabel,
-      toggleLanguage: t.switchLanguage,
+      topmost: options.alwaysOnLabel.value,
+      quit: options.t.value.quit,
+      toggleDock: options.dockToggleLabel.value,
+      toggleLanguage: options.t.value.switchLanguage,
     });
-  }, [alwaysOnLabel, dockToggleLabel, ready, t.quit, t.switchLanguage]);
+  });
 }

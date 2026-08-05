@@ -1,7 +1,6 @@
 import { Menu } from "@tauri-apps/api/menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, useState, type MouseEvent, type MutableRefObject } from "react";
-import type { ContextMenuItem } from "../../components/ContextMenu";
+import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { Translation } from "../../i18n";
 import { isTauriRuntime } from "../../lib/env";
 import { createDockMenuItems, createMainContextItems } from "../../lib/menuItems";
@@ -14,164 +13,100 @@ export interface MenuState {
 }
 
 interface UseMenuControllerOptions {
-  alwaysOnLabel: string;
-  dockToggleLabel: string;
+  alwaysOnLabel: ComputedRef<string>;
+  dockToggleLabel: ComputedRef<string>;
   handleCopy: (note: Note) => Promise<void>;
   handleDelete: (id: string) => Promise<void>;
-  notesCount: number;
-  notesRef: MutableRefObject<Note[]>;
+  notes: Ref<Note[]>;
   onDeleteAll: () => void;
   openEditor: (note: Note | null) => Promise<void>;
   patchNote: (id: string, patch: Partial<Note>) => Promise<void>;
   quitApp: () => Promise<void>;
-  settings: AppSettings;
-  t: Translation;
+  settings: Ref<AppSettings>;
+  t: ComputedRef<Translation>;
   toggleAlwaysOnTop: () => Promise<void>;
   toggleDockOnEdge: () => Promise<void>;
   toggleLanguage: () => Promise<void>;
 }
 
-export function useMenuController({
-  alwaysOnLabel,
-  dockToggleLabel,
-  handleCopy,
-  handleDelete,
-  notesCount,
-  notesRef,
-  onDeleteAll,
-  openEditor,
-  patchNote,
-  quitApp,
-  settings,
-  t,
-  toggleAlwaysOnTop,
-  toggleDockOnEdge,
-  toggleLanguage,
-}: UseMenuControllerOptions) {
-  const [menu, setMenu] = useState<MenuState | null>(null);
+export function useMenuController(options: UseMenuControllerOptions) {
+  const menu = ref<MenuState | null>(null);
 
-  const closeMenu = useCallback(() => {
-    setMenu(null);
-  }, []);
+  function closeMenu() {
+    menu.value = null;
+  }
 
-  const openMenu = useCallback((event: MouseEvent<HTMLElement>, noteId?: string) => {
+  function openMenu(event: MouseEvent, noteId?: string) {
     event.preventDefault();
     event.stopPropagation();
-    setMenu({
-      noteId,
-      x: event.clientX,
-      y: event.clientY,
+    menu.value = { noteId, x: event.clientX, y: event.clientY };
+  }
+
+  async function openDockMenu(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isTauriRuntime()) {
+      menu.value = { x: event.clientX, y: event.clientY };
+      return;
+    }
+
+    const nativeMenu = await Menu.new({
+      items: [
+        {
+          id: "topmost",
+          text: options.alwaysOnLabel.value,
+          action: () => void options.toggleAlwaysOnTop(),
+        },
+        {
+          id: "toggle-language",
+          text: options.t.value.switchLanguage,
+          action: () => void options.toggleLanguage(),
+        },
+        {
+          id: "toggle-dock",
+          text: options.dockToggleLabel.value,
+          action: () => void options.toggleDockOnEdge(),
+        },
+        {
+          id: "quit",
+          text: options.t.value.quit,
+          action: () => void options.quitApp(),
+        },
+      ],
     });
-  }, []);
+    await nativeMenu.popup(undefined, getCurrentWindow());
+  }
 
-  const openDockMenu = useCallback(
-    async (event: MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (!isTauriRuntime()) {
-        setMenu({
-          x: event.clientX,
-          y: event.clientY,
-        });
-        return;
-      }
-
-      const nativeMenu = await Menu.new({
-        items: [
-          {
-            id: "topmost",
-            text: alwaysOnLabel,
-            action: () => void toggleAlwaysOnTop(),
-          },
-          {
-            id: "toggle-language",
-            text: t.switchLanguage,
-            action: () => void toggleLanguage(),
-          },
-          {
-            id: "toggle-dock",
-            text: dockToggleLabel,
-            action: () => void toggleDockOnEdge(),
-          },
-          {
-            id: "quit",
-            text: t.quit,
-            action: () => void quitApp(),
-          },
-        ],
-      });
-
-      await nativeMenu.popup(undefined, getCurrentWindow());
-    },
-    [
-      alwaysOnLabel,
-      dockToggleLabel,
-      quitApp,
-      t,
-      toggleAlwaysOnTop,
-      toggleDockOnEdge,
-      toggleLanguage,
-    ],
-  );
-
-  const getContextItems = useCallback((): ContextMenuItem[] => {
-    const note = menu?.noteId ? notesRef.current.find((item) => item.id === menu.noteId) : null;
+  const contextItems = computed(() => {
+    const note = menu.value?.noteId
+      ? (options.notes.value.find((item) => item.id === menu.value?.noteId) ?? null)
+      : null;
     return createMainContextItems({
-      note: note ?? null,
-      notesCount,
-      onCopyNote: (item) => void handleCopy(item),
-      onDeleteAll,
-      onDeleteNote: (id) => void handleDelete(id),
-      onEditNote: (item) => void openEditor(item),
-      onNewNote: () => void openEditor(null),
-      onToggleNotePin: (item) => void patchNote(item.id, { pinned: !item.pinned }),
-      settings,
-      t,
+      note,
+      notesCount: options.notes.value.length,
+      onCopyNote: (item) => void options.handleCopy(item),
+      onDeleteAll: options.onDeleteAll,
+      onDeleteNote: (id) => void options.handleDelete(id),
+      onEditNote: (item) => void options.openEditor(item),
+      onNewNote: () => void options.openEditor(null),
+      onToggleNotePin: (item) => void options.patchNote(item.id, { pinned: !item.pinned }),
+      settings: options.settings.value,
+      t: options.t.value,
     });
-  }, [
-    handleCopy,
-    handleDelete,
-    menu?.noteId,
-    notesCount,
-    notesRef,
-    onDeleteAll,
-    openEditor,
-    patchNote,
-    settings,
-    t,
-  ]);
+  });
 
-  const getDockMenuItems = useCallback(
-    (): ContextMenuItem[] =>
-      createDockMenuItems({
-        alwaysOnLabel,
-        dockToggleLabel,
-        onQuit: () => void quitApp(),
-        onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
-        onToggleDock: () => void toggleDockOnEdge(),
-        onToggleLanguage: () => void toggleLanguage(),
-        settings,
-        t,
-      }),
-    [
-      alwaysOnLabel,
-      dockToggleLabel,
-      quitApp,
-      settings,
-      t,
-      toggleAlwaysOnTop,
-      toggleDockOnEdge,
-      toggleLanguage,
-    ],
+  const dockMenuItems = computed(() =>
+    createDockMenuItems({
+      alwaysOnLabel: options.alwaysOnLabel.value,
+      dockToggleLabel: options.dockToggleLabel.value,
+      onQuit: () => void options.quitApp(),
+      onToggleAlwaysOnTop: () => void options.toggleAlwaysOnTop(),
+      onToggleDock: () => void options.toggleDockOnEdge(),
+      onToggleLanguage: () => void options.toggleLanguage(),
+      settings: options.settings.value,
+      t: options.t.value,
+    }),
   );
 
-  return {
-    closeMenu,
-    getContextItems,
-    getDockMenuItems,
-    menu,
-    openDockMenu,
-    openMenu,
-  };
+  return { closeMenu, contextItems, dockMenuItems, menu, openDockMenu, openMenu };
 }

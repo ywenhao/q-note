@@ -2,7 +2,7 @@
 
 ## Project
 
-Q Note is a Tauri 2 desktop app with React, TypeScript, Vite+, Tailwind CSS, and SQLite.
+Q Note is a Tauri 2 desktop app with Vue 3.6 Vapor, TypeScript, Vite+, Tailwind CSS, and SQLite.
 
 ## Commands
 
@@ -17,6 +17,8 @@ Q Note is a Tauri 2 desktop app with React, TypeScript, Vite+, Tailwind CSS, and
 ## Working Rules
 
 - Use `pnpm` for JavaScript dependencies and scripts.
+- Write components as Vue SFCs with `<script setup lang="ts" vapor>` and use Vue composables for reusable stateful behavior.
+- Keep the frontend in Vapor mode and do not add React or a VDOM compatibility layer.
 - Keep UI text in `src/i18n.ts` so Chinese and English stay aligned.
 - Store durable note and setting data through `src/lib/storage.ts`.
 - Keep Tauri permissions in `src-tauri/capabilities/default.json` narrow and explicit.

@@ -1,5 +1,7 @@
 # Compact Context Menu Implementation Plan
 
+> Historical note: this plan records the pre-Vue React implementation and its original `.tsx` paths. The current application uses Vue Vapor SFCs.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver smaller, focused context menus that stay visible at every viewport edge, then publish patch release 0.1.6.

@@ -1,5 +1,5 @@
 import { defineConfig, lazyPlugins } from "vite-plus";
-import react from "@vitejs/plugin-react";
+import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 
 // @ts-expect-error process is a nodejs global
@@ -7,7 +7,7 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: lazyPlugins(() => [react(), tailwindcss()]),
+  plugins: lazyPlugins(() => [vue({ features: { vapor: true } }), tailwindcss()]),
   fmt: {
     ignorePatterns: ["dist/**", "src-tauri/target/**"],
     semi: true,
@@ -18,7 +18,7 @@ export default defineConfig({
     ignorePatterns: ["dist/**", "src-tauri/target/**"],
   },
   staged: {
-    "*.{css,html,json,md,ts,tsx}": "vp check --fix",
+    "*.{css,html,json,md,ts,vue}": "vp check --fix",
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

@@ -1,20 +1,12 @@
 import { emit } from "@tauri-apps/api/event";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from "react";
+import { ref, type ComputedRef, type Ref } from "vue";
 import type { Translation } from "../../i18n";
 import { applyAutoStart } from "../../lib/autoStart";
 import { isTauriRuntime } from "../../lib/env";
 import { exportJson, importJson } from "../../lib/fileIo";
 import {
-  createExportPayload,
   createDefaultSettings,
+  createExportPayload,
   normalizeImportPayload,
   normalizeSettings,
   replaceAppData,
@@ -26,105 +18,76 @@ import type { ShowToast } from "../../hooks/useToast";
 
 interface UseSettingsControllerOptions {
   commitNotes: (nextNotes: Note[]) => void;
-  notesRef: MutableRefObject<Note[]>;
-  setSettings: Dispatch<SetStateAction<AppSettings>>;
-  settingsRef: MutableRefObject<AppSettings>;
+  notes: Ref<Note[]>;
+  settings: Ref<AppSettings>;
   showToast: ShowToast;
-  t: Translation;
+  t: ComputedRef<Translation>;
 }
 
 export function useSettingsState() {
-  const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
-  const settingsRef = useRef(settings);
-
-  useEffect(() => {
-    settingsRef.current = settings;
-  }, [settings]);
-
-  return {
-    setSettings,
-    settings,
-    settingsRef,
-  };
+  const settings = ref<AppSettings>(createDefaultSettings());
+  return { settings };
 }
 
-export function useSettingsController({
-  commitNotes,
-  notesRef,
-  setSettings,
-  settingsRef,
-  showToast,
-  t,
-}: UseSettingsControllerOptions) {
-  const persistSettings = useCallback(
-    async (patch: Partial<AppSettings>) => {
-      const nextSettings = normalizeSettings({ ...settingsRef.current, ...patch });
-      settingsRef.current = nextSettings;
-      setSettings(nextSettings);
-      await saveSettings(nextSettings);
+export function useSettingsController(options: UseSettingsControllerOptions) {
+  const { commitNotes, notes, settings, showToast, t } = options;
 
-      if (isTauriRuntime()) {
-        await emit("q-note-settings-updated", nextSettings);
-      }
-    },
-    [setSettings, settingsRef],
-  );
-
-  const handleExport = useCallback(async () => {
-    const exported = await exportJson(
-      createExportPayload({
-        notes: notesRef.current,
-        settings: settingsRef.current,
-      }),
-    );
-
-    if (exported) {
-      showToast(t.exported);
+  async function persistSettings(patch: Partial<AppSettings>) {
+    const nextSettings = normalizeSettings({ ...settings.value, ...patch });
+    settings.value = nextSettings;
+    await saveSettings(nextSettings);
+    if (isTauriRuntime()) {
+      await emit("q-note-settings-updated", nextSettings);
     }
-  }, [notesRef, settingsRef, showToast, t]);
+  }
 
-  const handleImport = useCallback(async () => {
+  async function handleExport() {
+    const exported = await exportJson(
+      createExportPayload({ notes: notes.value, settings: settings.value }),
+    );
+    if (exported) {
+      showToast(t.value.exported);
+    }
+  }
+
+  async function handleImport() {
     try {
       const payload = await importJson();
       if (!payload) {
         return;
       }
-
       const nextData = normalizeImportPayload(payload);
       commitNotes(nextData.notes);
-      settingsRef.current = nextData.settings;
-      setSettings(nextData.settings);
+      settings.value = nextData.settings;
       await replaceAppData(nextData);
       await applyAlwaysOnTop(nextData.settings.alwaysOnTop);
       const autoStart = await applyAutoStart(nextData.settings.autoStart);
       await persistSettings({ autoStart });
-      showToast(t.imported);
+      showToast(t.value.imported);
     } catch {
-      showToast(t.importFailed, { kind: "error" });
+      showToast(t.value.importFailed, { kind: "error" });
     }
-  }, [commitNotes, persistSettings, setSettings, settingsRef, showToast, t]);
+  }
 
-  const toggleAlwaysOnTop = useCallback(async () => {
-    const nextValue = !settingsRef.current.alwaysOnTop;
+  async function toggleAlwaysOnTop() {
+    const nextValue = !settings.value.alwaysOnTop;
     await applyAlwaysOnTop(nextValue);
     await persistSettings({ alwaysOnTop: nextValue });
-  }, [persistSettings, settingsRef]);
+  }
 
-  const toggleAutoStart = useCallback(async () => {
+  async function toggleAutoStart() {
     try {
-      const autoStart = await applyAutoStart(!settingsRef.current.autoStart);
+      const autoStart = await applyAutoStart(!settings.value.autoStart);
       await persistSettings({ autoStart });
-      showToast(t.autoStartUpdated);
+      showToast(t.value.autoStartUpdated);
     } catch {
-      showToast(t.autoStartFailed, { kind: "error" });
+      showToast(t.value.autoStartFailed, { kind: "error" });
     }
-  }, [persistSettings, settingsRef, showToast, t]);
+  }
 
-  const toggleLanguage = useCallback(async () => {
-    await persistSettings({
-      language: settingsRef.current.language === "zh" ? "en" : "zh",
-    });
-  }, [persistSettings, settingsRef]);
+  async function toggleLanguage() {
+    await persistSettings({ language: settings.value.language === "zh" ? "en" : "zh" });
+  }
 
   return {
     handleExport,

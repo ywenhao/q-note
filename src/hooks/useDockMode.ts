@@ -1,8 +1,8 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
+import { onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 import {
-  DOCK_RETURN_SNAP_EVENT,
   DOCK_RETURN_SNAP_DELAY,
+  DOCK_RETURN_SNAP_EVENT,
   beginDockTransition,
   clearDockRevealAnchor,
   getActiveDockTransitionTarget,
@@ -31,7 +31,7 @@ import type { AppSettings, DockEdge, WindowState } from "../types";
 interface UseDockModeOptions {
   currentWindowLabel: string;
   persistSettings: (patch: Partial<AppSettings>) => Promise<void>;
-  settingsRef: MutableRefObject<AppSettings>;
+  settings: Ref<AppSettings>;
 }
 
 interface DockReturnSnapPayload {
@@ -43,175 +43,147 @@ function isDockEdge(value: unknown): value is DockEdge {
   return value === "left" || value === "right" || value === "top" || value === "bottom";
 }
 
-export function useDockMode({
-  currentWindowLabel,
-  persistSettings,
-  settingsRef,
-}: UseDockModeOptions) {
-  const dockGuardRef = useRef(false);
-  const dockGuardTimerRef = useRef<number | null>(null);
-  const dockReturnSnapTimerRef = useRef<number | null>(null);
-  const dockDragRef = useRef(false);
-  const dockDragMovePendingRef = useRef(false);
-  const dockDragSessionRef = useRef<QIconDragSession | null>(null);
-  const dockTransitionRef = useRef(false);
-  const iconWindowRef = useRef<WindowState | null>(null);
+export function useDockMode(options: UseDockModeOptions) {
+  const dockGuard = ref(false);
+  const dockDrag = ref(false);
+  let dockGuardTimer: number | null = null;
+  let dockReturnSnapTimer: number | null = null;
+  let dockDragMovePending = false;
+  let dockDragSession: QIconDragSession | null = null;
+  let dockTransition = false;
+  let iconWindow: WindowState | null = null;
+  let unlistenReturnSnap: (() => void) | null = null;
+  let disposed = false;
 
-  const setDockGuard = useCallback(() => {
-    dockGuardRef.current = true;
+  function setDockGuard() {
+    dockGuard.value = true;
     setSharedDockGuard();
-    if (dockGuardTimerRef.current) {
-      window.clearTimeout(dockGuardTimerRef.current);
+    if (dockGuardTimer) {
+      window.clearTimeout(dockGuardTimer);
     }
-
-    dockGuardTimerRef.current = window.setTimeout(() => {
-      dockGuardRef.current = false;
-      dockGuardTimerRef.current = null;
+    dockGuardTimer = window.setTimeout(() => {
+      dockGuard.value = false;
+      dockGuardTimer = null;
     }, 700);
-  }, []);
+  }
 
-  const persistIconSnap = useCallback(
-    async (edge: DockEdge) => {
-      setDockGuard();
-      iconWindowRef.current = await snapQIconWindow(edge);
-      await persistSettings({
-        docked: true,
-        dockEdge: edge,
-      });
-    },
-    [persistSettings, setDockGuard],
-  );
+  async function persistIconSnap(edge: DockEdge) {
+    setDockGuard();
+    iconWindow = await snapQIconWindow(edge);
+    await options.persistSettings({ docked: true, dockEdge: edge });
+  }
 
-  const restoreDock = useCallback(
-    async (options: { keepFull?: boolean; preserveRevealAnchor?: boolean } = {}) => {
-      if (dockTransitionRef.current) {
-        return;
-      }
-
-      if (!options.preserveRevealAnchor) {
-        clearDockRevealAnchor();
-      }
-
-      dockTransitionRef.current = true;
-      const token = beginDockTransition("main");
-
-      try {
-        setDockGuard();
-        await persistSettings({
-          docked: false,
-          dockEdge: null,
-          keepFullMain: options.keepFull ?? settingsRef.current.keepFullMain,
-        });
-        await showMainWindow(settingsRef.current.window, settingsRef.current.alwaysOnTop);
-
-        if (isActiveDockTransition(token) && !settingsRef.current.docked) {
-          await hideDockWindow();
-        } else if (getActiveDockTransitionTarget() === "dock") {
-          await hideMainWindow();
-        }
-      } finally {
-        dockTransitionRef.current = false;
-      }
-    },
-    [persistSettings, setDockGuard, settingsRef],
-  );
-
-  const collapseToQIcon = useCallback(
-    async (options: { useRevealAnchor?: boolean } = {}) => {
-      if (dockTransitionRef.current) {
-        return;
-      }
-
-      dockTransitionRef.current = true;
-      const token = beginDockTransition("dock");
-      const revealAnchor = options.useRevealAnchor ? takeDockRevealAnchor() : null;
-
-      try {
-        const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
-        setDockGuard();
-        await persistSettings({
-          docked: true,
-          dockEdge: revealAnchor?.edge ?? null,
-          keepFullMain: false,
-          window: snapshot ?? settingsRef.current.window,
-        });
-        iconWindowRef.current = await showDockWindow(
-          revealAnchor ?? snapshot ?? settingsRef.current.window,
-          settingsRef.current.alwaysOnTop,
-        );
-
-        if (isActiveDockTransition(token) && settingsRef.current.docked) {
-          if (revealAnchor) {
-            await emitTo(DOCK_WINDOW_LABEL, DOCK_RETURN_SNAP_EVENT, {
-              edge: revealAnchor.edge,
-              token,
-            } satisfies DockReturnSnapPayload);
-          }
-
-          await hideMainWindow();
-        } else if (getActiveDockTransitionTarget() === "main") {
-          await hideDockWindow();
-        }
-      } finally {
-        dockTransitionRef.current = false;
-      }
-    },
-    [persistIconSnap, persistSettings, setDockGuard, settingsRef],
-  );
-
-  const toggleDockOnEdge = useCallback(async () => {
-    if (settingsRef.current.docked) {
-      await restoreDock({ keepFull: true });
+  async function restoreDock(
+    restoreOptions: { keepFull?: boolean; preserveRevealAnchor?: boolean } = {},
+  ) {
+    if (dockTransition) {
       return;
     }
-
-    await collapseToQIcon();
-  }, [collapseToQIcon, restoreDock, settingsRef]);
-
-  const dragQIcon = useCallback(async () => {
-    if (dockDragRef.current) {
-      return;
+    if (!restoreOptions.preserveRevealAnchor) {
+      clearDockRevealAnchor();
     }
-
-    clearDockRevealAnchor();
-    dockDragRef.current = true;
-    dockDragSessionRef.current = await beginQIconDrag();
-    if (!dockDragSessionRef.current) {
-      dockDragRef.current = false;
-    }
-  }, []);
-
-  const moveQIcon = useCallback(async () => {
-    const session = dockDragSessionRef.current;
-    if (!dockDragRef.current || !session || dockDragMovePendingRef.current) {
-      return;
-    }
-
-    dockDragMovePendingRef.current = true;
+    dockTransition = true;
+    const token = beginDockTransition("main");
     try {
-      await moveQIconDrag(session);
+      setDockGuard();
+      await options.persistSettings({
+        docked: false,
+        dockEdge: null,
+        keepFullMain: restoreOptions.keepFull ?? options.settings.value.keepFullMain,
+      });
+      await showMainWindow(options.settings.value.window, options.settings.value.alwaysOnTop);
+      if (isActiveDockTransition(token) && !options.settings.value.docked) {
+        await hideDockWindow();
+      } else if (getActiveDockTransitionTarget() === "dock") {
+        await hideMainWindow();
+      }
     } finally {
-      dockDragMovePendingRef.current = false;
+      dockTransition = false;
     }
-  }, []);
+  }
 
-  const finishQIconDrag = useCallback(async () => {
-    if (!dockDragRef.current) {
+  async function collapseToQIcon(collapseOptions: { useRevealAnchor?: boolean } = {}) {
+    if (dockTransition) {
       return;
     }
+    dockTransition = true;
+    const token = beginDockTransition("dock");
+    const revealAnchor = collapseOptions.useRevealAnchor ? takeDockRevealAnchor() : null;
+    try {
+      const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
+      setDockGuard();
+      await options.persistSettings({
+        docked: true,
+        dockEdge: revealAnchor?.edge ?? null,
+        keepFullMain: false,
+        window: snapshot ?? options.settings.value.window,
+      });
+      iconWindow = await showDockWindow(
+        revealAnchor ?? snapshot ?? options.settings.value.window,
+        options.settings.value.alwaysOnTop,
+      );
+      if (isActiveDockTransition(token) && options.settings.value.docked) {
+        if (revealAnchor) {
+          await emitTo(DOCK_WINDOW_LABEL, DOCK_RETURN_SNAP_EVENT, {
+            edge: revealAnchor.edge,
+            token,
+          } satisfies DockReturnSnapPayload);
+        }
+        await hideMainWindow();
+      } else if (getActiveDockTransitionTarget() === "main") {
+        await hideDockWindow();
+      }
+    } finally {
+      dockTransition = false;
+    }
+  }
 
-    const session = dockDragSessionRef.current;
-    dockDragRef.current = false;
-    dockDragMovePendingRef.current = false;
-    dockDragSessionRef.current = null;
-    if (!settingsRef.current.docked) {
+  async function toggleDockOnEdge() {
+    if (options.settings.value.docked) {
+      await restoreDock({ keepFull: true });
+    } else {
+      await collapseToQIcon();
+    }
+  }
+
+  async function dragQIcon() {
+    if (dockDrag.value) {
       return;
     }
+    clearDockRevealAnchor();
+    dockDrag.value = true;
+    dockDragSession = await beginQIconDrag();
+    if (!dockDragSession) {
+      dockDrag.value = false;
+    }
+  }
 
+  async function moveQIcon() {
+    if (!dockDrag.value || !dockDragSession || dockDragMovePending) {
+      return;
+    }
+    dockDragMovePending = true;
+    try {
+      await moveQIconDrag(dockDragSession);
+    } finally {
+      dockDragMovePending = false;
+    }
+  }
+
+  async function finishQIconDrag() {
+    if (!dockDrag.value) {
+      return;
+    }
+    const session = dockDragSession;
+    dockDrag.value = false;
+    dockDragMovePending = false;
+    dockDragSession = null;
+    if (!options.settings.value.docked) {
+      return;
+    }
     if (session) {
       await moveQIconDrag(session);
     }
-
     const [edge, snapshot] = await Promise.all([
       detectSnapEdge(DOCK_WINDOW_LABEL),
       captureWindowState(DOCK_WINDOW_LABEL),
@@ -220,130 +192,95 @@ export function useDockMode({
       clearDockRevealAnchor();
       return;
     }
-
     if (edge) {
       await persistIconSnap(edge);
       return;
     }
-
-    iconWindowRef.current = snapshot;
+    iconWindow = snapshot;
     clearDockRevealAnchor();
-    await persistSettings({ dockEdge: null });
-  }, [persistIconSnap, persistSettings, settingsRef]);
+    await options.persistSettings({ dockEdge: null });
+  }
 
-  const revealDockIcon = useCallback(async () => {
-    if (dockDragRef.current) {
-      return;
+  async function revealDockIcon() {
+    const edge = options.settings.value.dockEdge;
+    if (!dockDrag.value && edge) {
+      setDockGuard();
+      iconWindow = await revealQIconWindow(edge);
     }
+  }
 
-    const edge = settingsRef.current.dockEdge;
-    if (!edge) {
-      return;
+  async function concealDockIcon() {
+    const edge = options.settings.value.dockEdge;
+    if (!dockDrag.value && edge) {
+      setDockGuard();
+      iconWindow = await snapQIconWindow(edge);
     }
+  }
 
-    setDockGuard();
-    iconWindowRef.current = await revealQIconWindow(edge);
-  }, [setDockGuard, settingsRef]);
-
-  const concealDockIcon = useCallback(async () => {
-    if (dockDragRef.current) {
-      return;
-    }
-
-    const edge = settingsRef.current.dockEdge;
-    if (!edge) {
-      return;
-    }
-
-    setDockGuard();
-    iconWindowRef.current = await snapQIconWindow(edge);
-  }, [setDockGuard, settingsRef]);
-
-  const openMainFromDockIcon = useCallback(async () => {
-    const edge = settingsRef.current.dockEdge;
+  async function openMainFromDockIcon() {
+    const edge = options.settings.value.dockEdge;
     if (edge) {
       clearDockRevealAnchor();
       setDockGuard();
-      iconWindowRef.current = await revealQIconWindow(edge);
-      rememberDockRevealAnchor(edge, iconWindowRef.current);
+      iconWindow = await revealQIconWindow(edge);
+      rememberDockRevealAnchor(edge, iconWindow);
       await restoreDock({ keepFull: true, preserveRevealAnchor: true });
       return;
     }
-
     clearDockRevealAnchor();
     await restoreDock({ keepFull: true });
-  }, [restoreDock, setDockGuard, settingsRef]);
+  }
 
-  useEffect(
-    () => () => {
-      if (dockGuardTimerRef.current) {
-        window.clearTimeout(dockGuardTimerRef.current);
-      }
-      if (dockReturnSnapTimerRef.current) {
-        window.clearTimeout(dockReturnSnapTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (currentWindowLabel !== DOCK_WINDOW_LABEL) {
+  onMounted(async () => {
+    if (options.currentWindowLabel !== DOCK_WINDOW_LABEL) {
       return;
     }
-
-    let disposed = false;
-    let unlisten: (() => void) | null = null;
-
-    void listen<DockReturnSnapPayload>(DOCK_RETURN_SNAP_EVENT, (event) => {
+    const cleanup = await listen<DockReturnSnapPayload>(DOCK_RETURN_SNAP_EVENT, (event) => {
       const { edge, token } = event.payload;
       if (!isDockEdge(edge) || typeof token !== "string") {
         return;
       }
-
-      if (dockReturnSnapTimerRef.current) {
-        window.clearTimeout(dockReturnSnapTimerRef.current);
+      if (dockReturnSnapTimer) {
+        window.clearTimeout(dockReturnSnapTimer);
       }
-
-      dockReturnSnapTimerRef.current = window.setTimeout(() => {
-        dockReturnSnapTimerRef.current = null;
-        if (!isActiveDockTransition(token) || !settingsRef.current.docked || dockDragRef.current) {
-          return;
+      dockReturnSnapTimer = window.setTimeout(() => {
+        dockReturnSnapTimer = null;
+        if (isActiveDockTransition(token) && options.settings.value.docked && !dockDrag.value) {
+          void persistIconSnap(edge);
         }
-
-        void persistIconSnap(edge);
       }, DOCK_RETURN_SNAP_DELAY);
-    }).then((handler) => {
-      if (disposed) {
-        handler();
-        return;
-      }
-
-      unlisten = handler;
     });
+    if (disposed) {
+      cleanup();
+    } else {
+      unlistenReturnSnap = cleanup;
+    }
+  });
 
-    return () => {
-      disposed = true;
-      unlisten?.();
-      if (dockReturnSnapTimerRef.current) {
-        window.clearTimeout(dockReturnSnapTimerRef.current);
-        dockReturnSnapTimerRef.current = null;
-      }
-    };
-  }, [currentWindowLabel, persistIconSnap, settingsRef]);
+  onBeforeUnmount(() => {
+    disposed = true;
+    unlistenReturnSnap?.();
+    if (dockGuardTimer) {
+      window.clearTimeout(dockGuardTimer);
+    }
+    if (dockReturnSnapTimer) {
+      window.clearTimeout(dockReturnSnapTimer);
+    }
+  });
 
   return {
     collapseToQIcon,
     concealDockIcon,
-    dockDragRef,
-    dockGuardRef,
+    dockDrag,
+    dockGuard,
     dragQIcon,
     finishQIconDrag,
+    moveQIcon,
     openMainFromDockIcon,
     persistIconSnap,
     restoreDock,
     revealDockIcon,
     setDockGuard,
     toggleDockOnEdge,
-    moveQIcon,
   };
 }

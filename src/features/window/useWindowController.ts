@@ -1,52 +1,36 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, type PointerEvent } from "react";
 import { isTauriRuntime } from "../../lib/env";
 import { startMainWindowDrag } from "../../lib/windowControls";
 
-interface UseWindowControllerOptions {
-  collapseToQIcon: () => Promise<void>;
-}
-
-export function useWindowController({ collapseToQIcon }: UseWindowControllerOptions) {
-  const minimizeWindow = useCallback(async () => {
+export function useWindowController(collapseToQIcon: () => Promise<void>) {
+  async function minimizeWindow() {
     if (!isTauriRuntime()) {
       await collapseToQIcon();
       return;
     }
-
     await getCurrentWindow().minimize();
-  }, [collapseToQIcon]);
+  }
 
-  const closeWindow = useCallback(async () => {
+  async function closeWindow() {
     if (!isTauriRuntime()) {
       await collapseToQIcon();
       return;
     }
-
     await getCurrentWindow().close();
-  }, [collapseToQIcon]);
+  }
 
-  const quitApp = useCallback(async () => {
-    if (!isTauriRuntime()) {
-      return;
+  async function quitApp() {
+    if (isTauriRuntime()) {
+      await invoke("quit_app");
     }
+  }
 
-    await invoke("quit_app");
-  }, []);
-
-  const dragMainWindow = useCallback((event: PointerEvent<HTMLElement>) => {
-    if (event.button !== 0) {
-      return;
+  function dragMainWindow(event: PointerEvent) {
+    if (event.button === 0) {
+      void startMainWindowDrag();
     }
+  }
 
-    void startMainWindowDrag();
-  }, []);
-
-  return {
-    closeWindow,
-    dragMainWindow,
-    minimizeWindow,
-    quitApp,
-  };
+  return { closeWindow, dragMainWindow, minimizeWindow, quitApp };
 }

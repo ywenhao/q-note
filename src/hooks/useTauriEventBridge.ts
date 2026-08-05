@@ -1,94 +1,62 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import type { ShowToast } from "./useToast";
+import { watch, type Ref } from "vue";
 import { translations } from "../i18n";
 import { isTauriRuntime } from "../lib/env";
 import type { AppSettings, Note } from "../types";
+import type { ShowToast } from "./useToast";
 
 interface UseTauriEventBridgeOptions {
   commitNotes: (nextNotes: Note[]) => void;
-  notesRef: MutableRefObject<Note[]>;
-  ready: boolean;
+  notes: Ref<Note[]>;
+  ready: Ref<boolean>;
   restoreDock: (options?: { keepFull?: boolean; preserveRevealAnchor?: boolean }) => Promise<void>;
-  setSettings: Dispatch<SetStateAction<AppSettings>>;
-  settingsRef: MutableRefObject<AppSettings>;
+  settings: Ref<AppSettings>;
   showToast: ShowToast;
   toggleAlwaysOnTop: () => Promise<void>;
   toggleDockOnEdge: () => Promise<void>;
   toggleLanguage: () => Promise<void>;
 }
 
-export function useTauriEventBridge({
-  commitNotes,
-  notesRef,
-  ready,
-  restoreDock,
-  setSettings,
-  settingsRef,
-  showToast,
-  toggleAlwaysOnTop,
-  toggleDockOnEdge,
-  toggleLanguage,
-}: UseTauriEventBridgeOptions) {
-  useEffect(() => {
-    if (!ready || !isTauriRuntime()) {
-      return;
-    }
-
-    let disposed = false;
-    let unlistenHandlers: Array<() => void> = [];
-
-    void (async () => {
-      const handlers = await Promise.all([
-        listen("q-note-toggle-always-on-top", () => {
-          void toggleAlwaysOnTop();
-        }),
-        listen("q-note-toggle-language", () => {
-          void toggleLanguage();
-        }),
-        listen("q-note-toggle-dock", () => {
-          void toggleDockOnEdge();
-        }),
+export function useTauriEventBridge(options: UseTauriEventBridgeOptions) {
+  watch(
+    options.ready,
+    (ready, _, onCleanup) => {
+      if (!ready || !isTauriRuntime()) {
+        return;
+      }
+      let disposed = false;
+      let unlistenHandlers: Array<() => void> = [];
+      void Promise.all([
+        listen("q-note-toggle-always-on-top", () => void options.toggleAlwaysOnTop()),
+        listen("q-note-toggle-language", () => void options.toggleLanguage()),
+        listen("q-note-toggle-dock", () => void options.toggleDockOnEdge()),
         listen("q-note-show-main", () => {
-          if (settingsRef.current.docked) {
-            void restoreDock({ keepFull: true });
+          if (options.settings.value.docked) {
+            void options.restoreDock({ keepFull: true });
           }
         }),
         listen<Note>("q-note-note-saved", (event) => {
-          commitNotes([
+          options.commitNotes([
             event.payload,
-            ...notesRef.current.filter((note) => note.id !== event.payload.id),
+            ...options.notes.value.filter((note) => note.id !== event.payload.id),
           ]);
-          showToast(translations[settingsRef.current.language].saved);
+          options.showToast(translations[options.settings.value.language].saved);
         }),
         listen<AppSettings>("q-note-settings-updated", (event) => {
-          settingsRef.current = event.payload;
-          setSettings(event.payload);
+          options.settings.value = event.payload;
         }),
-      ]);
-
-      if (disposed) {
-        handlers.forEach((unlisten) => unlisten());
-        return;
-      }
-
-      unlistenHandlers = handlers;
-    })();
-
-    return () => {
-      disposed = true;
-      unlistenHandlers.forEach((unlisten) => unlisten());
-    };
-  }, [
-    commitNotes,
-    notesRef,
-    ready,
-    restoreDock,
-    setSettings,
-    settingsRef,
-    showToast,
-    toggleAlwaysOnTop,
-    toggleDockOnEdge,
-    toggleLanguage,
-  ]);
+      ]).then((handlers) => {
+        if (disposed) {
+          handlers.forEach((unlisten) => unlisten());
+        } else {
+          unlistenHandlers = handlers;
+        }
+      });
+      onCleanup(() => {
+        disposed = true;
+        unlistenHandlers.forEach((unlisten) => unlisten());
+      });
+    },
+    { immediate: true },
+  );
 }

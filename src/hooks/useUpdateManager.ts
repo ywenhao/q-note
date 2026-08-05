@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from "vue";
 import { translations } from "../i18n";
 import { isTauriRuntime } from "../lib/env";
 import { reduceUpdateDownloadProgress, type UpdateDownloadProgress } from "../lib/updateProgress";
@@ -21,212 +21,176 @@ import type { ShowToast } from "./useToast";
 
 interface UseUpdateManagerOptions {
   currentWindowLabel: string;
-  language: Language;
+  language: ComputedRef<Language>;
   prepareForUpdate: () => Promise<void>;
-  ready: boolean;
+  ready: Ref<boolean>;
   showToast: ShowToast;
 }
 
-export function useUpdateManager({
-  currentWindowLabel,
-  language,
-  prepareForUpdate,
-  ready,
-  showToast,
-}: UseUpdateManagerOptions) {
-  const [appVersion, setAppVersion] = useState(FALLBACK_VERSION);
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [downloadingUpdate, setDownloadingUpdate] = useState(false);
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [updateDownloadProgress, setUpdateDownloadProgress] =
-    useState<UpdateDownloadProgress | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [updatePhase, setUpdatePhase] = useState<UpdatePhase>("downloading");
+export function useUpdateManager(options: UseUpdateManagerOptions) {
+  const appVersion = ref(FALLBACK_VERSION);
+  const checkingUpdate = ref(false);
+  const downloadingUpdate = ref(false);
+  const updateDialogOpen = ref(false);
+  const updateDownloadProgress = ref<UpdateDownloadProgress | null>(null);
+  const updatePhase = ref<UpdatePhase>("downloading");
+  let updateCheckActive = false;
+  let currentUpdate: AppUpdate | null = null;
 
-  const appVersionRef = useRef(appVersion);
-  const downloadingUpdateRef = useRef(downloadingUpdate);
-  const languageRef = useRef(language);
-  const updateCheckRef = useRef(false);
-  const updateRef = useRef<AppUpdate | null>(null);
+  const updateInfo = ref<UpdateInfo | null>(null);
+  const hasUpdate = computed(() => Boolean(updateInfo.value));
 
-  useEffect(() => {
-    appVersionRef.current = appVersion;
-  }, [appVersion]);
-
-  useEffect(() => {
-    downloadingUpdateRef.current = downloadingUpdate;
-  }, [downloadingUpdate]);
-
-  useEffect(() => {
-    languageRef.current = language;
-  }, [language]);
-
-  const replaceUpdate = useCallback(async (nextUpdate: AppUpdate | null) => {
-    const previousUpdate = updateRef.current;
-    updateRef.current = nextUpdate;
-    setUpdateInfo(nextUpdate ? toUpdateInfo(nextUpdate) : null);
+  async function replaceUpdate(nextUpdate: AppUpdate | null) {
+    const previousUpdate = currentUpdate;
+    currentUpdate = nextUpdate;
+    updateInfo.value = nextUpdate ? toUpdateInfo(nextUpdate) : null;
     if (previousUpdate && previousUpdate !== nextUpdate) {
       await previousUpdate.close().catch(() => undefined);
     }
-  }, []);
+  }
 
-  const disposeCurrentUpdate = useCallback(async () => {
-    const currentUpdate = updateRef.current;
-    updateRef.current = null;
-    await currentUpdate?.close().catch(() => undefined);
-  }, []);
+  async function disposeCurrentUpdate() {
+    const update = currentUpdate;
+    currentUpdate = null;
+    await update?.close().catch(() => undefined);
+  }
 
-  const runUpdateCheck = useCallback(
-    async (manual: boolean) => {
-      if (!isTauriRuntime() || updateCheckRef.current) {
-        return updateRef.current;
-      }
-
-      updateCheckRef.current = true;
-      setCheckingUpdate(true);
-
-      try {
-        const nextUpdate = await checkForUpdate();
-        await replaceUpdate(nextUpdate);
-
-        if (manual && !nextUpdate) {
-          showToast(translations[languageRef.current].updateNone, { icon: false, kind: "info" });
-        }
-
-        return nextUpdate;
-      } catch {
-        if (manual) {
-          showToast(translations[languageRef.current].updateCheckFailed, { kind: "error" });
-        }
-
-        return null;
-      } finally {
-        updateCheckRef.current = false;
-        setCheckingUpdate(false);
-      }
-    },
-    [replaceUpdate, showToast],
-  );
-
-  const startUpdateDownload = useCallback(
-    async (update: AppUpdate | null = updateRef.current) => {
-      if (!update || downloadingUpdateRef.current) {
-        return;
-      }
-
-      downloadingUpdateRef.current = true;
-      setDownloadingUpdate(true);
-      setUpdateDialogOpen(true);
-      setUpdateDownloadProgress(null);
-      setUpdatePhase("downloading");
-      let phase: UpdatePhase = "downloading";
-
-      try {
-        await downloadUpdate(update, (event) => {
-          setUpdateDownloadProgress((current) => reduceUpdateDownloadProgress(current, event));
+  async function runUpdateCheck(manual: boolean) {
+    if (!isTauriRuntime() || updateCheckActive) {
+      return currentUpdate;
+    }
+    updateCheckActive = true;
+    checkingUpdate.value = true;
+    try {
+      const nextUpdate = await checkForUpdate();
+      await replaceUpdate(nextUpdate);
+      if (manual && !nextUpdate) {
+        options.showToast(translations[options.language.value].updateNone, {
+          icon: false,
+          kind: "info",
         });
-
-        phase = "preparing";
-        setUpdatePhase(phase);
-        await prepareForUpdate();
-
-        phase = "installing";
-        setUpdatePhase(phase);
-        await installDownloadedUpdate(update);
-        await relaunchUpdatedApp();
-      } catch {
-        setUpdateDialogOpen(false);
-        const t = translations[languageRef.current];
-        showToast(
-          phase === "downloading"
-            ? t.updateDownloadFailed
-            : phase === "preparing"
-              ? t.updatePrepareFailed
-              : t.updateInstallFailed,
-          { kind: "error" },
-        );
-        await disposeCurrentUpdate();
-      } finally {
-        downloadingUpdateRef.current = false;
-        setDownloadingUpdate(false);
       }
-    },
-    [disposeCurrentUpdate, prepareForUpdate, showToast],
-  );
+      return nextUpdate;
+    } catch {
+      if (manual) {
+        options.showToast(translations[options.language.value].updateCheckFailed, {
+          kind: "error",
+        });
+      }
+      return null;
+    } finally {
+      updateCheckActive = false;
+      checkingUpdate.value = false;
+    }
+  }
 
-  const handleCheckUpdate = useCallback(async () => {
-    if (updateCheckRef.current || downloadingUpdateRef.current) {
+  async function startUpdateDownload(update: AppUpdate | null = currentUpdate) {
+    if (!update || downloadingUpdate.value) {
       return;
     }
+    downloadingUpdate.value = true;
+    updateDialogOpen.value = true;
+    updateDownloadProgress.value = null;
+    updatePhase.value = "downloading";
+    let phase: UpdatePhase = "downloading";
+    try {
+      await downloadUpdate(update, (event) => {
+        updateDownloadProgress.value = reduceUpdateDownloadProgress(
+          updateDownloadProgress.value,
+          event,
+        );
+      });
+      phase = "preparing";
+      updatePhase.value = phase;
+      await options.prepareForUpdate();
+      phase = "installing";
+      updatePhase.value = phase;
+      await installDownloadedUpdate(update);
+      await relaunchUpdatedApp();
+    } catch {
+      updateDialogOpen.value = false;
+      const t = translations[options.language.value];
+      options.showToast(
+        phase === "downloading"
+          ? t.updateDownloadFailed
+          : phase === "preparing"
+            ? t.updatePrepareFailed
+            : t.updateInstallFailed,
+        { kind: "error" },
+      );
+      await disposeCurrentUpdate();
+    } finally {
+      downloadingUpdate.value = false;
+    }
+  }
 
-    const update = updateRef.current ?? (await runUpdateCheck(true));
+  async function handleCheckUpdate() {
+    if (updateCheckActive || downloadingUpdate.value) {
+      return;
+    }
+    const update = currentUpdate ?? (await runUpdateCheck(true));
     if (update) {
       await startUpdateDownload(update);
     }
-  }, [runUpdateCheck, startUpdateDownload]);
+  }
 
-  const handleOpenCurrentRelease = useCallback(async () => {
-    await openCurrentRelease(appVersionRef.current);
-  }, []);
+  async function handleOpenCurrentRelease() {
+    await openCurrentRelease(appVersion.value);
+  }
 
-  useEffect(() => {
-    if (!ready || !isTauriRuntime() || currentWindowLabel !== MAIN_WINDOW_LABEL) {
-      return;
-    }
-
-    let disposed = false;
-    let timer: number | null = null;
-
-    const scheduleDailyCheck = () => {
-      const now = new Date();
-      const nextCheck = new Date(now);
-      nextCheck.setHours(17, 0, 0, 0);
-      if (nextCheck <= now) {
-        nextCheck.setDate(nextCheck.getDate() + 1);
+  watch(
+    options.ready,
+    (ready, _, onCleanup) => {
+      if (!ready || !isTauriRuntime() || options.currentWindowLabel !== MAIN_WINDOW_LABEL) {
+        return;
       }
-
-      timer = window.setTimeout(() => {
+      let disposed = false;
+      let timer: number | null = null;
+      const scheduleDailyCheck = () => {
         if (disposed) {
           return;
         }
-
-        void runUpdateCheck(false).finally(scheduleDailyCheck);
-      }, nextCheck.getTime() - now.getTime());
-    };
-
-    void (async () => {
-      try {
-        const version = await readAppVersion();
-        if (disposed) {
-          return;
+        const now = new Date();
+        const nextCheck = new Date(now);
+        nextCheck.setHours(17, 0, 0, 0);
+        if (nextCheck <= now) {
+          nextCheck.setDate(nextCheck.getDate() + 1);
         }
+        timer = window.setTimeout(() => {
+          if (!disposed) {
+            void runUpdateCheck(false).finally(scheduleDailyCheck);
+          }
+        }, nextCheck.getTime() - now.getTime());
+      };
 
-        appVersionRef.current = version;
-        setAppVersion(version);
-      } catch {
-        // The fallback version still lets the settings panel render in dev/web contexts.
-      }
+      void (async () => {
+        try {
+          const version = await readAppVersion();
+          if (!disposed) {
+            appVersion.value = version;
+          }
+        } catch {
+          // The fallback version keeps settings usable in browser development.
+        }
+        if (!disposed) {
+          void runUpdateCheck(false);
+          scheduleDailyCheck();
+        }
+      })();
 
-      if (!disposed) {
-        void runUpdateCheck(false);
-        scheduleDailyCheck();
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      if (timer) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, [currentWindowLabel, ready, runUpdateCheck]);
-
-  useEffect(
-    () => () => {
-      void updateRef.current?.close();
+      onCleanup(() => {
+        disposed = true;
+        if (timer) {
+          window.clearTimeout(timer);
+        }
+      });
     },
-    [],
+    { immediate: true },
   );
+
+  onBeforeUnmount(() => {
+    void currentUpdate?.close();
+  });
 
   return {
     appVersion,
@@ -234,6 +198,7 @@ export function useUpdateManager({
     downloadingUpdate,
     handleCheckUpdate,
     handleOpenCurrentRelease,
+    hasUpdate,
     updateDialogOpen,
     updateDownloadProgress,
     updateInfo,

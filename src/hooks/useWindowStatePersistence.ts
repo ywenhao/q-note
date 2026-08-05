@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, type MutableRefObject } from "react";
+import { watch, type Ref } from "vue";
 import { clearDockRevealAnchor, isSharedDockGuardActive } from "../lib/dockPersistence";
 import { isTauriRuntime } from "../lib/env";
 import {
@@ -12,146 +12,130 @@ import type { AppSettings, DockEdge } from "../types";
 
 interface UseWindowStatePersistenceOptions {
   currentWindowLabel: string;
-  dockDragRef: MutableRefObject<boolean>;
-  dockGuardRef: MutableRefObject<boolean>;
-  editorOpen: boolean;
+  dockDrag: Ref<boolean>;
+  dockGuard: Ref<boolean>;
+  editorOpen: Ref<boolean>;
   persistIconSnap: (edge: DockEdge) => Promise<void>;
   persistSettings: (patch: Partial<AppSettings>) => Promise<void>;
-  ready: boolean;
-  settingsRef: MutableRefObject<AppSettings>;
+  ready: Ref<boolean>;
+  settings: Ref<AppSettings>;
 }
 
-export function useWindowStatePersistence({
-  currentWindowLabel,
-  dockDragRef,
-  dockGuardRef,
-  editorOpen,
-  persistIconSnap,
-  persistSettings,
-  ready,
-  settingsRef,
-}: UseWindowStatePersistenceOptions) {
-  useEffect(() => {
-    if (!ready || !isTauriRuntime()) {
-      return;
-    }
-
-    let saveTimer: number | null = null;
-    let moveTimer: number | null = null;
-    let unlistenMove: (() => void) | null = null;
-    let unlistenResize: (() => void) | null = null;
-
-    const isMainWindow = currentWindowLabel === MAIN_WINDOW_LABEL;
-    const isDockRuntimeWindow = currentWindowLabel === DOCK_WINDOW_LABEL;
-
-    const saveWindowSoon = () => {
-      if (
-        !isMainWindow ||
-        settingsRef.current.docked ||
-        dockGuardRef.current ||
-        isSharedDockGuardActive()
-      ) {
+export function useWindowStatePersistence(options: UseWindowStatePersistenceOptions) {
+  watch(
+    [options.ready, options.editorOpen],
+    ([ready, editorOpen], _, onCleanup) => {
+      if (!ready || !isTauriRuntime()) {
         return;
       }
+      let disposed = false;
+      let saveTimer: number | null = null;
+      let moveTimer: number | null = null;
+      let unlistenMove: (() => void) | null = null;
+      let unlistenResize: (() => void) | null = null;
+      const isMainWindow = options.currentWindowLabel === MAIN_WINDOW_LABEL;
+      const isDockRuntimeWindow = options.currentWindowLabel === DOCK_WINDOW_LABEL;
 
-      if (saveTimer) {
-        window.clearTimeout(saveTimer);
-      }
-
-      saveTimer = window.setTimeout(() => {
-        void captureWindowState(MAIN_WINDOW_LABEL).then((snapshot) => {
-          if (snapshot && !settingsRef.current.docked) {
-            void persistSettings({ window: snapshot });
-          }
-        });
-      }, 300);
-    };
-
-    const handleMoved = () => {
-      if (isDockRuntimeWindow) {
-        if (moveTimer) {
-          window.clearTimeout(moveTimer);
-          moveTimer = null;
-        }
-
-        if (!settingsRef.current.docked || dockDragRef.current) {
+      const saveWindowSoon = () => {
+        if (
+          !isMainWindow ||
+          options.settings.value.docked ||
+          options.dockGuard.value ||
+          isSharedDockGuardActive()
+        ) {
           return;
         }
-
-        if (dockGuardRef.current || isSharedDockGuardActive()) {
-          return;
+        if (saveTimer) {
+          window.clearTimeout(saveTimer);
         }
-
-        moveTimer = window.setTimeout(() => {
-          void Promise.all([
-            detectSnapEdge(DOCK_WINDOW_LABEL),
-            captureWindowState(DOCK_WINDOW_LABEL),
-          ]).then(([edge, snapshot]) => {
-            if (!snapshot || !settingsRef.current.docked) {
-              return;
+        saveTimer = window.setTimeout(() => {
+          void captureWindowState(MAIN_WINDOW_LABEL).then((snapshot) => {
+            if (snapshot && !options.settings.value.docked) {
+              void options.persistSettings({ window: snapshot });
             }
-
-            if (edge) {
-              void persistIconSnap(edge);
-              return;
-            }
-
-            clearDockRevealAnchor();
-            void persistSettings({ dockEdge: null });
           });
-        }, 220);
+        }, 300);
+      };
 
-        return;
-      }
-
-      if (!isMainWindow) {
-        return;
-      }
-
-      if (dockGuardRef.current || isSharedDockGuardActive() || editorOpen) {
-        saveWindowSoon();
-        return;
-      }
-
-      if (moveTimer) {
-        window.clearTimeout(moveTimer);
-      }
-
-      moveTimer = window.setTimeout(() => {
-        void captureWindowState(MAIN_WINDOW_LABEL).then((snapshot) => {
-          if (!snapshot) {
+      const handleMoved = () => {
+        if (isDockRuntimeWindow) {
+          if (moveTimer) {
+            window.clearTimeout(moveTimer);
+            moveTimer = null;
+          }
+          if (
+            !options.settings.value.docked ||
+            options.dockDrag.value ||
+            options.dockGuard.value ||
+            isSharedDockGuardActive()
+          ) {
             return;
           }
+          moveTimer = window.setTimeout(() => {
+            void Promise.all([
+              detectSnapEdge(DOCK_WINDOW_LABEL),
+              captureWindowState(DOCK_WINDOW_LABEL),
+            ]).then(([edge, snapshot]) => {
+              if (!snapshot || !options.settings.value.docked) {
+                return;
+              }
+              if (edge) {
+                void options.persistIconSnap(edge);
+              } else {
+                clearDockRevealAnchor();
+                void options.persistSettings({ dockEdge: null });
+              }
+            });
+          }, 220);
+          return;
+        }
 
-          void persistSettings({ window: snapshot });
-        });
-      }, 220);
-    };
+        if (!isMainWindow) {
+          return;
+        }
+        if (options.dockGuard.value || isSharedDockGuardActive() || editorOpen) {
+          saveWindowSoon();
+          return;
+        }
+        if (moveTimer) {
+          window.clearTimeout(moveTimer);
+        }
+        moveTimer = window.setTimeout(() => {
+          void captureWindowState(MAIN_WINDOW_LABEL).then((snapshot) => {
+            if (snapshot) {
+              void options.persistSettings({ window: snapshot });
+            }
+          });
+        }, 220);
+      };
 
-    void (async () => {
-      const currentWindow = getCurrentWindow();
-      unlistenMove = await currentWindow.onMoved(handleMoved);
-      unlistenResize = await currentWindow.onResized(saveWindowSoon);
-    })();
+      void (async () => {
+        const currentWindow = getCurrentWindow();
+        const [moveCleanup, resizeCleanup] = await Promise.all([
+          currentWindow.onMoved(handleMoved),
+          currentWindow.onResized(saveWindowSoon),
+        ]);
+        if (disposed) {
+          moveCleanup();
+          resizeCleanup();
+        } else {
+          unlistenMove = moveCleanup;
+          unlistenResize = resizeCleanup;
+        }
+      })();
 
-    return () => {
-      if (saveTimer) {
-        window.clearTimeout(saveTimer);
-      }
-      if (moveTimer) {
-        window.clearTimeout(moveTimer);
-      }
-      unlistenMove?.();
-      unlistenResize?.();
-    };
-  }, [
-    currentWindowLabel,
-    dockDragRef,
-    dockGuardRef,
-    editorOpen,
-    persistIconSnap,
-    persistSettings,
-    ready,
-    settingsRef,
-  ]);
+      onCleanup(() => {
+        disposed = true;
+        if (saveTimer) {
+          window.clearTimeout(saveTimer);
+        }
+        if (moveTimer) {
+          window.clearTimeout(moveTimer);
+        }
+        unlistenMove?.();
+        unlistenResize?.();
+      });
+    },
+    { immediate: true },
+  );
 }

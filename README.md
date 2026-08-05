@@ -66,16 +66,18 @@ pnpm tauri dev
 
 ## Stack
 
-| Area          | Tooling                                               |
-| ------------- | ----------------------------------------------------- |
-| Desktop shell | Tauri 2                                               |
-| Frontend      | React 19 + TypeScript                                 |
-| Build         | Vite 8 + Vite+                                        |
-| Styling       | Tailwind CSS 4 + CSS                                  |
-| Drag sorting  | dnd-kit                                               |
-| Storage       | SQLite + `@tauri-apps/plugin-sql` + Drizzle proxy     |
-| Files         | `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs` |
-| Icons         | lucide-react + yellow Q app icon                      |
+| Area          | Tooling                                                        |
+| ------------- | -------------------------------------------------------------- |
+| Desktop shell | Tauri 2                                                        |
+| Frontend      | Vue 3.6 Vapor + TypeScript + `<script setup>`                  |
+| Build         | Vite 8 + Vite+                                                 |
+| Styling       | Tailwind CSS 4 + CSS                                           |
+| Drag sorting  | vue-draggable-plus + SortableJS                                |
+| Storage       | SQLite + `@tauri-apps/plugin-sql` + Drizzle proxy              |
+| Files         | `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs`          |
+| Icons         | Lucide icon data rendered by a native Vapor component + Q icon |
+
+Every Vue SFC is explicitly compiled in Vapor mode. Application state lives in Vue composables built with `ref`, `computed`, `watch`, and Vue lifecycle hooks; the project does not ship a React runtime or a VDOM compatibility layer. See [Vue Vapor architecture](./docs/vue-vapor-migration.md) for implementation details.
 
 ## Packaging
 

@@ -1,5 +1,7 @@
 # In-App Updater Implementation Plan
 
+> Historical note: this plan records the pre-Vue React implementation and its original `.tsx` paths. The current application uses Vue Vapor SFCs and composables.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace Q Note's custom package launcher with Tauri's signed updater, preserve unsaved editor drafts, install without extra clicks, and relaunch the updated application.

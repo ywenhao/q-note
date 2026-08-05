@@ -20,7 +20,7 @@
 
 ## 项目定位
 
-Q Note 基于 Tauri 2、React、TypeScript、Vite+、Tailwind CSS、SQLite、Drizzle 和 dnd-kit 构建。应用面向轻量桌面使用场景：打开快、界面紧凑、卡片列表可扫描，适合保存代码片段、常用回复、图片素材、本地路径和临时截图。
+Q Note 基于 Tauri 2、Vue 3.6 Vapor、TypeScript、Vite+、Tailwind CSS、SQLite、Drizzle 和 vue-draggable-plus 构建。应用面向轻量桌面使用场景：打开快、界面紧凑、卡片列表可扫描，适合保存代码片段、常用回复、图片素材、本地路径和临时截图。
 
 ## 核心功能
 
@@ -69,16 +69,18 @@ pnpm build
 
 ## 技术栈
 
-| 层级     | 技术                                                  |
-| -------- | ----------------------------------------------------- |
-| 桌面容器 | Tauri 2                                               |
-| 前端     | React 19 + TypeScript                                 |
-| 构建     | Vite 8 + Vite+                                        |
-| 样式     | Tailwind CSS 4 + CSS                                  |
-| 拖拽排序 | dnd-kit                                               |
-| 数据     | SQLite + `@tauri-apps/plugin-sql` + Drizzle proxy     |
-| 文件     | `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs` |
-| 图标     | lucide-react + 黄色 Q 应用图标                        |
+| 层级     | 技术                                                      |
+| -------- | --------------------------------------------------------- |
+| 桌面容器 | Tauri 2                                                   |
+| 前端     | Vue 3.6 Vapor + TypeScript + `<script setup>`             |
+| 构建     | Vite 8 + Vite+                                            |
+| 样式     | Tailwind CSS 4 + CSS                                      |
+| 拖拽排序 | vue-draggable-plus + SortableJS                           |
+| 数据     | SQLite + `@tauri-apps/plugin-sql` + Drizzle proxy         |
+| 文件     | `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs`     |
+| 图标     | 由原生 Vapor 组件渲染的 Lucide 图形数据 + 黄色 Q 应用图标 |
+
+所有 Vue SFC 都显式启用 Vapor 编译。应用状态使用 `ref`、`computed`、`watch`、Vue 生命周期和 composables 管理，不包含 React 运行时，也没有引入 VDOM 兼容层。实现细节见 [Vue Vapor 架构说明](./docs/vue-vapor-migration.md)。
 
 ## 数据说明
 
