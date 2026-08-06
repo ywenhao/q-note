@@ -384,9 +384,9 @@ async fn open_editor_window(
             .set_title(&title)
             .map_err(|error| error.to_string())?;
         window
-            .set_decorations(true)
+            .set_decorations(false)
             .map_err(|error| error.to_string())?;
-        window.set_shadow(true).map_err(|error| error.to_string())?;
+        window.set_shadow(false).map_err(|error| error.to_string())?;
         apply_editor_window_size_constraints(&window)?;
         window
             .set_always_on_top(always_on_top)
@@ -411,8 +411,8 @@ async fn open_editor_window(
         .inner_size(EDITOR_WINDOW_WIDTH, EDITOR_WINDOW_HEIGHT)
         .min_inner_size(EDITOR_WINDOW_MIN_WIDTH, EDITOR_WINDOW_MIN_HEIGHT)
         .resizable(true)
-        .decorations(true)
-        .shadow(true)
+        .decorations(false)
+        .shadow(false)
         .always_on_top(always_on_top)
         .visible(false)
         .focused(false)

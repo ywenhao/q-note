@@ -38,7 +38,6 @@ const props = withDefaults(
 const emit = defineEmits<{
   cancel: [];
   draftChange: [draft: NoteDraft];
-  dragStart: [event: PointerEvent];
   save: [draft: NoteDraft];
 }>();
 
@@ -257,7 +256,7 @@ function submit() {
 
 <template>
   <div
-    :class="isWindowMode ? 'editor-window-shell' : 'modal-backdrop'"
+    :class="isWindowMode ? 'editor-window-body' : 'modal-backdrop'"
     @mousedown="isWindowMode ? undefined : emit('cancel')"
   >
     <section
@@ -270,7 +269,7 @@ function submit() {
       @drop="handleDrop"
       @mousedown.stop
     >
-      <header class="editor-dialog__header" @pointerdown="emit('dragStart', $event)">
+      <header v-if="!isWindowMode" class="editor-dialog__header">
         <div class="editor-dialog__colors" @pointerdown.stop>
           <button
             v-for="item in NOTE_COLORS"
@@ -282,10 +281,24 @@ function submit() {
             @click="color = item"
           />
         </div>
-        <div v-if="!isWindowMode" @pointerdown.stop>
+        <div @pointerdown.stop>
           <IconButton :label="t.cancel" subtle @click="emit('cancel')">
             <template #icon><Icon :nodes="XIcon" :size="18" /></template>
           </IconButton>
+        </div>
+      </header>
+
+      <header v-else class="editor-dialog__toolbar">
+        <div class="editor-dialog__colors">
+          <button
+            v-for="item in NOTE_COLORS"
+            :key="item"
+            :aria-label="item"
+            :class="['color-swatch', { 'is-selected': color === item }]"
+            :style="{ backgroundColor: item }"
+            type="button"
+            @click="color = item"
+          />
         </div>
       </header>
 

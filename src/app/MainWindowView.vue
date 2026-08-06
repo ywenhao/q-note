@@ -114,8 +114,6 @@ function forwardReorder(draggedId: string, targetId: string, placement: "before"
       :always-on-top="alwaysOnTop"
       :t="t"
       @close="emit('closeWindow')"
-      @drag-start="emit('dragMainWindow', $event)"
-      @minimize="emit('minimizeWindow')"
       @toggle-always-on-top="emit('toggleAlwaysOnTop')"
     />
     <AppToolbar

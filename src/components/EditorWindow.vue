@@ -13,6 +13,7 @@ import {
   savePendingUpdateDraft,
 } from "../lib/storage";
 import { createNoteDraft, createPendingUpdateDraft } from "../lib/updateDraft";
+import { setCurrentWindowAlwaysOnTop } from "../hooks/useWindowChrome";
 import {
   PREPARE_UPDATE_ACK_EVENT,
   PREPARE_UPDATE_EVENT,
@@ -23,6 +24,7 @@ import { MAIN_WINDOW_LABEL, readPendingEditorNoteId } from "../lib/windowControl
 import type { AppSettings, Note, NoteDraft } from "../types";
 import NoteEditor from "./NoteEditor.vue";
 import QMark from "./QMark.vue";
+import WindowChrome from "./WindowChrome.vue";
 
 interface EditorOpenPayload {
   noteId: string | null;
@@ -46,6 +48,9 @@ let unlistenSettings: (() => void) | null = null;
 const t = computed(() => translations[settings.value.language]);
 const editorTitle = computed(() =>
   activeNoteId.value ? t.value.editorEditTitle : t.value.editorNewTitle,
+);
+const alwaysOnLabel = computed(() =>
+  settings.value.alwaysOnTop ? t.value.alwaysOff : t.value.alwaysOn,
 );
 
 function getInitialNoteId() {
@@ -164,6 +169,13 @@ onBeforeUnmount(() => {
   }
 });
 
+async function toggleEditorAlwaysOnTop() {
+  const nextValue = !settings.value.alwaysOnTop;
+  settings.value = { ...settings.value, alwaysOnTop: nextValue };
+  await setCurrentWindowAlwaysOnTop(nextValue);
+  await emit("q-note-settings-updated", settings.value);
+}
+
 async function closeEditorWindow() {
   recoveryActive = false;
   if (recoverySaveTimer) {
@@ -232,28 +244,30 @@ function handleDraftChange(nextDraft: NoteDraft) {
     recoverySaveTimer = null;
   }, 250);
 }
-
-function dragEditorWindow(event: PointerEvent) {
-  if (event.button === 0 && isTauriRuntime()) {
-    void getCurrentWindow().startDragging();
-  }
-}
 </script>
 
 <template>
   <main v-if="!ready" class="editor-window-shell is-loading">
     <QMark class="loading-mark" />
   </main>
-  <NoteEditor
-    v-else
-    :key="editorSession"
-    :initial-draft="initialDraft"
-    mode="window"
-    :note="note"
-    :t="t"
-    @cancel="closeEditorWindow"
-    @draft-change="handleDraftChange"
-    @drag-start="dragEditorWindow"
-    @save="handleSaveDraft"
-  />
+  <main v-else class="editor-window-shell">
+    <WindowChrome
+      :always-on-label="alwaysOnLabel"
+      :always-on-top="settings.alwaysOnTop"
+      :t="t"
+      :title="editorTitle"
+      @close="closeEditorWindow"
+      @toggle-always-on-top="toggleEditorAlwaysOnTop"
+    />
+    <NoteEditor
+      :key="editorSession"
+      :initial-draft="initialDraft"
+      mode="window"
+      :note="note"
+      :t="t"
+      @cancel="closeEditorWindow"
+      @draft-change="handleDraftChange"
+      @save="handleSaveDraft"
+    />
+  </main>
 </template>
