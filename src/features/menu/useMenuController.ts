@@ -1,16 +1,13 @@
 import { Menu } from "@tauri-apps/api/menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { computed, type ComputedRef, type Ref } from "vue";
+import { useContextMenu, type MenuState } from "../../hooks/useContextMenu";
 import type { Translation } from "../../i18n";
 import { isTauriRuntime } from "../../lib/env";
 import { createDockMenuItems, createMainContextItems } from "../../lib/menuItems";
 import type { AppSettings, Note } from "../../types";
 
-export interface MenuState {
-  noteId?: string;
-  x: number;
-  y: number;
-}
+export type { MenuState };
 
 interface UseMenuControllerOptions {
   alwaysOnLabel: ComputedRef<string>;
@@ -30,23 +27,13 @@ interface UseMenuControllerOptions {
 }
 
 export function useMenuController(options: UseMenuControllerOptions) {
-  const menu = ref<MenuState | null>(null);
-
-  function closeMenu() {
-    menu.value = null;
-  }
-
-  function openMenu(event: MouseEvent, noteId?: string) {
-    event.preventDefault();
-    event.stopPropagation();
-    menu.value = { noteId, x: event.clientX, y: event.clientY };
-  }
+  const { closeMenu, menu, openMenu } = useContextMenu();
 
   async function openDockMenu(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
     if (!isTauriRuntime()) {
-      menu.value = { x: event.clientX, y: event.clientY };
+      openMenu(event);
       return;
     }
 
