@@ -241,6 +241,7 @@ fn apply_editor_window_size_constraints(window: &WebviewWindow) -> Result<(), St
 
 #[derive(Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
+#[allow(dead_code)]
 enum RuntimeOs {
     Linux,
     Windows,
@@ -250,6 +251,7 @@ enum RuntimeOs {
 
 #[derive(Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
+#[allow(dead_code)]
 enum AppBundleType {
     AppImage,
     Deb,
