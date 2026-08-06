@@ -62,10 +62,15 @@ async function prepareForUpdate() {
 
 const {
   appVersion,
+  bundleType,
+  cancelUpdateConfirm,
   checkingUpdate,
+  confirmUpdate,
   handleCheckUpdate,
   handleOpenCurrentRelease,
   hasUpdate,
+  updateConfirmBody,
+  updateConfirmOpen,
   updateDialogOpen,
   updateDownloadProgress,
   updateInfo,
@@ -211,6 +216,7 @@ function toggleNotePin(id: string) {
     :always-on-top="settings.alwaysOnTop"
     :app-version="appVersion"
     :auto-start="settings.autoStart"
+    :bundle-type="bundleType"
     :checking-update="checkingUpdate"
     :context-items="contextItems"
     :dock-button-label="t.switchFloatingBall"
@@ -223,11 +229,14 @@ function toggleNotePin(id: string) {
     :show-settings="showSettings"
     :t="t"
     :toast="toast"
+    :update-confirm-body="updateConfirmBody"
+    :update-confirm-open="updateConfirmOpen"
     :update-dialog-open="updateDialogOpen"
     :update-download-progress="updateDownloadProgress"
     :update-info="updateInfo"
     :update-phase="updatePhase"
     @cancel-editor="closeEditor"
+    @cancel-update-confirm="cancelUpdateConfirm"
     @check-update="handleCheckUpdate"
     @close-confirm-delete-all="showDeleteAllConfirm = false"
     @close-menu="closeMenu"
@@ -236,6 +245,7 @@ function toggleNotePin(id: string) {
     @collapse-to-dock="collapseToQIcon({ useRevealAnchor: true })"
     @color-change="changeNoteColor"
     @confirm-delete-all="confirmDeleteAll"
+    @confirm-update="confirmUpdate"
     @copy-note="handleCopy"
     @delete-all="showDeleteAllConfirm = true"
     @delete-note="handleDelete"

@@ -12,10 +12,12 @@ import QMark from "../components/QMark.vue";
 import SettingsDialog from "../components/SettingsDialog.vue";
 import StatusBar from "../components/StatusBar.vue";
 import Toast from "../components/Toast.vue";
+import UpdateConfirmDialog from "../components/UpdateConfirmDialog.vue";
 import UpdateDownloadDialog from "../components/UpdateDownloadDialog.vue";
 import type { MenuState } from "../features/menu/useMenuController";
 import type { ToastState } from "../hooks/useToast";
 import type { Translation } from "../i18n";
+import type { BundleType } from "../lib/bundleType";
 import type { UpdateDownloadProgress } from "../lib/updateProgress";
 import type { UpdateInfo, UpdatePhase } from "../lib/updater";
 import type { Note, NoteDraft } from "../types";
@@ -25,6 +27,7 @@ defineProps<{
   alwaysOnTop: boolean;
   appVersion: string;
   autoStart: boolean;
+  bundleType: BundleType;
   checkingUpdate: boolean;
   contextItems: ContextMenuItem[];
   dockButtonLabel: string;
@@ -37,6 +40,8 @@ defineProps<{
   showSettings: boolean;
   t: Translation;
   toast: ToastState | null;
+  updateConfirmBody: string;
+  updateConfirmOpen: boolean;
   updateDialogOpen: boolean;
   updateDownloadProgress: UpdateDownloadProgress | null;
   updateInfo: UpdateInfo | null;
@@ -45,6 +50,7 @@ defineProps<{
 
 const emit = defineEmits<{
   cancelEditor: [];
+  cancelUpdateConfirm: [];
   checkUpdate: [];
   closeConfirmDeleteAll: [];
   closeMenu: [];
@@ -53,6 +59,7 @@ const emit = defineEmits<{
   collapseToDock: [];
   colorChange: [id: string, color: string];
   confirmDeleteAll: [];
+  confirmUpdate: [];
   copyNote: [note: Note];
   deleteAll: [];
   deleteNote: [id: string];
@@ -157,8 +164,18 @@ function forwardReorder(draggedId: string, targetId: string, placement: "before"
       @open-current-release="emit('openCurrentRelease')"
       @toggle-auto-start="emit('toggleAutoStart')"
     />
+    <UpdateConfirmDialog
+      v-if="updateConfirmOpen && updateInfo"
+      :body="updateConfirmBody"
+      :confirm-label="t.updateConfirm"
+      :t="t"
+      :update="updateInfo"
+      @cancel="emit('cancelUpdateConfirm')"
+      @confirm="emit('confirmUpdate')"
+    />
     <UpdateDownloadDialog
       v-if="updateDialogOpen && updateInfo"
+      :bundle-type="bundleType"
       :phase="updatePhase"
       :progress="updateDownloadProgress"
       :t="t"

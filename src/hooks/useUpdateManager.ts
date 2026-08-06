@@ -1,6 +1,13 @@
 import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from "vue";
 import { translations } from "../i18n";
+import {
+  readRuntimeBundleInfo,
+  shouldOpenReleaseForUpdate,
+  type BundleType,
+  type RuntimeBundleInfo,
+} from "../lib/bundleType";
 import { isTauriRuntime } from "../lib/env";
+import { getUpdateConfirmBody } from "../lib/updateInstallHint";
 import { reduceUpdateDownloadProgress, type UpdateDownloadProgress } from "../lib/updateProgress";
 import {
   FALLBACK_VERSION,
@@ -29,8 +36,11 @@ interface UseUpdateManagerOptions {
 
 export function useUpdateManager(options: UseUpdateManagerOptions) {
   const appVersion = ref(FALLBACK_VERSION);
+  const bundleType = ref<BundleType>("unknown");
   const checkingUpdate = ref(false);
   const downloadingUpdate = ref(false);
+  const runtimeBundleInfo = ref<RuntimeBundleInfo>({ bundleType: "unknown", os: "other" });
+  const updateConfirmOpen = ref(false);
   const updateDialogOpen = ref(false);
   const updateDownloadProgress = ref<UpdateDownloadProgress | null>(null);
   const updatePhase = ref<UpdatePhase>("downloading");
@@ -39,6 +49,9 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
 
   const updateInfo = ref<UpdateInfo | null>(null);
   const hasUpdate = computed(() => Boolean(updateInfo.value));
+  const updateConfirmBody = computed(() =>
+    getUpdateConfirmBody(translations[options.language.value], bundleType.value),
+  );
 
   async function replaceUpdate(nextUpdate: AppUpdate | null) {
     const previousUpdate = currentUpdate;
@@ -55,6 +68,20 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
     await update?.close().catch(() => undefined);
   }
 
+  async function refreshRuntimeBundleInfo() {
+    const info = await readRuntimeBundleInfo();
+    runtimeBundleInfo.value = info;
+    bundleType.value = info.bundleType;
+  }
+
+  async function openReleaseFallback(version: string) {
+    await openCurrentRelease(version);
+    options.showToast(translations[options.language.value].updateOpenRelease, {
+      icon: false,
+      kind: "info",
+    });
+  }
+
   async function runUpdateCheck(manual: boolean) {
     if (!isTauriRuntime() || updateCheckActive) {
       return currentUpdate;
@@ -62,6 +89,7 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
     updateCheckActive = true;
     checkingUpdate.value = true;
     try {
+      await refreshRuntimeBundleInfo();
       const nextUpdate = await checkForUpdate();
       await replaceUpdate(nextUpdate);
       if (manual && !nextUpdate) {
@@ -125,10 +153,29 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
   }
 
   async function handleCheckUpdate() {
-    if (updateCheckActive || downloadingUpdate.value) {
+    if (updateCheckActive || downloadingUpdate.value || updateConfirmOpen.value) {
       return;
     }
     const update = currentUpdate ?? (await runUpdateCheck(true));
+    if (!update) {
+      return;
+    }
+
+    if (shouldOpenReleaseForUpdate(runtimeBundleInfo.value)) {
+      await openReleaseFallback(update.version);
+      return;
+    }
+
+    updateConfirmOpen.value = true;
+  }
+
+  function cancelUpdateConfirm() {
+    updateConfirmOpen.value = false;
+  }
+
+  async function confirmUpdate() {
+    const update = currentUpdate;
+    updateConfirmOpen.value = false;
     if (update) {
       await startUpdateDownload(update);
     }
@@ -173,6 +220,7 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
           // The fallback version keeps settings usable in browser development.
         }
         if (!disposed) {
+          await refreshRuntimeBundleInfo();
           void runUpdateCheck(false);
           scheduleDailyCheck();
         }
@@ -194,11 +242,16 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
 
   return {
     appVersion,
+    bundleType,
+    cancelUpdateConfirm,
     checkingUpdate,
+    confirmUpdate,
     downloadingUpdate,
     handleCheckUpdate,
     handleOpenCurrentRelease,
     hasUpdate,
+    updateConfirmBody,
+    updateConfirmOpen,
     updateDialogOpen,
     updateDownloadProgress,
     updateInfo,

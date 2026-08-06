@@ -239,6 +239,93 @@ fn apply_editor_window_size_constraints(window: &WebviewWindow) -> Result<(), St
     Ok(())
 }
 
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+enum RuntimeOs {
+    Linux,
+    Windows,
+    Macos,
+    Other,
+}
+
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+enum AppBundleType {
+    AppImage,
+    Deb,
+    Rpm,
+    Nsis,
+    Msi,
+    App,
+    Unknown,
+}
+
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeBundleInfo {
+    os: RuntimeOs,
+    bundle_type: AppBundleType,
+}
+
+fn current_os() -> RuntimeOs {
+    #[cfg(target_os = "linux")]
+    {
+        return RuntimeOs::Linux;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return RuntimeOs::Windows;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return RuntimeOs::Macos;
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        RuntimeOs::Other
+    }
+}
+
+fn current_bundle_type() -> AppBundleType {
+    #[cfg(target_os = "macos")]
+    {
+        return AppBundleType::App;
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    {
+        use tauri::utils::config::BundleType;
+        use tauri::utils::platform::bundle_type;
+
+        return match bundle_type() {
+            Some(BundleType::AppImage) => AppBundleType::AppImage,
+            Some(BundleType::Deb) => AppBundleType::Deb,
+            Some(BundleType::Rpm) => AppBundleType::Rpm,
+            Some(BundleType::Nsis) => AppBundleType::Nsis,
+            Some(BundleType::Msi) => AppBundleType::Msi,
+            Some(BundleType::App) => AppBundleType::App,
+            Some(BundleType::Dmg) => AppBundleType::Unknown,
+            None => AppBundleType::Unknown,
+        };
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        AppBundleType::Unknown
+    }
+}
+
+#[tauri::command]
+fn get_bundle_type() -> RuntimeBundleInfo {
+    RuntimeBundleInfo {
+        os: current_os(),
+        bundle_type: current_bundle_type(),
+    }
+}
+
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
@@ -377,6 +464,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            get_bundle_type,
             quit_app,
             get_database_url,
             set_tray_menu_labels,

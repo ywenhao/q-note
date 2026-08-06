@@ -2,11 +2,14 @@
 import { computed } from "vue";
 import { DownloadIcon } from "../icons";
 import type { Translation } from "../i18n";
+import type { BundleType } from "../lib/bundleType";
+import { getUpdateInstallingHint } from "../lib/updateInstallHint";
 import type { UpdateDownloadProgress } from "../lib/updateProgress";
 import type { UpdateInfo, UpdatePhase } from "../lib/updater";
 import Icon from "./Icon.vue";
 
 const props = defineProps<{
+  bundleType: BundleType;
   phase: UpdatePhase;
   progress: UpdateDownloadProgress | null;
   t: Translation;
@@ -23,6 +26,7 @@ const status = computed(() =>
       ? props.t.updatePreparing
       : props.t.updateInstalling,
 );
+const installHint = computed(() => getUpdateInstallingHint(props.t, props.bundleType));
 
 function formatBytes(value: number) {
   if (value < 1024) {
@@ -66,6 +70,9 @@ function formatBytes(value: number) {
           {{ formatBytes(progress.downloaded) }} / {{ formatBytes(progress.total) }}
         </span>
       </div>
+      <p v-if="phase === 'installing' && installHint" class="update-download-hint">
+        {{ installHint }}
+      </p>
     </section>
   </div>
 </template>

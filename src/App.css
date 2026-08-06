@@ -1454,6 +1454,23 @@ body.is-sorting-note .note-card {
   gap: 8px;
 }
 
+.update-confirm-dialog__notes {
+  display: block;
+  margin: -10px 0 18px;
+  color: rgba(60, 60, 67, 0.62);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.update-download-hint {
+  margin: 12px 0 0;
+  color: rgba(60, 60, 67, 0.72);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .image-preview {
   position: fixed;
   inset: 0;
