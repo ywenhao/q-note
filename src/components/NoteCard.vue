@@ -60,7 +60,9 @@ const previewImages = computed<ImagePreviewItem[]>(() =>
 const fileAttachments = computed(() =>
   props.note.attachments.filter((attachment) => !isImageAttachment(attachment)),
 );
-const textStyle = computed(() => ({ "--note-lines": textLines.value }));
+const textStyle = computed(() => ({
+  "--note-lines": String(textLines.value),
+}));
 
 watch(paletteOpen, (open) => {
   if (open) {

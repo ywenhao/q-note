@@ -1,5 +1,5 @@
 <script setup lang="ts" vapor>
-import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -44,7 +44,7 @@ const rootElement = ref<HTMLDivElement | null>(null);
 const stageElement = ref<HTMLDivElement | null>(null);
 const drag = ref<DragState | null>(null);
 const currentIndex = ref(clamp(props.initialIndex, 0, props.items.length - 1));
-const offset = reactive<PanOffset>({ x: 0, y: 0 });
+const offset = ref<PanOffset>({ x: 0, y: 0 });
 const scale = ref(1);
 
 const currentItem = computed(() => props.items[currentIndex.value]);
@@ -52,7 +52,7 @@ const canNavigate = computed(() => props.items.length > 1);
 const canPan = computed(() => scale.value > 1);
 const imageStyle = computed(() => ({
   cursor: canPan.value ? "grab" : "zoom-in",
-  transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale.value})`,
+  transform: `translate3d(${offset.value.x}px, ${offset.value.y}px, 0) scale(${scale.value})`,
 }));
 
 onMounted(() => void nextTick(() => rootElement.value?.focus()));
@@ -74,8 +74,7 @@ function stopPreviewEvent(event: Event) {
 
 function resetTransform() {
   drag.value = null;
-  offset.x = 0;
-  offset.y = 0;
+  offset.value = { x: 0, y: 0 };
   scale.value = 1;
 }
 
@@ -94,17 +93,17 @@ function getClampedOffset(nextOffset: PanOffset, nextScale = scale.value) {
 }
 
 function setOffset(nextOffset: PanOffset) {
-  Object.assign(offset, nextOffset);
+  offset.value = nextOffset;
 }
 
 function updateScale(nextScale: number) {
   scale.value = clamp(nextScale, MIN_SCALE, MAX_SCALE);
-  setOffset(getClampedOffset(offset, scale.value));
+  setOffset(getClampedOffset(offset.value, scale.value));
 }
 
 function panBy(deltaX: number, deltaY: number) {
   if (canPan.value) {
-    setOffset(getClampedOffset({ x: offset.x + deltaX, y: offset.y + deltaY }));
+    setOffset(getClampedOffset({ x: offset.value.x + deltaX, y: offset.value.y + deltaY }));
   }
 }
 
@@ -179,7 +178,7 @@ function handlePointerDown(event: PointerEvent) {
     return;
   }
   drag.value = {
-    offset: { ...offset },
+    offset: { ...offset.value },
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
