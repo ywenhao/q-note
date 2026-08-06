@@ -104,12 +104,23 @@ pnpm build
 
 ## 发布
 
-项目配置了 GitHub Actions。推送 `v*` tag 时会触发 release workflow，在 Windows、macOS 和 Linux 上构建 Tauri 安装包，并发布到对应 GitHub Release。Windows 会产出 NSIS/MSI，macOS 会产出 DMG，Linux 会产出 AppImage、DEB 和 RPM（平台支持时）。
+维护者可以用一条命令发版：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+pnpm release:patch   # 0.2.5 -> 0.2.6
+pnpm release:minor   # 0.2.5 -> 0.3.0
+pnpm release:major   # 0.2.5 -> 1.0.0
 ```
+
+每次发版会：
+
+1. 更新 `package.json`、`src-tauri/Cargo.toml` 和 `src-tauri/tauri.conf.json` 中的版本号。
+2. 运行 `scripts/sync-cargo-lock.mjs`，通过 `cargo update` 同步 `src-tauri/Cargo.lock` 里的 `q-note` 条目。
+3. 创建 `release: vX.Y.Z` 提交和 `vX.Y.Z` 标签，并推送到 `origin`。
+
+发版脚本使用 `bumpp --all`，这样 `Cargo.lock` 会和版本文件一起进入同一个 release 提交。不要去掉 `--all`，否则 `bumpp` 只会提交它直接修改的版本文件。
+
+推送 `v*` 标签会触发 [`.github/workflows/release.yml`](./.github/workflows/release.yml)，在 Windows、macOS 和 Linux 上构建安装包，发布 GitHub Release，并上传应用内更新所需的 `latest.json`。
 
 ## macOS 信任应用
 
