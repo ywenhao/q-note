@@ -110,6 +110,31 @@ async function buildPlatforms(assets) {
   return platforms;
 }
 
+async function uploadReleaseAsset(release, fileName, content, contentType) {
+  const uploadUrl = release.upload_url.replace(
+    "{?name,label}",
+    `?name=${encodeURIComponent(fileName)}`,
+  );
+
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": contentType,
+    },
+    body: content,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub upload ${response.status} for ${fileName}: ${body}`);
+  }
+
+  return response.json();
+}
+
 async function replaceLatestJson(release, latestJson) {
   for (const asset of release.assets) {
     if (asset.name === "latest.json") {
@@ -119,13 +144,8 @@ async function replaceLatestJson(release, latestJson) {
     }
   }
 
-  await github(`/repos/${owner}/${repo}/releases/${release.id}/assets?name=latest.json`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(latestJson, null, 2),
-  });
+  const content = JSON.stringify(latestJson, null, 2);
+  await uploadReleaseAsset(release, "latest.json", content, "application/json");
 }
 
 async function main() {
