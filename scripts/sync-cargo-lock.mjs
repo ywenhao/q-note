@@ -14,4 +14,3 @@ function run(command, args) {
 }
 
 run("cargo", ["update", "--manifest-path", "src-tauri/Cargo.toml", "q-note"]);
-run("git", ["add", "--", "src-tauri/Cargo.lock"]);
