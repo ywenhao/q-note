@@ -46,6 +46,7 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
   const updatePhase = ref<UpdatePhase>("downloading");
   let updateCheckActive = false;
   let currentUpdate: AppUpdate | null = null;
+  let downloadCancelled = false;
 
   const updateInfo = ref<UpdateInfo | null>(null);
   const hasUpdate = computed(() => Boolean(updateInfo.value));
@@ -65,6 +66,7 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
   async function disposeCurrentUpdate() {
     const update = currentUpdate;
     currentUpdate = null;
+    updateInfo.value = null;
     await update?.close().catch(() => undefined);
   }
 
@@ -116,6 +118,7 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
     if (!update || downloadingUpdate.value) {
       return;
     }
+    downloadCancelled = false;
     downloadingUpdate.value = true;
     updateDialogOpen.value = true;
     updateDownloadProgress.value = null;
@@ -123,19 +126,34 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
     let phase: UpdatePhase = "downloading";
     try {
       await downloadUpdate(update, (event) => {
+        if (downloadCancelled) {
+          return;
+        }
         updateDownloadProgress.value = reduceUpdateDownloadProgress(
           updateDownloadProgress.value,
           event,
         );
       });
+      if (downloadCancelled) {
+        await disposeCurrentUpdate();
+        return;
+      }
       phase = "preparing";
       updatePhase.value = phase;
       await options.prepareForUpdate();
+      if (downloadCancelled) {
+        await disposeCurrentUpdate();
+        return;
+      }
       phase = "installing";
       updatePhase.value = phase;
       await installDownloadedUpdate(update);
       await relaunchUpdatedApp();
     } catch {
+      if (downloadCancelled) {
+        await disposeCurrentUpdate();
+        return;
+      }
       updateDialogOpen.value = false;
       const t = translations[options.language.value];
       options.showToast(
@@ -149,6 +167,21 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
       await disposeCurrentUpdate();
     } finally {
       downloadingUpdate.value = false;
+    }
+  }
+
+  async function cancelUpdateDownload() {
+    if (!updateDialogOpen.value && !downloadingUpdate.value) {
+      return;
+    }
+    downloadCancelled = true;
+    updateDialogOpen.value = false;
+    updateConfirmOpen.value = false;
+    updateDownloadProgress.value = null;
+    // Download already finished: free the in-memory package immediately.
+    // Mid-download cleanup happens when downloadUpdate settles.
+    if (updatePhase.value !== "downloading") {
+      await disposeCurrentUpdate();
     }
   }
 
@@ -244,6 +277,7 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
     appVersion,
     bundleType,
     cancelUpdateConfirm,
+    cancelUpdateDownload,
     checkingUpdate,
     confirmUpdate,
     downloadingUpdate,

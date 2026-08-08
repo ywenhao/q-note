@@ -15,7 +15,7 @@ async function github(path, init = {}) {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
       "X-GitHub-Api-Version": "2022-11-28",
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 
@@ -164,7 +164,9 @@ async function main() {
   };
 
   await replaceLatestJson(release, latestJson);
-  console.log(`Updated latest.json for ${releaseTag} with keys: ${Object.keys(platforms).join(", ")}`);
+  console.log(
+    `Updated latest.json for ${releaseTag} with keys: ${Object.keys(platforms).join(", ")}`,
+  );
 }
 
 main().catch((error) => {

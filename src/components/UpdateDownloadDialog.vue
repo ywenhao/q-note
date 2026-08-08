@@ -16,6 +16,8 @@ const props = defineProps<{
   update: UpdateInfo;
 }>();
 
+const emit = defineEmits<{ cancel: [] }>();
+
 const percent = computed(() =>
   props.phase === "downloading" ? Math.round(props.progress?.percent ?? 0) : 100,
 );
@@ -27,6 +29,7 @@ const status = computed(() =>
       : props.t.updateInstalling,
 );
 const installHint = computed(() => getUpdateInstallingHint(props.t, props.bundleType));
+const canCancel = computed(() => props.phase === "downloading" || props.phase === "preparing");
 
 function formatBytes(value: number) {
   if (value < 1024) {
@@ -73,6 +76,11 @@ function formatBytes(value: number) {
       <p v-if="phase === 'installing' && installHint" class="update-download-hint">
         {{ installHint }}
       </p>
+      <footer v-if="canCancel">
+        <button class="text-button" type="button" @click="emit('cancel')">
+          {{ t.cancel }}
+        </button>
+      </footer>
     </section>
   </div>
 </template>
