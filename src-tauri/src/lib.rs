@@ -414,6 +414,7 @@ async fn open_editor_window(
         .min_inner_size(EDITOR_WINDOW_MIN_WIDTH, EDITOR_WINDOW_MIN_HEIGHT)
         .resizable(true)
         .decorations(false)
+        .transparent(true)
         .shadow(false)
         .always_on_top(always_on_top)
         .visible(false)
