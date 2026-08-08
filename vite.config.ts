@@ -27,7 +27,7 @@ export default defineConfig({
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         editor: "editor.html",
         main: "index.html",
