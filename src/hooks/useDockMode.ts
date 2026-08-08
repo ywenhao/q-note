@@ -30,7 +30,7 @@ import type { AppSettings, DockEdge, WindowState } from "../types";
 
 interface UseDockModeOptions {
   currentWindowLabel: string;
-  persistSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  persistSettings: (patch: Partial<AppSettings>) => Promise<unknown>;
   settings: Ref<AppSettings>;
 }
 

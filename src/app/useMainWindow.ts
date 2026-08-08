@@ -16,6 +16,7 @@ import { useUpdateManager } from "../hooks/useUpdateManager";
 import { useWindowStatePersistence } from "../hooks/useWindowStatePersistence";
 import { translations } from "../i18n";
 import { isTauriRuntime } from "../lib/env";
+import { flushDatabase, loadPersistedSettings, windowSizeMatches } from "../lib/storage";
 import { prepareEditorForUpdate } from "../lib/updatePreparation";
 import { MAIN_WINDOW_LABEL, captureWindowState } from "../lib/windowControls";
 import type { Note, NoteDraft } from "../types";
@@ -49,14 +50,29 @@ export function useMainWindow() {
     toggleLanguage,
   } = useSettingsController({ commitNotes, notes, settings, showToast, t });
 
-  async function prepareForUpdate() {
-    if (!settings.value.docked) {
-      const snapshot = await captureWindowState(MAIN_WINDOW_LABEL);
-      await persistSettings(snapshot ? { window: snapshot } : {});
-    } else {
-      await persistSettings({});
+  async function persistStateBeforeUpdate() {
+    const snapshot = settings.value.docked
+      ? null
+      : ((await captureWindowState(MAIN_WINDOW_LABEL)) ?? settings.value.window);
+
+    const saved = snapshot
+      ? await persistSettings({ window: snapshot })
+      : await persistSettings({});
+    const expectedWindow = saved.window;
+
+    await flushDatabase();
+    const loaded = await loadPersistedSettings();
+    settings.value = loaded;
+
+    if (expectedWindow && !windowSizeMatches(loaded.window, expectedWindow)) {
+      throw new Error("Failed to persist window size before update");
     }
+  }
+
+  async function prepareForUpdate() {
+    await persistStateBeforeUpdate();
     await prepareEditorForUpdate();
+    await flushDatabase();
   }
 
   const {
@@ -78,6 +94,7 @@ export function useMainWindow() {
   } = useUpdateManager({
     currentWindowLabel,
     language,
+    persistStateBeforeUpdate,
     prepareForUpdate,
     ready,
     showToast,

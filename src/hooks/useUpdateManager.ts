@@ -29,6 +29,7 @@ import type { ShowToast } from "./useToast";
 interface UseUpdateManagerOptions {
   currentWindowLabel: string;
   language: ComputedRef<Language>;
+  persistStateBeforeUpdate: () => Promise<void>;
   prepareForUpdate: () => Promise<void>;
   ready: Ref<boolean>;
   showToast: ShowToast;
@@ -209,9 +210,20 @@ export function useUpdateManager(options: UseUpdateManagerOptions) {
   async function confirmUpdate() {
     const update = currentUpdate;
     updateConfirmOpen.value = false;
-    if (update) {
-      await startUpdateDownload(update);
+    if (!update) {
+      return;
     }
+
+    try {
+      await options.persistStateBeforeUpdate();
+    } catch {
+      options.showToast(translations[options.language.value].updatePrepareFailed, {
+        kind: "error",
+      });
+      return;
+    }
+
+    await startUpdateDownload(update);
   }
 
   async function handleOpenCurrentRelease() {

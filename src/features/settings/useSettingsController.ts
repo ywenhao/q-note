@@ -39,6 +39,7 @@ export function useSettingsController(options: UseSettingsControllerOptions) {
     if (isTauriRuntime()) {
       await emit("q-note-settings-updated", nextSettings);
     }
+    return nextSettings;
   }
 
   async function handleExport() {

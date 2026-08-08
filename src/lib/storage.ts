@@ -4,8 +4,6 @@ import { desc, eq } from "drizzle-orm";
 import { drizzle, type SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 import {
   DEFAULT_NOTE_COLOR,
-  DEFAULT_WINDOW_HEIGHT,
-  DEFAULT_WINDOW_WIDTH,
   type AppData,
   type AppSettings,
   type AttachmentKind,
@@ -14,7 +12,6 @@ import {
   type Language,
   type Note,
   type NoteAttachment,
-  type WindowState,
 } from "../types";
 import { isTauriRuntime } from "./env";
 import { isLikelyImagePath } from "./images";
@@ -24,6 +21,9 @@ import {
   serializePendingUpdateDraft,
   type PendingUpdateDraft,
 } from "./updateDraft";
+import { normalizeWindowState } from "./windowState";
+
+export { windowSizeMatches } from "./windowState";
 
 const FALLBACK_DB_URL = "sqlite:q-note.db";
 const SETTINGS_KEY = "app";
@@ -111,24 +111,6 @@ function toLanguage(value: unknown): Language {
   }
 
   return detectDefaultLanguage();
-}
-
-function normalizeWindowState(value: unknown): WindowState | null {
-  if (!isObject(value)) {
-    return null;
-  }
-
-  const width = Number(value.width);
-  const height = Number(value.height);
-  const x = Number(value.x);
-  const y = Number(value.y);
-
-  return {
-    width: Math.max(DEFAULT_WINDOW_WIDTH, Number.isFinite(width) ? Math.round(width) : 0),
-    height: Math.max(DEFAULT_WINDOW_HEIGHT, Number.isFinite(height) ? Math.round(height) : 0),
-    x: Number.isFinite(x) ? Math.round(x) : 0,
-    y: Number.isFinite(y) ? Math.round(y) : 0,
-  };
 }
 
 function inferAttachmentKind(source: AttachmentSource, value: string): AttachmentKind {
@@ -299,13 +281,45 @@ export async function loadAppData(): Promise<AppData> {
   return { notes, settings };
 }
 
+export async function loadPersistedSettings(): Promise<AppSettings> {
+  if (!isTauriRuntime()) {
+    return loadWebData().settings;
+  }
+
+  const db = await getDrizzleDb();
+  const settingsRows = await db
+    .select({ value: settingsTable.value })
+    .from(settingsTable)
+    .where(eq(settingsTable.key, SETTINGS_KEY))
+    .limit(1);
+
+  return settingsRows[0]?.value
+    ? normalizeSettings(JSON.parse(settingsRows[0].value))
+    : createDefaultSettings();
+}
+
+export async function flushDatabase() {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  try {
+    const db = await getDb();
+    await db.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+    await db.close();
+  } finally {
+    dbPromise = null;
+    drizzlePromise = null;
+  }
+}
+
 export async function saveSettings(settings: AppSettings) {
   const nextSettings = normalizeSettings(settings);
 
   if (!isTauriRuntime()) {
     const data = loadWebData();
     saveWebData({ ...data, settings: nextSettings });
-    return;
+    return nextSettings;
   }
 
   const db = await getDrizzleDb();
@@ -316,6 +330,7 @@ export async function saveSettings(settings: AppSettings) {
       target: settingsTable.key,
       set: { value: JSON.stringify(nextSettings) },
     });
+  return nextSettings;
 }
 
 export async function loadPendingUpdateDraft(): Promise<PendingUpdateDraft | null> {

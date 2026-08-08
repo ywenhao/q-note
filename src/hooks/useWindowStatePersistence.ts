@@ -16,7 +16,7 @@ interface UseWindowStatePersistenceOptions {
   dockGuard: Ref<boolean>;
   editorOpen: Ref<boolean>;
   persistIconSnap: (edge: DockEdge) => Promise<void>;
-  persistSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  persistSettings: (patch: Partial<AppSettings>) => Promise<unknown>;
   ready: Ref<boolean>;
   settings: Ref<AppSettings>;
 }
