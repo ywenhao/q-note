@@ -19,15 +19,19 @@ jobs:
           - platform: macos-latest
             target: x86_64-apple-darwin
             artifact: q-note-macos-x64
+            package: q-note-macos-x64.tar.gz
           - platform: macos-latest
             target: aarch64-apple-darwin
             artifact: q-note-macos-arm64
+            package: q-note-macos-arm64.tar.gz
           - platform: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: q-note-linux-x64
+            package: q-note-linux-x64.tar.gz
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: q-note-windows-x64
+            package: q-note-windows-x64.zip
 
     steps:
       - name: Checkout
@@ -71,8 +75,45 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Q Note ${{ github.ref_name }}
-          files: |
-            ${{ matrix.artifact }}.tar.gz
-            ${{ matrix.artifact }}.zip
+          files: ${{ matrix.package }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-manifest:
+    name: Publish update manifest
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create latest.json
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        with:
+          script: |
+            const fs = require("fs");
+            const tag = process.env.RELEASE_TAG;
+            const version = tag.replace(/^v/, "");
+            const base = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
+            const manifest = {
+              version,
+              notes: `Q Note ${version}`,
+              pub_date: new Date().toISOString(),
+              platforms: {
+                "darwin-x86_64": { url: `${base}/q-note-macos-x64.tar.gz` },
+                "darwin-aarch64": { url: `${base}/q-note-macos-arm64.tar.gz` },
+                "linux-x86_64": { url: `${base}/q-note-linux-x64.tar.gz` },
+                "windows-x86_64": { url: `${base}/q-note-windows-x64.zip` },
+              },
+            };
+            fs.writeFileSync("latest.json", `${JSON.stringify(manifest, null, 2)}\n`);
+
+      - name: Upload latest.json
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Q Note ${{ github.ref_name }}
+          files: latest.json
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

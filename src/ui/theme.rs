@@ -7,7 +7,7 @@
 use gpui::App;
 use gpui_component::{Theme, ThemeColor, ThemeMode};
 
-use super::style::{ACCENT, APP_BG, DANGER, TEXT, hsla_from_hex};
+use super::style::{ACCENT, APP_BG, DANGER, TEXT, color_alpha, hsla_from_hex};
 
 pub fn apply_q_note_theme(cx: &mut App) {
     let theme = Theme::global_mut(cx);
@@ -47,5 +47,6 @@ pub fn apply_q_note_theme(cx: &mut App) {
     colors.title_bar_border = hsla_from_hex(APP_BG);
     colors.sidebar = hsla_from_hex(APP_BG);
     colors.tab_bar = hsla_from_hex(APP_BG);
+    colors.overlay = color_alpha(0x1d1d1f, 0.24).into();
     theme.colors = colors;
 }

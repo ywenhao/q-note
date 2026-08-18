@@ -228,8 +228,10 @@ impl Database {
                 note.updated_at,
             ],
         )?;
-        self.conn
-            .execute("DELETE FROM attachments WHERE note_id = ?1", params![note.id])?;
+        self.conn.execute(
+            "DELETE FROM attachments WHERE note_id = ?1",
+            params![note.id],
+        )?;
         for attachment in &note.attachments {
             let kind = match attachment.kind {
                 AttachmentKind::Image => "image",
@@ -259,6 +261,7 @@ impl Database {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn save_notes_order(&self, notes: &[Note]) -> Result<()> {
         for note in notes {
             self.conn.execute(
@@ -295,7 +298,8 @@ impl Database {
     }
 
     pub fn flush(&self) -> Result<()> {
-        self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        self.conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
         Ok(())
     }
 
@@ -410,10 +414,7 @@ fn normalize_settings(value: &serde_json::Value) -> AppSettings {
             .get("dockOnEdge")
             .and_then(|v| v.as_bool())
             .unwrap_or(defaults.dock_on_edge),
-        docked: obj
-            .get("docked")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
+        docked: obj.get("docked").and_then(|v| v.as_bool()).unwrap_or(false),
         dock_edge: match obj.get("dockEdge").and_then(|v| v.as_str()) {
             Some("left") => Some(crate::models::DockEdge::Left),
             Some("right") => Some(crate::models::DockEdge::Right),
@@ -438,9 +439,7 @@ fn normalize_settings(value: &serde_json::Value) -> AppSettings {
 }
 
 fn normalize_note(value: &serde_json::Value) -> Result<Note> {
-    let obj = value
-        .as_object()
-        .ok_or_else(|| anyhow!("invalid note"))?;
+    let obj = value.as_object().ok_or_else(|| anyhow!("invalid note"))?;
     let updated_at = obj
         .get("updatedAt")
         .and_then(|v| v.as_i64())
@@ -470,10 +469,7 @@ fn normalize_note(value: &serde_json::Value) -> Result<Note> {
             .and_then(|v| v.as_str())
             .unwrap_or(crate::models::DEFAULT_NOTE_COLOR)
             .to_string(),
-        pinned: obj
-            .get("pinned")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
+        pinned: obj.get("pinned").and_then(|v| v.as_bool()).unwrap_or(false),
         sort_order: obj
             .get("sortOrder")
             .and_then(|v| v.as_i64())
@@ -522,10 +518,7 @@ fn normalize_attachment(value: &serde_json::Value) -> Result<NoteAttachment> {
         kind,
         source,
         value: value_str,
-        name: obj
-            .get("name")
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
+        name: obj.get("name").and_then(|v| v.as_str()).map(str::to_string),
         created_at: obj
             .get("createdAt")
             .and_then(|v| v.as_i64())

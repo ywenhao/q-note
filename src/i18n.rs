@@ -1,6 +1,7 @@
 use crate::models::Language;
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub struct Translation {
     pub add_image: &'static str,
     pub add_media: &'static str,
@@ -50,6 +51,7 @@ pub struct Translation {
     pub resize: &'static str,
     pub reset_view: &'static str,
     pub save: &'static str,
+    pub save_failed: &'static str,
     pub saved: &'static str,
     pub settings: &'static str,
     pub settings_title: &'static str,
@@ -67,6 +69,7 @@ pub struct Translation {
     pub update_downloading: &'static str,
     pub update_none: &'static str,
     pub update_open_release: &'static str,
+    pub update_prepare_failed: &'static str,
     pub url: &'static str,
     pub zoom_in: &'static str,
     pub zoom_out: &'static str,
@@ -138,6 +141,7 @@ const ZH: Translation = Translation {
     resize: "调整大小",
     reset_view: "重置视图",
     save: "保存",
+    save_failed: "保存失败",
     saved: "已保存",
     settings: "设置",
     settings_title: "设置",
@@ -155,6 +159,7 @@ const ZH: Translation = Translation {
     update_downloading: "下载中",
     update_none: "暂无更新",
     update_open_release: "已打开下载页面",
+    update_prepare_failed: "更新前保存数据失败",
     url: "链接",
     zoom_in: "放大",
     zoom_out: "缩小",
@@ -209,6 +214,7 @@ const EN: Translation = Translation {
     resize: "Resize",
     reset_view: "Reset view",
     save: "Save",
+    save_failed: "Save failed",
     saved: "Saved",
     settings: "Settings",
     settings_title: "Settings",
@@ -220,13 +226,13 @@ const EN: Translation = Translation {
     update_available: "Update available",
     update_check_failed: "Update check failed",
     update_confirm: "Update now",
-    update_confirm_default:
-        "A new version is available. This GPUI build will open the release page for manual install.",
+    update_confirm_default: "A new version is available. This GPUI build will open the release page for manual install.",
     update_download_failed: "Download failed",
     update_download_progress: "Download progress",
     update_downloading: "Downloading",
     update_none: "No updates",
     update_open_release: "Opened the download page",
+    update_prepare_failed: "Failed to save data before updating",
     url: "URL",
     zoom_in: "Zoom in",
     zoom_out: "Zoom out",

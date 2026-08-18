@@ -19,6 +19,7 @@ pub fn get_top_sort_order(notes: &[Note], pinned: bool) -> i64 {
     group.iter().map(|n| n.sort_order).min().unwrap_or(0) - 1
 }
 
+#[allow(dead_code)]
 pub fn normalize_manual_order(notes: Vec<Note>) -> Vec<Note> {
     let mut pinned: Vec<_> = notes.iter().filter(|n| n.pinned).cloned().collect();
     let mut unpinned: Vec<_> = notes.into_iter().filter(|n| !n.pinned).collect();

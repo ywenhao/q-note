@@ -5,6 +5,8 @@ pub const EDITOR_BACKGROUND: u32 = 0xfff9df;
 pub const DOCK_WINDOW_SIZE: f32 = 30.0;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 300.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = 450.0;
+pub const MAX_WINDOW_WIDTH: f32 = 1000.0;
+pub const MAX_WINDOW_HEIGHT: f32 = 800.0;
 pub const EDITOR_WINDOW_WIDTH: f32 = 520.0;
 pub const EDITOR_WINDOW_HEIGHT: f32 = 640.0;
 pub const EDITOR_WINDOW_MIN_WIDTH: f32 = 420.0;
@@ -40,7 +42,7 @@ pub enum AttachmentSource {
     Path,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteAttachment {
     pub id: String,
@@ -92,7 +94,7 @@ impl Note {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteDraft {
     pub attachments: Vec<NoteAttachment>,
@@ -199,8 +201,10 @@ pub fn parse_hex_color(hex: &str) -> u32 {
 
 pub fn is_likely_image_path(value: &str) -> bool {
     let lower = value.to_lowercase();
-    [".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"]
-        .iter()
-        .any(|ext| lower.ends_with(ext))
+    [
+        ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp",
+    ]
+    .iter()
+    .any(|ext| lower.ends_with(ext))
         || lower.starts_with("data:image/")
 }

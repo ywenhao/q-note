@@ -1,5 +1,9 @@
 //! Q Note — GPUI desktop note board.
 
+#![cfg_attr(target_os = "windows", allow(linker_messages))]
+
+use std::borrow::Cow;
+
 mod app_state;
 mod autostart;
 mod i18n;
@@ -10,80 +14,73 @@ mod tray;
 mod ui;
 mod updater;
 
-use gpui::{
-    App, AppContext, Application, Bounds, TitlebarOptions, WindowBounds, WindowKind, WindowOptions,
-    px, size,
-};
-use gpui_component::Root;
-use gpui_component_assets::Assets;
+use gpui::{App, AppContext, Application, AssetSource, SharedString};
+use gpui_component_assets::Assets as ComponentAssets;
 
 use crate::app_state::AppState;
-use crate::models::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH};
-use crate::ui::main_window::MainWindow;
+
+pub(crate) const PIN_ICON_PATH: &str = "icons/pin.svg";
+pub(crate) const PIN_OFF_ICON_PATH: &str = "icons/pin-off.svg";
+pub(crate) const POWER_ICON_PATH: &str = "icons/power.svg";
+pub(crate) const UPLOAD_ICON_PATH: &str = "icons/upload.svg";
+pub(crate) const DOWNLOAD_ICON_PATH: &str = "icons/download.svg";
+pub(crate) const REFRESH_ICON_PATH: &str = "icons/refresh-cw.svg";
+
+struct AppAssets;
+
+impl AssetSource for AppAssets {
+    fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {
+        match path {
+            PIN_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!("../assets/pin.svg")))),
+            PIN_OFF_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!("../assets/pin-off.svg")))),
+            POWER_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!("../assets/power.svg")))),
+            UPLOAD_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!("../assets/upload.svg")))),
+            DOWNLOAD_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!(
+                "../assets/download.svg"
+            )))),
+            REFRESH_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!(
+                "../assets/refresh-cw.svg"
+            )))),
+            _ => ComponentAssets.load(path),
+        }
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<SharedString>> {
+        let mut assets = ComponentAssets.list(path)?;
+        assets.extend(
+            [
+                PIN_ICON_PATH,
+                PIN_OFF_ICON_PATH,
+                POWER_ICON_PATH,
+                UPLOAD_ICON_PATH,
+                DOWNLOAD_ICON_PATH,
+                REFRESH_ICON_PATH,
+            ]
+            .into_iter()
+            .filter(|asset| asset.starts_with(path))
+            .map(SharedString::from),
+        );
+        Ok(assets)
+    }
+}
 
 fn main() {
-    Application::new().with_assets(Assets).run(|cx: &mut App| {
-        gpui_component::init(cx);
-        ui::init(cx);
+    Application::new()
+        .with_assets(AppAssets)
+        .run(|cx: &mut App| {
+            gpui_component::init(cx);
+            ui::init(cx);
 
-        let state = cx.new(AppState::new);
-        tray::spawn_tray(state.clone(), cx);
+            let state = cx.new(AppState::new);
+            tray::spawn_tray(state.clone(), cx);
 
-        let docked = state.read(cx).settings.docked;
-        if docked {
-            ui::dock_window::open_dock_window(state.clone(), cx);
-        } else {
-            let always_on_top = state.read(cx).settings.always_on_top;
-            let (w, h) = state
-                .read(cx)
-                .settings
-                .window
-                .as_ref()
-                .map(|win| (win.width, win.height))
-                .unwrap_or((DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
+            let docked = state.read(cx).settings.docked;
+            if docked {
+                ui::dock_window::open_dock_window(state.clone(), cx);
+            } else {
+                ui::main_window::open_main_window(state.clone(), cx);
+            }
 
-            let bounds = Bounds::centered(None, size(px(w.max(DEFAULT_WINDOW_WIDTH)), px(h.max(DEFAULT_WINDOW_HEIGHT))), cx);
-
-            let window_handle = cx
-                .open_window(
-                    WindowOptions {
-                        window_bounds: Some(WindowBounds::Windowed(bounds)),
-                        titlebar: Some(TitlebarOptions {
-                            title: Some("Q Note".into()),
-                            appears_transparent: true,
-                            ..Default::default()
-                        }),
-                        window_min_size: Some(size(
-                            px(DEFAULT_WINDOW_WIDTH),
-                            px(DEFAULT_WINDOW_HEIGHT),
-                        )),
-                        kind: if always_on_top {
-                            WindowKind::PopUp
-                        } else {
-                            WindowKind::Normal
-                        },
-                        is_resizable: true,
-                        is_movable: true,
-                        focus: true,
-                        show: true,
-                        window_decorations: Some(gpui::WindowDecorations::Client),
-                        ..Default::default()
-                    },
-                    {
-                        let state = state.clone();
-                        move |window, cx| {
-                            let view = cx.new(|cx| MainWindow::new(state.clone(), window, cx));
-                            cx.new(|cx| Root::new(view, window, cx))
-                        }
-                    },
-                )
-                .expect("failed to open main window");
-
-            state.update(cx, |state, _| {
-                state.main_window = Some(window_handle);
-            });
-        }
-
-        cx.activate(true);
-    });
+            cx.activate(true);
+        });
 }

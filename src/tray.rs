@@ -3,21 +3,80 @@ use std::sync::{Mutex, OnceLock};
 use gpui::{AsyncApp, Entity};
 use tray_icon::{
     TrayIconBuilder, TrayIconEvent,
-    menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
+    menu::{Menu, MenuEvent, MenuItem},
 };
 
 use crate::app_state::AppState;
 use crate::i18n::t;
 use crate::ui::{dock_window, main_window};
 
-static LABEL_CACHE: OnceLock<Mutex<TrayLabels>> = OnceLock::new();
+static TRAY_CONTROL: OnceLock<Mutex<std::sync::mpsc::Sender<TrayControl>>> = OnceLock::new();
 
-#[derive(Clone)]
+pub(crate) const NATIVE_MENU_TOPMOST_ID: &str = "q-note-toggle-topmost";
+pub(crate) const NATIVE_MENU_LANGUAGE_ID: &str = "q-note-toggle-language";
+pub(crate) const NATIVE_MENU_DOCK_ID: &str = "q-note-toggle-dock";
+pub(crate) const NATIVE_MENU_QUIT_ID: &str = "q-note-quit";
+
+#[derive(Clone, PartialEq)]
 struct TrayLabels {
     topmost: String,
     language: String,
     dock: String,
     quit: String,
+}
+
+enum TrayControl {
+    UpdateLabels(TrayLabels),
+}
+
+struct NativeMenu {
+    menu: Menu,
+    topmost: MenuItem,
+    language: MenuItem,
+    dock: MenuItem,
+    quit: MenuItem,
+}
+
+impl NativeMenu {
+    fn new(labels: &TrayLabels) -> Self {
+        let menu = Menu::new();
+        let topmost = MenuItem::with_id(NATIVE_MENU_TOPMOST_ID, &labels.topmost, true, None);
+        let language = MenuItem::with_id(NATIVE_MENU_LANGUAGE_ID, &labels.language, true, None);
+        let dock = MenuItem::with_id(NATIVE_MENU_DOCK_ID, &labels.dock, true, None);
+        let quit = MenuItem::with_id(NATIVE_MENU_QUIT_ID, &labels.quit, true, None);
+        let _ = menu.append(&topmost);
+        let _ = menu.append(&language);
+        let _ = menu.append(&dock);
+        let _ = menu.append(&quit);
+        Self {
+            menu,
+            topmost,
+            language,
+            dock,
+            quit,
+        }
+    }
+
+    fn update_labels(&self, labels: &TrayLabels) {
+        self.topmost.set_text(&labels.topmost);
+        self.language.set_text(&labels.language);
+        self.dock.set_text(&labels.dock);
+        self.quit.set_text(&labels.quit);
+    }
+
+    fn command_for(&self, event: &MenuEvent) -> Option<TrayCommand> {
+        if event.id == *self.topmost.id() {
+            Some(TrayCommand::ToggleTopmost)
+        } else if event.id == *self.language.id() {
+            Some(TrayCommand::ToggleLanguage)
+        } else if event.id == *self.dock.id() {
+            Some(TrayCommand::ToggleDock)
+        } else if event.id == *self.quit.id() {
+            Some(TrayCommand::Quit)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -48,9 +107,9 @@ pub fn spawn_tray(state: Entity<AppState>, cx: &mut gpui::App) {
             quit: tr.quit.to_string(),
         }
     };
-    let _ = LABEL_CACHE.set(Mutex::new(labels.clone()));
-
     let (tx, rx) = std::sync::mpsc::channel::<TrayCommand>();
+    let (control_tx, control_rx) = std::sync::mpsc::channel::<TrayControl>();
+    let _ = TRAY_CONTROL.set(Mutex::new(control_tx));
 
     std::thread::Builder::new()
         .name("q-note-tray".into())
@@ -61,19 +120,11 @@ pub fn spawn_tray(state: Entity<AppState>, cx: &mut gpui::App) {
             }
 
             let icon = load_tray_icon();
-            let menu = Menu::new();
-            let topmost = MenuItem::new(&labels.topmost, true, None);
-            let language = MenuItem::new(&labels.language, true, None);
-            let dock = MenuItem::new(&labels.dock, true, None);
-            let quit = MenuItem::new(&labels.quit, true, None);
-            let _ = menu.append(&topmost);
-            let _ = menu.append(&language);
-            let _ = menu.append(&dock);
-            let _ = menu.append(&PredefinedMenuItem::separator());
-            let _ = menu.append(&quit);
+            let tray_menu = NativeMenu::new(&labels);
 
             let tray = TrayIconBuilder::new()
-                .with_menu(Box::new(menu))
+                .with_menu(Box::new(tray_menu.menu.clone()))
+                .with_menu_on_left_click(false)
                 .with_tooltip("Q Note")
                 .with_icon(icon)
                 .build();
@@ -81,34 +132,41 @@ pub fn spawn_tray(state: Entity<AppState>, cx: &mut gpui::App) {
             // Keep tray alive on this thread (TrayIcon is !Send on Linux).
             let _tray = tray;
 
-            let topmost_id = topmost.id().clone();
-            let language_id = language.id().clone();
-            let dock_id = dock.id().clone();
-            let quit_id = quit.id().clone();
-
             let menu_channel = MenuEvent::receiver();
             let tray_channel = TrayIconEvent::receiver();
+            let mut current_labels = labels;
 
             loop {
-                if let Ok(event) = menu_channel.try_recv() {
-                    if event.id == topmost_id {
-                        let _ = tx.send(TrayCommand::ToggleTopmost);
-                    } else if event.id == language_id {
-                        let _ = tx.send(TrayCommand::ToggleLanguage);
-                    } else if event.id == dock_id {
-                        let _ = tx.send(TrayCommand::ToggleDock);
-                    } else if event.id == quit_id {
-                        let _ = tx.send(TrayCommand::Quit);
+                #[cfg(target_os = "windows")]
+                pump_windows_messages();
+
+                while let Ok(control) = control_rx.try_recv() {
+                    match control {
+                        TrayControl::UpdateLabels(labels) => {
+                            if labels != current_labels {
+                                tray_menu.update_labels(&labels);
+                                current_labels = labels;
+                            }
+                        }
                     }
                 }
 
-                if let Ok(event) = tray_channel.try_recv() {
-                    if let TrayIconEvent::Click {
-                        button: tray_icon::MouseButton::Left,
-                        button_state: tray_icon::MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
+                while let Ok(event) = menu_channel.try_recv() {
+                    let command = tray_menu.command_for(&event);
+                    if let Some(command) = command {
+                        let _ = tx.send(command);
+                    }
+                }
+
+                while let Ok(event) = tray_channel.try_recv() {
+                    if matches!(
+                        event,
+                        TrayIconEvent::Click {
+                            button: tray_icon::MouseButton::Left,
+                            button_state: tray_icon::MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
                         let _ = tx.send(TrayCommand::ShowMain);
                     }
                 }
@@ -140,7 +198,10 @@ pub fn spawn_tray(state: Entity<AppState>, cx: &mut gpui::App) {
 fn handle_command(cmd: TrayCommand, state: &Entity<AppState>, cx: &mut AsyncApp) {
     match cmd {
         TrayCommand::Quit => {
-            cx.update(|cx| cx.quit());
+            let _ = cx.update(|cx| {
+                let _ = main_window::prepare_for_shutdown(state, cx);
+                cx.quit();
+            });
         }
         TrayCommand::ShowMain => {
             let _ = cx.update(|cx| {
@@ -187,13 +248,31 @@ pub fn update_labels(state: &AppState) {
         },
         quit: tr.quit.to_string(),
     };
-    if let Some(cache) = LABEL_CACHE.get() {
-        if let Ok(mut guard) = cache.lock() {
-            *guard = labels;
+    send_control(TrayControl::UpdateLabels(labels));
+}
+
+#[cfg(target_os = "windows")]
+fn pump_windows_messages() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, TranslateMessage,
+    };
+
+    // tray-icon owns a hidden HWND on this thread, so its callbacks only run while this queue is pumped.
+    let mut message = MSG::default();
+    unsafe {
+        while PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
         }
     }
-    // tray-icon MenuItem text updates require holding item handles;
-    // labels apply on next tray rebuild / process restart. Tooltip stays "Q Note".
+}
+
+fn send_control(control: TrayControl) {
+    if let Some(sender) = TRAY_CONTROL.get()
+        && let Ok(sender) = sender.lock()
+    {
+        let _ = sender.send(control);
+    }
 }
 
 fn load_tray_icon() -> tray_icon::Icon {

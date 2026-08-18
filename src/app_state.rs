@@ -1,4 +1,4 @@
-use gpui::{AppContext, Context, Entity, WindowHandle};
+use gpui::{Context, WindowHandle};
 use gpui_component::Root;
 
 use crate::i18n::{Translation, t};
@@ -23,9 +23,12 @@ pub struct AppState {
     pub toast: Option<ToastMessage>,
     pub update: UpdateUiState,
     pub editor_draft_recovery: Option<PendingUpdateDraft>,
+    pub editor_draft: Option<PendingUpdateDraft>,
+    pub editor_recovery_active: bool,
     pub main_window: Option<WindowHandle<Root>>,
     pub editor_window: Option<WindowHandle<Root>>,
     pub dock_window: Option<WindowHandle<Root>>,
+    pub dock_position: Option<(f32, f32)>,
 }
 
 #[derive(Clone, Default)]
@@ -43,6 +46,7 @@ impl AppState {
             settings: create_default_settings(),
         });
         let recovery = db.load_pending_update_draft().ok().flatten();
+        let editor_recovery_active = recovery.is_some();
 
         let mut state = Self {
             db,
@@ -51,9 +55,12 @@ impl AppState {
             toast: None,
             update: UpdateUiState::default(),
             editor_draft_recovery: recovery,
+            editor_draft: None,
+            editor_recovery_active,
             main_window: None,
             editor_window: None,
             dock_window: None,
+            dock_position: None,
         };
 
         let _ = crate::autostart::apply(state.settings.auto_start);
@@ -69,18 +76,25 @@ impl AppState {
     }
 
     pub fn show_toast(&mut self, text: impl Into<String>, cx: &mut Context<Self>) {
+        let created_at = std::time::Instant::now();
         self.toast = Some(ToastMessage {
             text: text.into(),
-            created_at: std::time::Instant::now(),
+            created_at,
         });
         cx.notify();
         cx.spawn(async move |this, cx| {
             cx.background_executor()
                 .timer(std::time::Duration::from_millis(1700))
                 .await;
-            this.update(cx, |this, cx| {
-                this.toast = None;
-                cx.notify();
+            this.update(cx, move |this, cx| {
+                if this
+                    .toast
+                    .as_ref()
+                    .is_some_and(|toast| toast.created_at == created_at)
+                {
+                    this.toast = None;
+                    cx.notify();
+                }
             })
             .ok();
         })
@@ -89,6 +103,42 @@ impl AppState {
 
     pub fn persist_settings(&mut self) -> anyhow::Result<()> {
         self.db.save_settings(&self.settings)
+    }
+
+    pub fn set_editor_draft(&mut self, draft: Option<PendingUpdateDraft>) {
+        self.editor_draft = draft;
+    }
+
+    pub fn persist_editor_draft(&mut self) -> anyhow::Result<()> {
+        if let Some(draft) = self.editor_draft.as_ref() {
+            self.db.save_pending_update_draft(draft)
+        } else {
+            self.db.clear_pending_update_draft()
+        }
+    }
+
+    pub fn clear_editor_session(&mut self) -> anyhow::Result<()> {
+        self.db.clear_pending_update_draft()?;
+        self.editor_draft = None;
+        self.editor_draft_recovery = None;
+        self.editor_recovery_active = false;
+        self.editor_window = None;
+        Ok(())
+    }
+
+    pub fn prepare_for_update(&mut self) -> anyhow::Result<()> {
+        self.persist_settings()?;
+        self.editor_recovery_active = self.editor_window.is_some();
+        self.persist_editor_draft()?;
+        self.db.flush()
+    }
+
+    pub fn prepare_for_shutdown(&mut self) -> anyhow::Result<()> {
+        self.persist_settings()?;
+        if self.editor_window.is_some() {
+            self.persist_editor_draft()?;
+        }
+        self.db.flush()
     }
 
     pub fn toggle_language(&mut self, cx: &mut Context<Self>) {
@@ -104,8 +154,20 @@ impl AppState {
     pub fn set_always_on_top(&mut self, enabled: bool, cx: &mut Context<Self>) {
         self.settings.always_on_top = enabled;
         let _ = self.persist_settings();
+        self.apply_always_on_top_to_windows(enabled, cx);
         crate::tray::update_labels(self);
         cx.notify();
+    }
+
+    fn apply_always_on_top_to_windows(&self, enabled: bool, cx: &mut Context<Self>) {
+        let windows = [self.main_window, self.dock_window, self.editor_window];
+        cx.defer(move |cx| {
+            for handle in windows.into_iter().flatten() {
+                let _ = handle.update(cx, |_, window, _| {
+                    crate::ui::apply_window_topmost(window, enabled);
+                });
+            }
+        });
     }
 
     pub fn set_auto_start(&mut self, enabled: bool, cx: &mut Context<Self>) {
@@ -179,6 +241,7 @@ impl AppState {
         })
     }
 
+    #[allow(dead_code)]
     pub fn reorder_notes(
         &mut self,
         notes: Vec<Note>,
@@ -273,6 +336,8 @@ impl AppState {
         self.notes = sort_notes(data.notes);
         self.settings = data.settings;
         let _ = crate::autostart::apply(self.settings.auto_start);
+        self.apply_always_on_top_to_windows(self.settings.always_on_top, cx);
+        crate::tray::update_labels(self);
         let msg = self.tr().imported.to_string();
         self.show_toast(msg, cx);
         Ok(())

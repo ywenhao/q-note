@@ -1,16 +1,19 @@
 //! Visual tokens mirrored from the existing Vue `App.css` / `types.ts`.
 
-use gpui::{Hsla, Rgba, rgb, rgba};
+use gpui::{BoxShadow, Hsla, Rgba, point, px, rgb, rgba};
 
-pub const APP_BG: u32 = 0xffd150;
-pub const EDITOR_BG: u32 = 0xfff9df;
+use crate::models::{APP_BACKGROUND, EDITOR_BACKGROUND, parse_hex_color};
+
+pub const APP_BG: u32 = APP_BACKGROUND;
+pub const EDITOR_BG: u32 = EDITOR_BACKGROUND;
 pub const TEXT: u32 = 0x1f2328;
 pub const ACCENT: u32 = 0x007aff;
 pub const DANGER: u32 = 0xff3b30;
 pub const WINDOW_RADIUS: f32 = 12.0;
-pub const CARD_RADIUS: f32 = 14.0;
+pub const CARD_RADIUS: f32 = 8.0;
 pub const TOOLBAR_RADIUS: f32 = 8.0;
 pub const LINE_HEIGHT: f32 = 22.0;
+pub const SWITCH_ON: u32 = 0x34c759;
 
 pub fn color(hex: u32) -> Rgba {
     rgb(hex)
@@ -27,9 +30,7 @@ pub fn hsla_from_hex(hex: u32) -> Hsla {
 }
 
 pub fn parse_note_color(hex: &str) -> Rgba {
-    let h = hex.trim_start_matches('#');
-    let value = u32::from_str_radix(h, 16).unwrap_or(0xfff9db);
-    color(value)
+    color(parse_hex_color(hex))
 }
 
 pub fn toolbar_chip() -> Rgba {
@@ -40,20 +41,62 @@ pub fn chrome_chip() -> Rgba {
     color_alpha(0xffffff, 0.26)
 }
 
-pub fn card_shadow() -> Vec<gpui::BoxShadow> {
-    vec![gpui::BoxShadow {
+pub fn card_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
         color: color_alpha(0x1f2328, 0.10).into(),
-        offset: gpui::point(gpui::px(0.), gpui::px(4.)),
-        blur_radius: gpui::px(14.),
-        spread_radius: gpui::px(0.),
+        offset: point(px(0.), px(4.)),
+        blur_radius: px(14.),
+        spread_radius: px(0.),
     }]
 }
 
-pub fn card_shadow_hover() -> Vec<gpui::BoxShadow> {
-    vec![gpui::BoxShadow {
+pub fn card_shadow_hover() -> Vec<BoxShadow> {
+    vec![BoxShadow {
         color: color_alpha(0x1f2328, 0.14).into(),
-        offset: gpui::point(gpui::px(0.), gpui::px(8.)),
-        blur_radius: gpui::px(20.),
-        spread_radius: gpui::px(0.),
+        offset: point(px(0.), px(8.)),
+        blur_radius: px(20.),
+        spread_radius: px(0.),
+    }]
+}
+
+pub fn modal_overlay_bg() -> Rgba {
+    color_alpha(0x1d1d1f, 0.24)
+}
+
+pub fn modal_panel_bg() -> Rgba {
+    color_alpha(0xfffdf4, 0.92)
+}
+
+pub fn confirm_panel_bg() -> Rgba {
+    color_alpha(0xfffdf4, 0.90)
+}
+
+pub fn settings_group_bg() -> Rgba {
+    color_alpha(0x3c3c43, 0.08)
+}
+
+pub fn settings_row_bg() -> Rgba {
+    color_alpha(0xffffff, 0.58)
+}
+
+pub fn settings_row_bg_hover() -> Rgba {
+    color_alpha(0xffffff, 0.78)
+}
+
+pub fn modal_panel_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: color_alpha(0x1f2328, 0.16).into(),
+        offset: point(px(0.), px(16.)),
+        blur_radius: px(38.),
+        spread_radius: px(0.),
+    }]
+}
+
+pub fn confirm_panel_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: color_alpha(0x1f2328, 0.22).into(),
+        offset: point(px(0.), px(24.)),
+        blur_radius: px(60.),
+        spread_radius: px(0.),
     }]
 }

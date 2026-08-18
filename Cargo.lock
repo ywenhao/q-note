@@ -5016,12 +5016,14 @@ dependencies = [
  "auto-launch",
  "chrono",
  "dirs 6.0.0",
+ "embed-resource",
  "gpui",
  "gpui-component",
  "gpui-component-assets",
  "gtk",
  "image",
  "open",
+ "raw-window-handle",
  "rfd",
  "rusqlite",
  "serde",
@@ -5031,6 +5033,7 @@ dependencies = [
  "ureq",
  "url",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

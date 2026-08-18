@@ -7,6 +7,7 @@ pub const LATEST_JSON_URL: &str =
     "https://github.com/ywenhao/q-note/releases/latest/download/latest.json";
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct UpdateInfo {
     pub version: String,
     pub notes: Option<String>,
@@ -55,7 +56,13 @@ fn parse_version(v: &str) -> (u64, u64, u64) {
     let minor = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
     let patch = parts
         .next()
-        .and_then(|p| p.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().ok())
+        .and_then(|p| {
+            p.chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect::<String>()
+                .parse()
+                .ok()
+        })
         .unwrap_or(0);
     (major, minor, patch)
 }

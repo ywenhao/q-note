@@ -1,11 +1,16 @@
-//! Floating 30px Q icon with edge snap via window recreate (GPUI has no set_bounds).
+//! Floating 30px Q icon with native Windows edge movement and snap animation.
 
 use gpui::{
     App, AppContext, Bounds, Context, Entity, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Render, Styled, Window, WindowBackgroundAppearance, WindowBounds,
-    WindowDecorations, WindowKind, WindowOptions, div, point, px, size,
+    ParentElement, Render, StatefulInteractiveElement, Styled, Window, WindowBackgroundAppearance,
+    WindowBounds, WindowDecorations, WindowKind, WindowOptions, div, point, px, size,
 };
+
+#[cfg(not(target_os = "windows"))]
 use gpui_component::menu::{ContextMenuExt, PopupMenuItem};
+
+#[cfg(target_os = "windows")]
+use tray_icon::menu::{ContextMenu as _, Menu, MenuItem};
 
 use crate::app_state::AppState;
 use crate::models::{DOCK_WINDOW_SIZE, DockEdge, WindowState};
@@ -14,29 +19,236 @@ use crate::ui::style::{APP_BG, color, color_alpha};
 
 const SNAP_THRESHOLD: f32 = 28.0;
 const DOCK_MARGIN: f32 = 12.0;
+const DRAG_THRESHOLD: f32 = 4.0;
+const DOCK_SLIDE_DURATION_MS: f32 = 130.0;
+const DOCK_ANIMATION_FRAME_MS: u64 = 13;
+
+#[cfg(target_os = "windows")]
+struct DockNativeMenu {
+    menu: Menu,
+    topmost: MenuItem,
+    language: MenuItem,
+    dock: MenuItem,
+    quit: MenuItem,
+}
+
+#[cfg(target_os = "windows")]
+impl DockNativeMenu {
+    fn new(state: &AppState) -> Self {
+        let tr = state.tr();
+        let menu = Menu::new();
+        let topmost = MenuItem::with_id(
+            crate::tray::NATIVE_MENU_TOPMOST_ID,
+            if state.settings.always_on_top {
+                tr.always_off
+            } else {
+                tr.always_on
+            },
+            true,
+            None,
+        );
+        let language = MenuItem::with_id(
+            crate::tray::NATIVE_MENU_LANGUAGE_ID,
+            tr.switch_language,
+            true,
+            None,
+        );
+        let dock = MenuItem::with_id(
+            crate::tray::NATIVE_MENU_DOCK_ID,
+            tr.switch_main_window,
+            true,
+            None,
+        );
+        let quit = MenuItem::with_id(crate::tray::NATIVE_MENU_QUIT_ID, tr.quit, true, None);
+        let _ = menu.append(&topmost);
+        let _ = menu.append(&language);
+        let _ = menu.append(&dock);
+        let _ = menu.append(&quit);
+        Self {
+            menu,
+            topmost,
+            language,
+            dock,
+            quit,
+        }
+    }
+
+    fn update_labels(&self, state: &AppState) {
+        let tr = state.tr();
+        self.topmost.set_text(if state.settings.always_on_top {
+            tr.always_off
+        } else {
+            tr.always_on
+        });
+        self.language.set_text(tr.switch_language);
+        self.dock.set_text(tr.switch_main_window);
+        self.quit.set_text(tr.quit);
+    }
+
+    fn show(&self, window: &Window) -> bool {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        let Ok(handle) = HasWindowHandle::window_handle(window) else {
+            return false;
+        };
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            return false;
+        };
+        unsafe {
+            self.menu
+                .show_context_menu_for_hwnd(handle.hwnd.get(), None)
+        }
+    }
+}
 
 pub struct DockWindow {
     state: Entity<AppState>,
-    moved: bool,
+    pointer_origin: Option<gpui::Point<gpui::Pixels>>,
+    moving: bool,
+    snap_revision: u64,
+    motion_revision: u64,
+    revealed: bool,
+    #[cfg(target_os = "windows")]
+    native_menu: DockNativeMenu,
 }
 
 impl DockWindow {
     pub fn new(state: Entity<AppState>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         window.on_window_should_close(cx, |_, _| false);
+        cx.observe_window_bounds(window, |this, window, cx| {
+            this.window_bounds_changed(window, cx);
+        })
+        .detach();
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
+        let revealed = state.read(cx).settings.dock_edge.is_none() || !cfg!(target_os = "windows");
+        #[cfg(target_os = "windows")]
+        let native_menu = DockNativeMenu::new(state.read(cx));
         Self {
             state,
-            moved: false,
+            pointer_origin: None,
+            moving: false,
+            snap_revision: 0,
+            motion_revision: 0,
+            revealed,
+            #[cfg(target_os = "windows")]
+            native_menu,
+        }
+    }
+
+    fn window_bounds_changed(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if !self.moving {
+            return;
+        }
+        self.snap_revision = self.snap_revision.wrapping_add(1);
+        let revision = self.snap_revision;
+        cx.spawn_in(window, async move |this, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(220))
+                .await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                if !this.moving || this.snap_revision != revision {
+                    return;
+                }
+                this.moving = false;
+                this.finish_dock_move(window, cx);
+            });
+        })
+        .detach();
+    }
+
+    fn set_revealed(&mut self, revealed: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.moving || self.revealed == revealed {
+            return;
+        }
+        let Some(edge) = self.state.read(cx).settings.dock_edge else {
+            self.revealed = true;
+            return;
+        };
+        self.revealed = revealed;
+        let Some(target) = edge_target(window, cx, edge, !revealed) else {
+            return;
+        };
+        self.animate_to(target, window, cx);
+    }
+
+    fn animate_to(
+        &mut self,
+        target: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        #[cfg(target_os = "windows")]
+        {
+            let start = window.bounds().origin;
+            let delta_x = f32::from(target.x - start.x);
+            let delta_y = f32::from(target.y - start.y);
+            self.motion_revision = self.motion_revision.wrapping_add(1);
+            let revision = self.motion_revision;
+            if delta_x.abs() < 0.5 && delta_y.abs() < 0.5 {
+                let _ = crate::ui::move_window_to(window, target);
+                return;
+            }
+            cx.spawn_in(window, async move |this, cx| {
+                let started = std::time::Instant::now();
+                loop {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_millis(DOCK_ANIMATION_FRAME_MS))
+                        .await;
+                    let progress = (started.elapsed().as_secs_f32() * 1000.0
+                        / DOCK_SLIDE_DURATION_MS)
+                        .clamp(0.0, 1.0);
+                    let keep_going = this
+                        .update_in(cx, |this, window, _| {
+                            if this.motion_revision != revision {
+                                return false;
+                            }
+                            let eased = 1.0 - (1.0 - progress).powi(3);
+                            let origin =
+                                point(start.x + px(delta_x * eased), start.y + px(delta_y * eased));
+                            let _ = crate::ui::move_window_to(window, origin);
+                            progress < 1.0
+                        })
+                        .unwrap_or(false);
+                    if !keep_going {
+                        break;
+                    }
+                }
+            })
+            .detach();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = (target, window, cx);
+        }
+    }
+
+    fn finish_dock_move(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.state.read(cx).settings.docked {
+            return;
+        }
+        let bounds = window.bounds();
+        let edge = detect_snap_edge(window, cx);
+        let visible_origin = edge
+            .and_then(|edge| edge_target(window, cx, edge, false))
+            .unwrap_or(bounds.origin);
+        self.state.update(cx, |state, _| {
+            state.settings.dock_edge = edge;
+            state.settings.dock_on_edge = edge.is_some();
+            state.dock_position = Some((f32::from(visible_origin.x), f32::from(visible_origin.y)));
+            let _ = state.persist_settings();
+        });
+        self.revealed = true;
+        if edge.is_some() {
+            self.set_revealed(false, window, cx);
         }
     }
 }
 
 impl Render for DockWindow {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let tr = self.state.read(cx).tr();
-        let always_on_top = self.state.read(cx).settings.always_on_top;
-
-        div()
+        #[cfg(target_os = "windows")]
+        self.native_menu.update_labels(self.state.read(cx));
+        let shell = div()
             .id("dock-shell")
             .size_full()
             .rounded_full()
@@ -54,40 +266,74 @@ impl Render for DockWindow {
                 spread_radius: px(0.),
             }])
             .child(q_mark(22.))
+            .on_hover(cx.listener(|this, hovered: &bool, window, cx| {
+                this.set_revealed(*hovered, window, cx);
+            }))
+            .on_mouse_down_out(cx.listener(|this, _, _, _| {
+                this.pointer_origin = None;
+            }))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, window, cx| {
-                    this.moved = false;
-                    window.start_window_move();
-                    // Mark as moved after a short delay via notify cycle
-                    this.moved = true;
-                    cx.notify();
+                cx.listener(|this, event: &gpui::MouseDownEvent, _, _| {
+                    this.snap_revision = this.snap_revision.wrapping_add(1);
+                    this.motion_revision = this.motion_revision.wrapping_add(1);
+                    this.moving = false;
+                    this.pointer_origin = Some(event.position);
+                }),
+            )
+            .on_mouse_move(
+                cx.listener(|this, event: &gpui::MouseMoveEvent, window, cx| {
+                    let Some(origin) = this.pointer_origin else {
+                        return;
+                    };
+                    if event.pressed_button != Some(MouseButton::Left) {
+                        this.pointer_origin = None;
+                        return;
+                    }
+                    let dx = f32::from(event.position.x - origin.x);
+                    let dy = f32::from(event.position.y - origin.y);
+                    if dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD {
+                        return;
+                    }
+
+                    this.pointer_origin = None;
+                    this.moving = true;
+                    if !start_window_move(window) {
+                        this.moving = false;
+                        return;
+                    }
+                    #[cfg(target_os = "windows")]
+                    {
+                        // WM_NCLBUTTONDOWN returns after the native move loop ends.
+                        this.moving = false;
+                        this.finish_dock_move(window, cx);
+                    }
                 }),
             )
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _, window, cx| {
-                    if this.moved {
-                        // Attempt edge snap by recreating at snapped origin.
-                        if let Some(edge) = detect_snap_edge(window, cx) {
-                            let state = this.state.clone();
-                            state.update(cx, |s, _| {
-                                s.settings.dock_edge = Some(edge);
-                                s.settings.dock_on_edge = true;
-                                let _ = s.persist_settings();
-                            });
-                            // Recreate dock at snapped position.
-                            window.remove_window();
-                            open_dock_window(state, cx);
-                        }
-                        this.moved = false;
-                    } else {
+                cx.listener(|this, _, _, cx| {
+                    if this.pointer_origin.take().is_some() {
                         main_window::restore_from_dock(this.state.clone(), cx);
                     }
-                    cx.notify();
+                }),
+            );
+
+        #[cfg(target_os = "windows")]
+        {
+            shell.on_mouse_up(
+                MouseButton::Right,
+                cx.listener(|this, _, window, _| {
+                    let _ = this.native_menu.show(window);
                 }),
             )
-            .context_menu({
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let tr = self.state.read(cx).tr();
+            let always_on_top = self.state.read(cx).settings.always_on_top;
+            shell.context_menu({
                 let state = self.state.clone();
                 let topmost_label = if always_on_top {
                     tr.always_off.to_string()
@@ -98,13 +344,7 @@ impl Render for DockWindow {
                 let main_label = tr.switch_main_window.to_string();
                 let quit_label = tr.quit.to_string();
                 move |menu, _, _| {
-                    menu.item(PopupMenuItem::new(main_label.clone()).on_click({
-                        let state = state.clone();
-                        move |_, _, cx| {
-                            main_window::restore_from_dock(state.clone(), cx);
-                        }
-                    }))
-                    .item(PopupMenuItem::new(topmost_label.clone()).on_click({
+                    menu.item(PopupMenuItem::new(topmost_label.clone()).on_click({
                         let state = state.clone();
                         move |_, _, cx| {
                             state.update(cx, |s, cx| {
@@ -119,26 +359,67 @@ impl Render for DockWindow {
                             state.update(cx, |s, cx| s.toggle_language(cx));
                         }
                     }))
-                    .separator()
-                    .item(PopupMenuItem::new(quit_label.clone()).on_click(|_, _, cx| cx.quit()))
+                    .item(PopupMenuItem::new(main_label.clone()).on_click({
+                        let state = state.clone();
+                        move |_, _, cx| {
+                            main_window::restore_from_dock(state.clone(), cx);
+                        }
+                    }))
+                    .item(PopupMenuItem::new(quit_label.clone()).on_click({
+                        let state = state.clone();
+                        move |_, _, cx| {
+                            let _ = main_window::prepare_for_shutdown(&state, cx);
+                            cx.quit();
+                        }
+                    }))
                 }
             })
+        }
     }
+}
+
+#[cfg(target_os = "windows")]
+fn start_window_move(window: &Window) -> bool {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{HTCAPTION, SendMessageW, WM_NCLBUTTONDOWN};
+
+    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+        return false;
+    };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return false;
+    };
+    let hwnd = handle.hwnd.get() as HWND;
+
+    unsafe {
+        let _ = ReleaseCapture();
+        let _ = SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION as usize, 0);
+    }
+    true
+}
+
+#[cfg(not(target_os = "windows"))]
+fn start_window_move(window: &Window) -> bool {
+    window.start_window_move();
+    true
 }
 
 fn detect_snap_edge(window: &Window, cx: &App) -> Option<DockEdge> {
     let bounds = window.bounds();
     let display = window.display(cx)?;
     let area = display.bounds();
-    let threshold = px(SNAP_THRESHOLD);
-
-    let dist_left = bounds.origin.x - area.origin.x;
-    let dist_right = (area.origin.x + area.size.width) - (bounds.origin.x + bounds.size.width);
-    let dist_top = bounds.origin.y - area.origin.y;
-    let dist_bottom = (area.origin.y + area.size.height) - (bounds.origin.y + bounds.size.height);
+    let dist_left = f32::from(bounds.origin.x - area.origin.x).abs();
+    let dist_right =
+        f32::from((area.origin.x + area.size.width) - (bounds.origin.x + bounds.size.width)).abs();
+    let dist_top = f32::from(bounds.origin.y - area.origin.y).abs();
+    let dist_bottom =
+        f32::from((area.origin.y + area.size.height) - (bounds.origin.y + bounds.size.height))
+            .abs();
 
     let mut edge = None;
-    let mut min = threshold;
+    let mut min = SNAP_THRESHOLD;
     if dist_left <= min {
         min = dist_left;
         edge = Some(DockEdge::Left);
@@ -158,8 +439,63 @@ fn detect_snap_edge(window: &Window, cx: &App) -> Option<DockEdge> {
     edge
 }
 
+fn edge_target(
+    window: &Window,
+    cx: &App,
+    edge: DockEdge,
+    hidden: bool,
+) -> Option<gpui::Point<gpui::Pixels>> {
+    let area = window.display(cx)?.bounds();
+    Some(edge_origin(edge, hidden, window.bounds(), area))
+}
+
+fn edge_origin(
+    edge: DockEdge,
+    hidden: bool,
+    bounds: Bounds<gpui::Pixels>,
+    area: Bounds<gpui::Pixels>,
+) -> gpui::Point<gpui::Pixels> {
+    let area_left = f32::from(area.origin.x);
+    let area_top = f32::from(area.origin.y);
+    let area_right = area_left + f32::from(area.size.width);
+    let area_bottom = area_top + f32::from(area.size.height);
+    let width = f32::from(bounds.size.width);
+    let height = f32::from(bounds.size.height);
+    let center_x = f32::from(bounds.origin.x) + width / 2.0;
+    let center_y = f32::from(bounds.origin.y) + height / 2.0;
+    let hidden_x = if hidden { width / 2.0 } else { 0.0 };
+    let hidden_y = if hidden { height / 2.0 } else { 0.0 };
+
+    let (x, y) = match edge {
+        DockEdge::Left => (
+            area_left - hidden_x,
+            (center_y - height / 2.0).clamp(area_top, area_bottom - height),
+        ),
+        DockEdge::Right => (
+            area_right - width + hidden_x,
+            (center_y - height / 2.0).clamp(area_top, area_bottom - height),
+        ),
+        DockEdge::Top => (
+            (center_x - width / 2.0).clamp(area_left, area_right - width),
+            area_top - hidden_y,
+        ),
+        DockEdge::Bottom => (
+            (center_x - width / 2.0).clamp(area_left, area_right - width),
+            area_bottom - height + hidden_y,
+        ),
+    };
+    point(px(x), px(y))
+}
+
 pub fn collapse_to_dock(state: Entity<AppState>, cx: &mut App) {
-    if let Some(main) = state.read(cx).main_window.clone() {
+    cx.defer(move |cx| collapse_to_dock_now(state, cx));
+}
+
+fn collapse_to_dock_now(state: Entity<AppState>, cx: &mut App) {
+    if state.read(cx).settings.docked {
+        return;
+    }
+    if let Some(main) = state.read(cx).main_window {
         let _ = main.update(cx, |_, window, cx| {
             let b = window.bounds();
             state.update(cx, |s, _| {
@@ -169,6 +505,9 @@ pub fn collapse_to_dock(state: Entity<AppState>, cx: &mut App) {
                     x: f32::from(b.origin.x),
                     y: f32::from(b.origin.y),
                 });
+                if s.settings.dock_edge.is_none() {
+                    s.dock_position = None;
+                }
                 s.settings.docked = true;
                 let _ = s.persist_settings();
                 crate::tray::update_labels(s);
@@ -182,8 +521,7 @@ pub fn collapse_to_dock(state: Entity<AppState>, cx: &mut App) {
 
 pub fn open_dock_window(state: Entity<AppState>, cx: &mut App) {
     let size_px = DOCK_WINDOW_SIZE;
-    let edge = state.read(cx).settings.dock_edge;
-    let bounds = dock_bounds(edge, size_px, cx);
+    let bounds = dock_bounds(state.read(cx), size_px, cx);
 
     let handle = cx
         .open_window(
@@ -212,29 +550,64 @@ pub fn open_dock_window(state: Entity<AppState>, cx: &mut App) {
         .expect("open dock");
 
     state.update(cx, |s, _| s.dock_window = Some(handle));
+    let always_on_top = state.read(cx).settings.always_on_top;
+    let _ = handle.update(cx, |_, window, _| {
+        crate::ui::apply_window_topmost(window, always_on_top);
+    });
 }
 
-fn dock_bounds(edge: Option<DockEdge>, size_px: f32, cx: &App) -> Bounds<gpui::Pixels> {
+fn dock_bounds(state: &AppState, size_px: f32, cx: &App) -> Bounds<gpui::Pixels> {
     let displays = cx.displays();
-    let Some(display) = displays.first() else {
-        return Bounds::centered(None, size(px(size_px), px(size_px)), cx);
+    let size = size(px(size_px), px(size_px));
+    let anchor = state
+        .dock_position
+        .map(|(x, y)| (x + size_px / 2.0, y + size_px / 2.0))
+        .or_else(|| {
+            state.settings.window.as_ref().map(|window| {
+                (
+                    window.x + window.width / 2.0,
+                    window.y + window.height / 2.0,
+                )
+            })
+        });
+    let display = anchor
+        .and_then(|(x, y)| {
+            displays.iter().find(|display| {
+                let area = display.bounds();
+                let left = f32::from(area.origin.x);
+                let top = f32::from(area.origin.y);
+                x >= left
+                    && x <= left + f32::from(area.size.width)
+                    && y >= top
+                    && y <= top + f32::from(area.size.height)
+            })
+        })
+        .or_else(|| displays.first());
+    let Some(display) = display else {
+        return Bounds::centered(None, size, cx);
     };
     let area = display.bounds();
-    let half = px(size_px / 2.);
-    let origin = match edge {
-        Some(DockEdge::Left) => point(area.origin.x - half, area.origin.y + area.size.height / 2.),
-        Some(DockEdge::Right) => point(
-            area.origin.x + area.size.width - half,
-            area.origin.y + area.size.height / 2.,
-        ),
-        Some(DockEdge::Top) => point(area.origin.x + area.size.width / 2., area.origin.y - half),
-        Some(DockEdge::Bottom) | None => point(
-            area.origin.x + area.size.width - px(DOCK_MARGIN) - px(size_px),
-            area.origin.y + area.size.height - px(DOCK_MARGIN) - px(size_px),
-        ),
+    let area_left = f32::from(area.origin.x);
+    let area_top = f32::from(area.origin.y);
+    let area_right = area_left + f32::from(area.size.width);
+    let area_bottom = area_top + f32::from(area.size.height);
+    let base_origin = if let Some((center_x, center_y)) = anchor {
+        point(
+            px((center_x - size_px / 2.0).clamp(area_left, area_right - size_px)),
+            px((center_y - size_px / 2.0).clamp(area_top, area_bottom - size_px)),
+        )
+    } else {
+        point(
+            px(area_right - DOCK_MARGIN - size_px),
+            px(area_bottom - DOCK_MARGIN - size_px),
+        )
     };
-    Bounds {
-        origin,
-        size: size(px(size_px), px(size_px)),
-    }
+    let base = Bounds {
+        origin: base_origin,
+        size,
+    };
+    let origin = state.settings.dock_edge.map_or(base_origin, |edge| {
+        edge_origin(edge, cfg!(target_os = "windows"), base, area)
+    });
+    Bounds { origin, size }
 }
