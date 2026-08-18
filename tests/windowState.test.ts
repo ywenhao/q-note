@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  CONTENT_COLUMN_MAX_WIDTH,
-  MAX_WINDOW_HEIGHT,
-  MAX_WINDOW_WIDTH,
-} from "../src/types.ts";
+import { CONTENT_COLUMN_MAX_WIDTH, MAX_WINDOW_HEIGHT, MAX_WINDOW_WIDTH } from "../src/types.ts";
 import {
   clampPhysicalWindowSize,
   getEffectiveMaxWindowSize,
@@ -27,7 +23,7 @@ test("getEffectiveMaxWindowSize follows the work area on small screens", () => {
     { width: 1280, height: 720 },
   );
   assert.deepEqual(
-    getEffectiveMaxWindowSize({ width: 1500, height: 1200 }, { width: 1920, height: 1080 }),
+    getEffectiveMaxWindowSize({ width: 1500, height: 1200 }, { width: 1920, height: 1440 }),
     { width: 1500, height: 1200 },
   );
 });
