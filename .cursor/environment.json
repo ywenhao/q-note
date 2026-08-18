@@ -1,0 +1,12 @@
+{
+  "name": "Q Note",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "vite-dev",
+      "command": "corepack pnpm dev",
+      "description": "Vite dev server for the Q Note frontend on http://localhost:1420 (also used by `pnpm tauri dev`)."
+    }
+  ],
+  "ports": [{ "name": "vite", "port": 1420 }]
+}

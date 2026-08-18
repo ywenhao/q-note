@@ -14,6 +14,12 @@ Q Note is a Tauri 2 desktop app with Vue 3.6 Vapor, TypeScript, Vite+, Tailwind 
 - Format with `pnpm format`.
 - Build the frontend with `pnpm build`.
 
+## Cloud Agent environment
+
+- `.cursor/environment.json` runs `.cursor/install.sh`, an idempotent bootstrap that installs the Tauri Linux libraries, pins Rust to `stable`, exposes Node 24 + pnpm, and runs `pnpm install --frozen-lockfile`.
+- The image's system Node is older than the `node --test *.ts` scripts require, so the bootstrap symlinks Node 24 and a corepack-pinned pnpm into `/usr/local/cargo/bin` (the first `PATH` entry) so bare `node`/`pnpm` resolve to the right versions.
+- Several transitive Tauri crates require edition2024, so `rustc` must be `stable` (>= 1.85), not the image's older default toolchain.
+
 ## Release
 
 - Bump version, sync `Cargo.lock`, commit, tag, and push with `pnpm release:patch`, `pnpm release:minor`, or `pnpm release:major`.
