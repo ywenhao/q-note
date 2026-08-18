@@ -14,10 +14,13 @@ import {
   DOCK_WINDOW_SIZE,
   DEFAULT_WINDOW_HEIGHT,
   DEFAULT_WINDOW_WIDTH,
+  MAX_WINDOW_HEIGHT,
+  MAX_WINDOW_WIDTH,
   type DockEdge,
   type WindowState,
 } from "../types";
 import { isTauriRuntime } from "./env";
+import { clampPhysicalWindowSize, getEffectiveMaxWindowSize } from "./windowState";
 
 const DOCK_MARGIN = 12;
 const MAIN_START_MARGIN = 40;
@@ -52,6 +55,10 @@ async function designPixelsToPhysical(window: Window, value: number) {
     return Math.round(value);
   }
 
+  return Math.round(value * (await window.scaleFactor()));
+}
+
+async function logicalPixelsToPhysical(window: Window, value: number) {
   return Math.round(value * (await window.scaleFactor()));
 }
 
@@ -127,23 +134,60 @@ async function applyDockWindowSize(window: Window) {
   return size;
 }
 
-async function getMainWindowSize(window: Window, state: WindowState | null) {
-  const defaultSize = await getDefaultMainPhysicalSize(window);
-  const width = state?.width;
-  const height = state?.height;
-
-  return {
-    width: Math.max(
-      defaultSize.width,
-      typeof width === "number" && Number.isFinite(width) ? Math.round(width) : defaultSize.width,
-    ),
-    height: Math.max(
-      defaultSize.height,
-      typeof height === "number" && Number.isFinite(height)
-        ? Math.round(height)
-        : defaultSize.height,
-    ),
+async function getMainWindowMaxPhysicalSize(window: Window, monitor: Monitor | null) {
+  const maxSize = {
+    width: await logicalPixelsToPhysical(window, MAX_WINDOW_WIDTH),
+    height: await logicalPixelsToPhysical(window, MAX_WINDOW_HEIGHT),
   };
+
+  if (!monitor) {
+    return maxSize;
+  }
+
+  return getEffectiveMaxWindowSize(maxSize, {
+    width: monitor.workArea.size.width,
+    height: monitor.workArea.size.height,
+  });
+}
+
+async function createPlatformMainMaxSize(
+  window: Window,
+  maxPhysical: { width: number; height: number },
+) {
+  if (usesLogicalWindowSizing()) {
+    const scaleFactor = await window.scaleFactor();
+    return new LogicalSize(maxPhysical.width / scaleFactor, maxPhysical.height / scaleFactor);
+  }
+
+  return new PhysicalSize(maxPhysical.width, maxPhysical.height);
+}
+
+async function applyMainWindowSizeConstraints(window: Window, monitor: Monitor | null) {
+  const maxPhysical = await getMainWindowMaxPhysicalSize(window, monitor);
+  // Native max size is required on Windows; JS then tightens it to the work area.
+  await invoke("apply_main_window_max_size");
+  await window.setMinSize(await createPlatformMainSize(window));
+  await window.setMaxSize(await createPlatformMainMaxSize(window, maxPhysical));
+}
+
+async function getMainWindowSize(
+  window: Window,
+  state: WindowState | null,
+  maxSize: { width: number; height: number },
+) {
+  const defaultSize = await getDefaultMainPhysicalSize(window);
+  const requested = {
+    width:
+      typeof state?.width === "number" && Number.isFinite(state.width)
+        ? Math.round(state.width)
+        : defaultSize.width,
+    height:
+      typeof state?.height === "number" && Number.isFinite(state.height)
+        ? Math.round(state.height)
+        : defaultSize.height,
+  };
+
+  return clampPhysicalWindowSize(requested, defaultSize, maxSize);
 }
 
 async function getClampedMainState(
@@ -151,7 +195,8 @@ async function getClampedMainState(
   state: WindowState | null,
   monitor: Monitor,
 ): Promise<WindowState> {
-  const { width, height } = await getMainWindowSize(window, state);
+  const maxSize = await getMainWindowMaxPhysicalSize(window, monitor);
+  const { width, height } = await getMainWindowSize(window, state, maxSize);
   const margin = await designPixelsToPhysical(window, MAIN_START_MARGIN);
   if (!state) {
     return getRightCenterMainState(width, height, monitor, margin);
@@ -254,10 +299,9 @@ export async function restoreWindowState(state: WindowState | null, label = MAIN
 
   await window.setDecorations(false);
   await window.setShadow(true);
-  await window.setMinSize(await createPlatformMainSize(window));
-  await window.setMaxSize(null);
 
   const monitor = await getMonitorForState(state);
+  await applyMainWindowSizeConstraints(window, monitor);
   if (monitor) {
     const nextState = await getClampedMainState(window, state, monitor);
     await window.setSize(new PhysicalSize(nextState.width, nextState.height));
@@ -265,7 +309,8 @@ export async function restoreWindowState(state: WindowState | null, label = MAIN
     return;
   }
 
-  const { width, height } = await getMainWindowSize(window, state);
+  const maxSize = await getMainWindowMaxPhysicalSize(window, null);
+  const { width, height } = await getMainWindowSize(window, state, maxSize);
   await window.setSize(new PhysicalSize(width, height));
   if (state) {
     await window.setPosition(new PhysicalPosition(state.x, state.y));
@@ -283,12 +328,11 @@ export async function positionMainWindowAtStartup(state: WindowState | null) {
     return;
   }
 
-  const { width, height } = await getMainWindowSize(window, state);
-
   await window.setDecorations(false);
   await window.setShadow(true);
-  await window.setMinSize(await createPlatformMainSize(window));
-  await window.setMaxSize(null);
+  await applyMainWindowSizeConstraints(window, monitor);
+  const maxSize = await getMainWindowMaxPhysicalSize(window, monitor);
+  const { width, height } = await getMainWindowSize(window, state, maxSize);
   await window.setSize(new PhysicalSize(width, height));
 
   if (monitor) {
