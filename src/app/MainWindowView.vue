@@ -80,37 +80,39 @@ function previewImages(items: ImagePreviewItem[], index: number) {
     <QMark class="loading-mark" />
   </main>
   <main v-else class="app-shell" @click="closeMenu" @contextmenu="openMenu($event)">
-    <AppHeader
-      :always-on-label="alwaysOnLabel"
-      :always-on-top="settings.alwaysOnTop"
-      :t="t"
-      @close="closeWindow"
-      @toggle-always-on-top="toggleAlwaysOnTop"
-    />
-    <AppToolbar
-      :has-update="hasUpdate"
-      :notes-count="notes.length"
-      :t="t"
-      :update-version="updateInfo?.latestVersion"
-      @delete-all="showDeleteAllConfirm = true"
-      @new-note="openEditor(null)"
-      @open-settings="showSettings = true"
-      @toggle-language="toggleLanguage"
-    />
-    <NoteList
-      :notes="notes"
-      :t="t"
-      @color-change="changeNoteColor"
-      @context-menu="(event, noteId) => openMenu(event, noteId)"
-      @copy="handleCopy"
-      @delete="handleDelete"
-      @edit="openEditor"
-      @height-change="changeNoteHeight"
-      @new-note="openEditor(null)"
-      @preview-images="previewImages"
-      @reorder="reorderNote"
-      @toggle-pin="toggleNotePin"
-    />
+    <div class="app-column">
+      <AppHeader
+        :always-on-label="alwaysOnLabel"
+        :always-on-top="settings.alwaysOnTop"
+        :t="t"
+        @close="closeWindow"
+        @toggle-always-on-top="toggleAlwaysOnTop"
+      />
+      <AppToolbar
+        :has-update="hasUpdate"
+        :notes-count="notes.length"
+        :t="t"
+        :update-version="updateInfo?.latestVersion"
+        @delete-all="showDeleteAllConfirm = true"
+        @new-note="openEditor(null)"
+        @open-settings="showSettings = true"
+        @toggle-language="toggleLanguage"
+      />
+      <NoteList
+        :notes="notes"
+        :t="t"
+        @color-change="changeNoteColor"
+        @context-menu="(event, noteId) => openMenu(event, noteId)"
+        @copy="handleCopy"
+        @delete="handleDelete"
+        @edit="openEditor"
+        @height-change="changeNoteHeight"
+        @new-note="openEditor(null)"
+        @preview-images="previewImages"
+        @reorder="reorderNote"
+        @toggle-pin="toggleNotePin"
+      />
+    </div>
 
     <NoteEditor
       v-if="editorNote !== undefined"

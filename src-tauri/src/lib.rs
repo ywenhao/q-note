@@ -18,6 +18,8 @@ const EDITOR_WINDOW_WIDTH: f64 = 520.0;
 const EDITOR_WINDOW_HEIGHT: f64 = 640.0;
 const EDITOR_WINDOW_MIN_WIDTH: f64 = 420.0;
 const EDITOR_WINDOW_MIN_HEIGHT: f64 = 520.0;
+const MAIN_WINDOW_MAX_WIDTH: f64 = 1000.0;
+const MAIN_WINDOW_MAX_HEIGHT: f64 = 800.0;
 const EDITOR_WINDOW_GAP: i32 = 12;
 const APP_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 const DATABASE_FILE_NAME: &str = "q-note.db";
@@ -215,6 +217,41 @@ fn editor_window_size() -> LogicalSize<f64> {
 
 fn editor_window_min_size() -> LogicalSize<f64> {
     LogicalSize::new(EDITOR_WINDOW_MIN_WIDTH, EDITOR_WINDOW_MIN_HEIGHT)
+}
+
+fn apply_main_window_size_constraints(window: &WebviewWindow) -> Result<(), String> {
+    window
+        .set_max_size(Some(LogicalSize::new(
+            MAIN_WINDOW_MAX_WIDTH,
+            MAIN_WINDOW_MAX_HEIGHT,
+        )))
+        .map_err(|error| error.to_string())?;
+    let _ = window.set_maximizable(false);
+
+    let scale_factor = window.scale_factor().map_err(|error| error.to_string())?;
+    let logical_size = window
+        .inner_size()
+        .map_err(|error| error.to_string())?
+        .to_logical::<f64>(scale_factor);
+
+    if logical_size.width > MAIN_WINDOW_MAX_WIDTH || logical_size.height > MAIN_WINDOW_MAX_HEIGHT {
+        window
+            .set_size(LogicalSize::new(
+                logical_size.width.min(MAIN_WINDOW_MAX_WIDTH),
+                logical_size.height.min(MAIN_WINDOW_MAX_HEIGHT),
+            ))
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn apply_main_window_max_size(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window not found".to_string())?;
+    apply_main_window_size_constraints(&window)
 }
 
 fn apply_editor_window_size_constraints(window: &WebviewWindow) -> Result<(), String> {
@@ -467,6 +504,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            apply_main_window_max_size,
             get_bundle_type,
             quit_app,
             get_database_url,
@@ -476,6 +514,7 @@ pub fn run() {
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 window.set_icon(Image::from_bytes(APP_ICON_BYTES)?)?;
+                apply_main_window_size_constraints(&window).ok();
             }
 
             if app.get_webview_window("dock").is_none() {

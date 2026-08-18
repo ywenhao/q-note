@@ -66,6 +66,9 @@ export const APP_BACKGROUND = "#ffd150";
 export const DOCK_WINDOW_SIZE = 30;
 export const DEFAULT_WINDOW_WIDTH = 300;
 export const DEFAULT_WINDOW_HEIGHT = 450;
+export const MAX_WINDOW_WIDTH = 1000;
+export const MAX_WINDOW_HEIGHT = 800;
+export const CONTENT_COLUMN_MAX_WIDTH = 980;
 
 export const NOTE_COLORS = [
   "#fff9db",
