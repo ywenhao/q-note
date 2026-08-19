@@ -26,6 +26,7 @@ const DOCK_REVEAL_ANCHOR_MAX_AGE: std::time::Duration = std::time::Duration::fro
 // Check the final half-circle hit area only after the 130 ms snap animation settles.
 const CONCEAL_GUARD_SETTLE_MS: u64 = 160;
 const CONCEAL_GUARD_POLL_MS: u64 = 30;
+const REVEAL_EXIT_POLL_MS: u64 = 30;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct DockClip {
@@ -155,6 +156,7 @@ pub struct DockWindow {
     snap_revision: u64,
     motion_revision: u64,
     conceal_revision: u64,
+    reveal_revision: u64,
     revealed: bool,
     conceal_until_hover_exit: bool,
     edge_area: Option<Bounds<gpui::Pixels>>,
@@ -193,6 +195,7 @@ impl DockWindow {
             snap_revision: 0,
             motion_revision: 0,
             conceal_revision: 0,
+            reveal_revision: 0,
             revealed,
             conceal_until_hover_exit: false,
             edge_area,
@@ -224,6 +227,9 @@ impl DockWindow {
     }
 
     fn set_revealed(&mut self, revealed: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if !revealed {
+            self.cancel_reveal_watch();
+        }
         if !crate::ui::can_position_window(window) {
             self.revealed = true;
             return;
@@ -250,6 +256,9 @@ impl DockWindow {
         self.revealed = revealed;
         let target = edge_window_origin(window, edge, !revealed, area);
         self.animate_to(target, area, edge, window, cx);
+        if revealed {
+            self.watch_revealed_pointer_exit(window, cx);
+        }
     }
 
     fn animate_to(
@@ -341,6 +350,7 @@ impl DockWindow {
 
     fn prepare_drag(&mut self, window: &Window, cx: &mut Context<Self>) {
         self.cancel_conceal_guard();
+        self.cancel_reveal_watch();
         let clip = DockClip::full(window.bounds());
         if self.clip != clip {
             self.clip = clip;
@@ -353,6 +363,47 @@ impl DockWindow {
     fn cancel_conceal_guard(&mut self) {
         self.conceal_revision = self.conceal_revision.wrapping_add(1);
         self.conceal_until_hover_exit = false;
+    }
+
+    fn cancel_reveal_watch(&mut self) {
+        self.reveal_revision = self.reveal_revision.wrapping_add(1);
+    }
+
+    fn watch_revealed_pointer_exit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.reveal_revision = self.reveal_revision.wrapping_add(1);
+        let revision = self.reveal_revision;
+        cx.spawn_in(window, async move |this, cx| {
+            // Let the reveal animation settle before checking the final window bounds.
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(CONCEAL_GUARD_SETTLE_MS))
+                .await;
+            loop {
+                let keep_waiting = this
+                    .update_in(cx, |this, window, cx| {
+                        if this.reveal_revision != revision
+                            || !this.revealed
+                            || this.moving
+                            || !this.state.read(cx).settings.docked
+                            || this.state.read(cx).settings.dock_edge.is_none()
+                        {
+                            return false;
+                        }
+                        if pointer_inside_dock(window) {
+                            return true;
+                        }
+                        this.set_revealed(false, window, cx);
+                        false
+                    })
+                    .unwrap_or(false);
+                if !keep_waiting {
+                    break;
+                }
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(REVEAL_EXIT_POLL_MS))
+                    .await;
+            }
+        })
+        .detach();
     }
 
     fn guard_conceal_until_pointer_exit(

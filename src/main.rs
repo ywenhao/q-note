@@ -1,5 +1,6 @@
 //! Q Note — GPUI desktop note board.
 
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 #![cfg_attr(target_os = "windows", allow(linker_messages))]
 
 use std::borrow::Cow;
