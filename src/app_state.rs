@@ -2,10 +2,10 @@ use gpui::{AnyWindowHandle, Context, WindowHandle};
 use gpui_component::Root;
 
 use crate::i18n::{Translation, t};
-use crate::models::Language;
 use crate::models::{
     AppData, AppSettings, Note, NoteDraft, PendingUpdateDraft, create_default_settings,
 };
+use crate::models::{DockEdge, Language};
 use crate::note_ordering::{get_top_sort_order, reorder_note, sort_notes};
 use crate::storage::{self, Database};
 use crate::updater::UpdateInfo;
@@ -14,6 +14,13 @@ use crate::updater::UpdateInfo;
 pub struct ToastMessage {
     pub text: String,
     pub created_at: std::time::Instant,
+}
+
+#[derive(Clone, Copy)]
+pub struct DockRevealAnchor {
+    pub edge: DockEdge,
+    pub position: (f32, f32),
+    pub saved_at: std::time::Instant,
 }
 
 pub struct AppState {
@@ -29,6 +36,7 @@ pub struct AppState {
     pub editor_window: Option<WindowHandle<Root>>,
     pub dock_window: Option<AnyWindowHandle>,
     pub dock_position: Option<(f32, f32)>,
+    pub dock_reveal_anchor: Option<DockRevealAnchor>,
 }
 
 #[derive(Clone, Default)]
@@ -61,6 +69,7 @@ impl AppState {
             editor_window: None,
             dock_window: None,
             dock_position: None,
+            dock_reveal_anchor: None,
         };
 
         let mut settings_changed = false;

@@ -28,7 +28,7 @@ use gpui_component::{
     v_flex,
 };
 
-use crate::app_state::AppState;
+use crate::app_state::{AppState, DockRevealAnchor};
 use crate::models::{
     AttachmentKind, DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MAX_WINDOW_HEIGHT,
     MAX_WINDOW_WIDTH, NOTE_COLORS, Note, NoteAttachment, WindowState,
@@ -2765,6 +2765,15 @@ fn restore_from_dock_now(state: Entity<AppState>, cx: &mut App) {
         return;
     }
     state.update(cx, |s, _| {
+        s.dock_reveal_anchor = s
+            .settings
+            .dock_edge
+            .zip(s.dock_position)
+            .map(|(edge, position)| DockRevealAnchor {
+                edge,
+                position,
+                saved_at: std::time::Instant::now(),
+            });
         s.settings.docked = false;
         s.settings.dock_edge = None;
         s.settings.dock_on_edge = false;
