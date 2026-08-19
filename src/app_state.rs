@@ -1,4 +1,4 @@
-use gpui::{Context, WindowHandle};
+use gpui::{AnyWindowHandle, Context, WindowHandle};
 use gpui_component::Root;
 
 use crate::i18n::{Translation, t};
@@ -27,7 +27,7 @@ pub struct AppState {
     pub editor_recovery_active: bool,
     pub main_window: Option<WindowHandle<Root>>,
     pub editor_window: Option<WindowHandle<Root>>,
-    pub dock_window: Option<WindowHandle<Root>>,
+    pub dock_window: Option<AnyWindowHandle>,
     pub dock_position: Option<(f32, f32)>,
 }
 
@@ -175,7 +175,11 @@ impl AppState {
     }
 
     fn apply_always_on_top_to_windows(&self, enabled: bool, cx: &mut Context<Self>) {
-        let windows = [self.main_window, self.dock_window, self.editor_window];
+        let windows: [Option<AnyWindowHandle>; 3] = [
+            self.main_window.map(AnyWindowHandle::from),
+            self.dock_window,
+            self.editor_window.map(AnyWindowHandle::from),
+        ];
         cx.defer(move |cx| {
             for handle in windows.into_iter().flatten() {
                 let _ = handle.update(cx, |_, window, _| {

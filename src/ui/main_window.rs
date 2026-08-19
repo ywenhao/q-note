@@ -55,6 +55,9 @@ const COLOR_POPOVER_GAP: f32 = 5.;
 const COLOR_POPOVER_PAD: f32 = 6.;
 const COLOR_POPOVER_COLS: f32 = 4.;
 const NOTE_THUMBNAIL_SIZE: f32 = 58.;
+const NOTE_ACTION_TRIGGER_SIZE: f32 = 20.;
+const NOTE_ACTION_BUTTON_SIZE: f32 = 22.;
+const NOTE_ACTION_ICON_SIZE: f32 = 14.;
 const PREVIEW_SCALE_STEP: f32 = 0.25;
 const PREVIEW_KEY_PAN_STEP: f32 = 36.;
 
@@ -1337,8 +1340,8 @@ impl MainWindow {
         let show_palette = self.palette_note_id.as_deref() == Some(note.id.as_str());
         let actions_open = self.actions_note_id.as_deref() == Some(note.id.as_str());
         let card_group = gpui::SharedString::from(format!("note-card-group-{}", note.id));
-        let action_icon = color_alpha(0x3c3c43, 0.72);
-        let action_hover = color_alpha(0x3c3c43, 0.10);
+        let action_icon = color_alpha(0x1d1d1f, 0.82);
+        let action_hover = color_alpha(0xffffff, 0.64);
         let lang_key = self.state.read(cx).settings.language.element_key();
         let state = self.state.clone();
         let view = cx.entity();
@@ -1360,6 +1363,49 @@ impl MainWindow {
             .as_ref()
             .is_some_and(|resize| resize.note_id == note.id);
 
+        let action_trigger_group =
+            gpui::SharedString::from(format!("more-actions-{}-{lang_key}", note.id));
+        let action_trigger = h_flex()
+            .id(action_trigger_group.clone())
+            .group(action_trigger_group.clone())
+            .size(px(NOTE_ACTION_TRIGGER_SIZE))
+            .justify_center()
+            .rounded_full()
+            .bg(color_alpha(0xffffff, 0.46))
+            .line_height(relative(1.))
+            .cursor_pointer()
+            .tab_stop(false)
+            .text_color(color_alpha(0x1d1d1f, 0.58))
+            .hover(|style| {
+                style
+                    .bg(color_alpha(0xffffff, 0.78))
+                    .text_color(color_alpha(ACCENT, 0.86))
+            })
+            .tooltip({
+                let state = state.clone();
+                move |window, cx| Tooltip::new(state.read(cx).tr().more_actions).build(window, cx)
+            })
+            .on_hover(cx.listener({
+                let id = note_id.clone();
+                move |this, hovered: &bool, _, cx| {
+                    if *hovered && this.actions_note_id.as_deref() != Some(id.as_str()) {
+                        this.actions_note_id = Some(id.clone());
+                        cx.notify();
+                    }
+                }
+            }))
+            .child(
+                svg()
+                    .size(px(12.))
+                    .flex_none()
+                    .line_height(relative(1.))
+                    .text_color(color_alpha(0x1d1d1f, 0.58))
+                    .group_hover(action_trigger_group, |style| {
+                        style.text_color(color_alpha(ACCENT, 0.86))
+                    })
+                    .path(IconName::ChevronLeft.path()),
+            );
+
         let action_dock = h_flex()
             .id(gpui::SharedString::from(format!(
                 "note-action-dock-{}",
@@ -1367,13 +1413,13 @@ impl MainWindow {
             )))
             .absolute()
             .top_1_2()
-            .right(px(WINDOW_CONTROL_PAD - NOTE_SCROLLBAR_GUTTER))
+            .right(px(2.))
             .mt(px(-15.))
             .h(px(30.))
             .w(if actions_open {
-                px(148.)
+                px(162.)
             } else {
-                px(WINDOW_CONTROL_SIZE)
+                px(NOTE_ACTION_TRIGGER_SIZE)
             })
             .items_center()
             .justify_end()
@@ -1407,7 +1453,7 @@ impl MainWindow {
                         .bg(color_alpha(0xffffff, 0.86))
                         .shadow_lg()
                         .child(
-                            centered_icon_button(
+                            note_action_icon_button(
                                 gpui::SharedString::from(format!("pin-{}", note.id)),
                                 if pinned {
                                     crate::PIN_OFF_ICON_PATH
@@ -1442,7 +1488,7 @@ impl MainWindow {
                             })),
                         )
                         .child(
-                            centered_icon_button(
+                            note_action_icon_button(
                                 gpui::SharedString::from(format!("edit-{}", note.id)),
                                 IconName::SquareTerminal.path(),
                                 |s| s.tr().edit,
@@ -1477,7 +1523,7 @@ impl MainWindow {
                                 .relative()
                                 .flex_none()
                                 .child(
-                                    centered_icon_button(
+                                    note_action_icon_button(
                                         gpui::SharedString::from(format!("color-{}", note.id)),
                                         IconName::Palette.path(),
                                         |s| s.tr().color,
@@ -1508,7 +1554,7 @@ impl MainWindow {
                                 }),
                         )
                         .child(
-                            centered_icon_button(
+                            note_action_icon_button(
                                 gpui::SharedString::from(format!("copy-{}", note.id)),
                                 IconName::Copy.path(),
                                 |s| s.tr().copy,
@@ -1530,15 +1576,15 @@ impl MainWindow {
                             })),
                         )
                         .child(
-                            centered_icon_button(
+                            note_action_icon_button(
                                 gpui::SharedString::from(format!("delete-{}", note.id)),
                                 IconName::Delete.path(),
                                 |s| s.tr().delete,
                                 state.clone(),
                                 lang_key,
                                 color(DANGER),
-                                color(0xffffff),
                                 color(DANGER),
+                                action_hover,
                             )
                             .on_click(cx.listener({
                                 let state = self.state.clone();
@@ -1563,27 +1609,7 @@ impl MainWindow {
                         ),
                 )
             })
-            .child(
-                centered_icon_button(
-                    gpui::SharedString::from(format!("more-actions-{}", note.id)),
-                    IconName::ChevronLeft.path(),
-                    |s| s.tr().more_actions,
-                    state.clone(),
-                    lang_key,
-                    action_icon,
-                    action_icon,
-                    action_hover,
-                )
-                .on_hover(cx.listener({
-                    let id = note_id.clone();
-                    move |this, hovered: &bool, _, cx| {
-                        if *hovered && this.actions_note_id.as_deref() != Some(id.as_str()) {
-                            this.actions_note_id = Some(id.clone());
-                            cx.notify();
-                        }
-                    }
-                })),
-            );
+            .child(action_trigger);
 
         let card = v_flex()
             .id(gpui::SharedString::from(format!(
@@ -1852,14 +1878,14 @@ impl MainWindow {
                 div()
                     .id(gpui::SharedString::from(format!("resize-{}", note.id)))
                     .absolute()
-                    .right_2()
+                    .right(px(12.))
                     .bottom(px(1.))
                     .w_6()
                     .h_3()
                     .flex()
                     .items_center()
                     .justify_center()
-                    .rounded(px(4.))
+                    .rounded(px(8.))
                     .text_color(color_alpha(0x1f2937, 0.52))
                     .cursor_ns_resize()
                     .invisible()
@@ -1882,7 +1908,11 @@ impl MainWindow {
                         }),
                     )
                     .on_click(|_, _, cx| cx.stop_propagation())
-                    .child(Icon::new(IconName::ResizeCorner).with_size(px(12.))),
+                    .child(
+                        Icon::empty()
+                            .path(crate::GRIP_HORIZONTAL_ICON_PATH)
+                            .with_size(px(12.)),
+                    ),
             )
             .child(action_dock);
 
@@ -2233,7 +2263,6 @@ impl Render for MainWindow {
         let window_control_foreground = color_alpha(0x3c3c43, 0.72);
         let lang_key = self.state.read(cx).settings.language.element_key();
         let state = self.state.clone();
-        let view = cx.entity();
 
         v_flex()
             .id("app-shell")
@@ -2492,33 +2521,6 @@ impl Render for MainWindow {
                     }
                 }),
             )
-            .context_menu({
-                let state = self.state.clone();
-                move |menu, _, cx| {
-                    let app = state.read(cx);
-                    let tr = app.tr();
-                    let has_notes = !app.notes.is_empty();
-                    let menu = menu.item(PopupMenuItem::new(tr.new_note).on_click({
-                        let state = state.clone();
-                        move |_, _, cx| {
-                            editor_window::open_editor(state.clone(), None, false, cx);
-                        }
-                    }));
-                    if has_notes {
-                        menu.separator()
-                            .item(PopupMenuItem::new(tr.delete_all).on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update(cx, |this, cx| {
-                                        this.open_modal(AppModal::ConfirmDeleteAll, cx);
-                                    });
-                                }
-                            }))
-                    } else {
-                        menu
-                    }
-                }
-            })
             .children(dialog_layer)
             .children(notification_layer)
     }
@@ -2598,6 +2600,47 @@ fn pin_icon(off: bool) -> Icon {
     })
 }
 
+fn note_action_icon_button(
+    id: impl Into<gpui::SharedString>,
+    path: impl Into<gpui::SharedString>,
+    tooltip: impl Fn(&AppState) -> &'static str + 'static,
+    state: Entity<AppState>,
+    lang_key: u64,
+    idle_fg: gpui::Rgba,
+    hover_fg: gpui::Rgba,
+    hover_bg: gpui::Rgba,
+) -> Stateful<gpui::Div> {
+    let id = gpui::SharedString::from(format!("{}-{lang_key}", id.into()));
+    let group = id.clone();
+    h_flex()
+        .id(id)
+        .group(group.clone())
+        .min_w(px(NOTE_ACTION_BUTTON_SIZE))
+        .h(px(NOTE_ACTION_BUTTON_SIZE))
+        .px(px(4.))
+        .flex_none()
+        .justify_center()
+        .rounded(px(8.))
+        .border_1()
+        .border_color(color_alpha(0x3c3c43, 0.08))
+        .bg(color_alpha(0xffffff, 0.34))
+        .line_height(relative(1.))
+        .cursor_pointer()
+        .tab_stop(false)
+        .text_color(idle_fg)
+        .hover(move |style| style.bg(hover_bg).text_color(hover_fg))
+        .tooltip(move |window, cx| Tooltip::new(tooltip(state.read(cx))).build(window, cx))
+        .child(
+            svg()
+                .size(px(NOTE_ACTION_ICON_SIZE))
+                .flex_none()
+                .line_height(relative(1.))
+                .text_color(idle_fg)
+                .group_hover(group, move |style| style.text_color(hover_fg))
+                .path(path),
+        )
+}
+
 pub(crate) fn centered_icon_button(
     id: impl Into<gpui::SharedString>,
     path: impl Into<gpui::SharedString>,
@@ -2669,7 +2712,7 @@ pub fn prepare_for_shutdown(state: &Entity<AppState>, cx: &mut App) -> anyhow::R
     state.update(cx, |state, _| state.prepare_for_shutdown())
 }
 
-pub fn q_mark(size_px: f32) -> impl IntoElement {
+pub fn q_mark(size_px: f32) -> gpui::Div {
     div()
         .size(px(size_px))
         .rounded_full()

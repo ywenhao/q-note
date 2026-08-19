@@ -2,15 +2,14 @@
 
 use gpui::StyledImage as _;
 use gpui::{
-    App, AppContext, ClipboardEntry, Context, Entity, ExternalPaths, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, KeyDownEvent, MouseButton, ObjectFit, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, WindowBounds, WindowControlArea, WindowDecorations,
-    WindowOptions, div, img, px, relative, rgb, size,
+    App, AppContext, BoxShadow, ClipboardEntry, Context, Entity, ExternalPaths, FocusHandle,
+    Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton, ObjectFit,
+    ParentElement, Render, StatefulInteractiveElement, Styled, Window, WindowBounds,
+    WindowControlArea, WindowDecorations, WindowOptions, div, img, point, px, relative, rgb, size,
 };
 use gpui_component::{
     Icon, IconName, IconNamed as _, Sizable as _, StyledExt as _,
-    button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
+    button::{Button, ButtonCustomVariant, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState, Paste},
     scroll::ScrollableElement as _,
@@ -885,7 +884,7 @@ impl Render for EditorWindow {
             )
             .child(
                 h_flex()
-                    .gap_1()
+                    .gap(px(7.))
                     .flex_wrap()
                     .children(NOTE_COLORS.iter().map(|c| {
                         let c = (*c).to_string();
@@ -895,15 +894,24 @@ impl Render for EditorWindow {
                                 "editor-swatch-{}",
                                 c.clone()
                             )))
-                            .size_6()
+                            .size(px(20.))
                             .rounded_full()
-                            .border_2()
+                            .border_1()
                             .border_color(if selected {
-                                color(0x007aff)
+                                color_alpha(0x1d2735, 0.45)
                             } else {
-                                color_alpha(0x1f2328, 0.12)
+                                color_alpha(0x1d2735, 0.16)
                             })
                             .bg(parse_note_color(&c))
+                            .when(selected, |style| {
+                                style.shadow(vec![BoxShadow {
+                                    color: color_alpha(0x1d2735, 0.08).into(),
+                                    offset: point(px(0.), px(0.)),
+                                    blur_radius: px(0.),
+                                    spread_radius: px(3.),
+                                }])
+                            })
+                            .hover(|style| style.border_color(color_alpha(0x1d2735, 0.45)))
                             .cursor_pointer()
                             .on_mouse_down(
                                 MouseButton::Left,
@@ -922,24 +930,77 @@ impl Render for EditorWindow {
                 div()
                     .id("editor-content")
                     .flex_1()
+                    .min_h(px(140.))
                     .w_full()
-                    .child(Input::new(&self.content).h(px(220.))),
+                    .overflow_hidden()
+                    .border_t_1()
+                    .border_b_1()
+                    .border_color(color_alpha(0x3c3c43, 0.10))
+                    .bg(color_alpha(0xffffff, 0.50))
+                    .child(
+                        Input::new(&self.content)
+                            .appearance(false)
+                            .bordered(false)
+                            .focus_bordered(false)
+                            .h_full()
+                            .px(px(16.))
+                            .py(px(14.))
+                            .line_height(relative(1.55))
+                            .text_color(color(0x1d1d1f)),
+                    ),
             )
             .child(
                 h_flex()
-                    .gap_2()
+                    .gap(px(10.))
                     .w_full()
+                    .flex_wrap()
                     .child(
                         Button::new(("add-image", lang_key))
-                            .outline()
-                            .icon(IconName::File)
+                            .custom(editor_secondary_button(cx))
+                            .rounded(px(8.))
+                            .h(px(34.))
+                            .px(px(10.))
+                            .text_sm()
+                            .icon(IconName::GalleryVerticalEnd)
                             .label(tr.add_image)
                             .on_click(cx.listener(|this, _, _, cx| this.pick_images(cx))),
                     )
-                    .child(div().flex_1().child(Input::new(&self.media)))
+                    .child(
+                        h_flex()
+                            .id(("editor-media-input", lang_key))
+                            .flex_1()
+                            .min_w(px(260.))
+                            .h(px(34.))
+                            .min_w_0()
+                            .gap(px(7.))
+                            .px(px(10.))
+                            .rounded(px(8.))
+                            .border_1()
+                            .border_color(color_alpha(0x3c3c43, 0.12))
+                            .bg(color_alpha(0xffffff, 0.62))
+                            .text_color(color_alpha(0x3c3c43, 0.62))
+                            .child(Icon::new(IconName::ExternalLink).with_size(px(14.)))
+                            .child(
+                                div().flex_1().min_w_0().h_full().child(
+                                    Input::new(&self.media)
+                                        .appearance(false)
+                                        .bordered(false)
+                                        .focus_bordered(false)
+                                        .px_0()
+                                        .py_0()
+                                        .text_color(color(0x1d1d1f)),
+                                ),
+                            )
+                            .child(Icon::new(IconName::Folder).with_size(px(14.))),
+                    )
                     .child(
                         Button::new(("add-media", lang_key))
-                            .outline()
+                            .custom(editor_secondary_button(cx))
+                            .rounded(px(8.))
+                            .h(px(34.))
+                            .px(px(10.))
+                            .text_sm()
+                            .icon(IconName::GalleryVerticalEnd)
                             .label(tr.add_media)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.add_media_value(window, cx);
@@ -954,7 +1015,8 @@ impl Render for EditorWindow {
                             .w_full()
                             .max_h(px(180.))
                             .overflow_y_scrollbar()
-                            .gap_2()
+                            .gap(px(10.))
+                            .px(px(12.))
                             .when(!image_attachments.is_empty(), |this| {
                                 this.child(h_flex().w_full().flex_wrap().gap_2().children(
                                     image_attachments.iter().filter_map(|attachment| {
@@ -1002,17 +1064,19 @@ impl Render for EditorWindow {
                                                             attachment.id
                                                         )))
                                                         .absolute()
-                                                        .top_1()
-                                                        .right_1()
-                                                        .size_6()
+                                                        .top(px(6.))
+                                                        .right(px(6.))
+                                                        .size(px(22.))
                                                         .rounded_full()
                                                         .flex()
                                                         .items_center()
                                                         .justify_center()
                                                         .cursor_pointer()
-                                                        .bg(color_alpha(0x1d1d1f, 0.66))
-                                                        .text_color(rgb(0xffffff))
-                                                        .hover(|style| style.bg(color(DANGER)))
+                                                        .bg(color_alpha(0xffffff, 0.86))
+                                                        .text_color(color(0xa61e4d))
+                                                        .hover(|style| {
+                                                            style.bg(color_alpha(0xffffff, 0.64))
+                                                        })
                                                         .tooltip(move |window, cx| {
                                                             Tooltip::new(tr.remove_attachment)
                                                                 .build(window, cx)
@@ -1047,13 +1111,13 @@ impl Render for EditorWindow {
                                     )))
                                     .w_full()
                                     .min_w_0()
-                                    .gap_2()
-                                    .px_2()
-                                    .py_1p5()
+                                    .min_h(px(38.))
+                                    .gap(px(7.))
+                                    .p_2()
                                     .rounded(px(8.))
                                     .border_1()
                                     .border_color(color_alpha(0x3c3c43, 0.12))
-                                    .bg(color_alpha(0xffffff, 0.50))
+                                    .bg(color_alpha(0xffffff, 0.62))
                                     .child(Icon::new(IconName::File).with_size(px(14.)))
                                     .child(
                                         div()
@@ -1093,22 +1157,57 @@ impl Render for EditorWindow {
                     .w_full()
                     .items_center()
                     .justify_between()
-                    .child(
-                        Checkbox::new(("pin", lang_key))
-                            .label(tr.pin)
-                            .checked(self.pinned)
-                            .on_click(cx.listener(|this, checked, _, cx| {
-                                this.pinned = *checked;
+                    .child({
+                        let pinned = self.pinned;
+                        h_flex()
+                            .id(("pin", lang_key))
+                            .gap(px(8.))
+                            .items_center()
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.pinned = !this.pinned;
                                 this.sync_draft(cx);
                                 cx.notify();
-                            })),
-                    )
+                            }))
+                            .child(
+                                div()
+                                    .size(px(16.))
+                                    .flex_none()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded(px(2.))
+                                    .border_1()
+                                    .border_color(if pinned {
+                                        color(ACCENT)
+                                    } else {
+                                        color_alpha(0x3c3c43, 0.34)
+                                    })
+                                    .bg(if pinned {
+                                        color(ACCENT)
+                                    } else {
+                                        color_alpha(0xffffff, 0.72)
+                                    })
+                                    .when(pinned, |this| {
+                                        this.child(
+                                            Icon::new(IconName::Check)
+                                                .with_size(px(11.))
+                                                .text_color(rgb(0xffffff)),
+                                        )
+                                    }),
+                            )
+                            .child(div().text_sm().text_color(color(0x1d1d1f)).child(tr.pin))
+                    })
                     .child(
                         h_flex()
-                            .gap_2()
+                            .gap(px(8.))
                             .child(
                                 Button::new(("cancel", lang_key))
-                                    .outline()
+                                    .custom(editor_text_button(cx))
+                                    .rounded(px(8.))
+                                    .h(px(28.))
+                                    .px(px(10.))
+                                    .text_sm()
                                     .label(tr.cancel)
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.close(window, cx);
@@ -1116,7 +1215,12 @@ impl Render for EditorWindow {
                             )
                             .child(
                                 Button::new(("save", lang_key))
-                                    .primary()
+                                    .custom(editor_primary_button(cx))
+                                    .rounded(px(8.))
+                                    .h(px(28.))
+                                    .px(px(10.))
+                                    .text_sm()
+                                    .text_color(color(0xffffff))
                                     .label(tr.save)
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.save(window, cx);
@@ -1139,6 +1243,33 @@ impl Render for EditorWindow {
                 this.child(self.render_image_preview(cx))
             })
     }
+}
+
+fn editor_secondary_button(cx: &App) -> ButtonCustomVariant {
+    ButtonCustomVariant::new(cx)
+        .color(color_alpha(0xffffff, 0.46).into())
+        .foreground(color_alpha(0x1d1d1f, 0.82).into())
+        .border(color_alpha(0x3c3c43, 0.08).into())
+        .hover(color_alpha(0xffffff, 0.64).into())
+        .active(color_alpha(0xffffff, 0.64).into())
+}
+
+fn editor_text_button(cx: &App) -> ButtonCustomVariant {
+    ButtonCustomVariant::new(cx)
+        .color(color_alpha(0xffffff, 0.72).into())
+        .foreground(color(0x1d1d1f).into())
+        .border(color_alpha(0x3c3c43, 0.13).into())
+        .hover(color_alpha(0xffffff, 0.64).into())
+        .active(color_alpha(0xffffff, 0.64).into())
+}
+
+fn editor_primary_button(cx: &App) -> ButtonCustomVariant {
+    ButtonCustomVariant::new(cx)
+        .color(color_alpha(0x1d1d1f, 0.92).into())
+        .foreground(color(0xffffff).into())
+        .border(color_alpha(0x1d1d1f, 0.18).into())
+        .hover(color_alpha(0x1d1d1f, 0.75).into())
+        .active(color_alpha(0x1d1d1f, 0.75).into())
 }
 
 fn editor_preview_button(

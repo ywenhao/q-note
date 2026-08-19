@@ -15,7 +15,6 @@ use tray_icon::menu::{ContextMenu as _, Menu, MenuItem};
 use crate::app_state::AppState;
 use crate::models::{DOCK_WINDOW_SIZE, DockEdge, WindowState};
 use crate::ui::main_window::{self, q_mark};
-use crate::ui::style::{APP_BG, color, color_alpha};
 
 const SNAP_THRESHOLD: f32 = 28.0;
 const DOCK_MARGIN: f32 = 12.0;
@@ -109,6 +108,7 @@ pub struct DockWindow {
     snap_revision: u64,
     motion_revision: u64,
     revealed: bool,
+    conceal_until_hover_exit: bool,
     #[cfg(target_os = "windows")]
     native_menu: DockNativeMenu,
 }
@@ -138,6 +138,7 @@ impl DockWindow {
             snap_revision: 0,
             motion_revision: 0,
             revealed,
+            conceal_until_hover_exit: false,
             #[cfg(target_os = "windows")]
             native_menu,
         }
@@ -246,6 +247,7 @@ impl DockWindow {
             state.dock_position = Some((f32::from(visible_origin.x), f32::from(visible_origin.y)));
             let _ = state.persist_settings();
         });
+        self.conceal_until_hover_exit = edge.is_some();
         self.revealed = true;
         if edge.is_some() {
             self.set_revealed(false, window, cx);
@@ -261,21 +263,19 @@ impl Render for DockWindow {
             .id("dock-shell")
             .size_full()
             .rounded_full()
-            .bg(color(APP_BG))
-            .border_1()
-            .border_color(color_alpha(0x18212f, 0.15))
+            .overflow_hidden()
             .flex()
             .items_center()
             .justify_center()
             .cursor_pointer()
-            .shadow(vec![gpui::BoxShadow {
-                color: color_alpha(0x1f2328, 0.18).into(),
-                offset: point(px(0.), px(6.)),
-                blur_radius: px(14.),
-                spread_radius: px(0.),
-            }])
-            .child(q_mark(22.))
+            .child(q_mark(DOCK_WINDOW_SIZE).border_0())
             .on_hover(cx.listener(|this, hovered: &bool, window, cx| {
+                if this.conceal_until_hover_exit {
+                    if !*hovered {
+                        this.conceal_until_hover_exit = false;
+                    }
+                    return;
+                }
                 this.set_revealed(*hovered, window, cx);
             }))
             .on_mouse_down_out(cx.listener(|this, _, window, cx| {
@@ -443,10 +443,42 @@ fn start_window_move(window: &Window) -> bool {
     true
 }
 
+#[cfg(target_os = "windows")]
+fn disable_native_frame(window: &Window) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::Graphics::Dwm::{
+        DWMNCRP_DISABLED, DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE, DWMWA_NCRENDERING_POLICY,
+        DwmSetWindowAttribute,
+    };
+
+    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+        return;
+    };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return;
+    };
+    let color = DWMWA_COLOR_NONE;
+    let rendering_policy = DWMNCRP_DISABLED;
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            handle.hwnd.get() as HWND,
+            DWMWA_BORDER_COLOR as u32,
+            &color as *const _ as *const std::ffi::c_void,
+            std::mem::size_of_val(&color) as u32,
+        );
+        let _ = DwmSetWindowAttribute(
+            handle.hwnd.get() as HWND,
+            DWMWA_NCRENDERING_POLICY as u32,
+            &rendering_policy as *const _ as *const std::ffi::c_void,
+            std::mem::size_of_val(&rendering_policy) as u32,
+        );
+    }
+}
+
 fn detect_snap_edge(window: &Window, cx: &App) -> Option<DockEdge> {
     let bounds = window.bounds();
-    let display = window.display(cx)?;
-    let area = display.bounds();
+    let area = work_area(window, cx)?;
     let dist_left = f32::from(bounds.origin.x - area.origin.x).abs();
     let dist_right =
         f32::from((area.origin.x + area.size.width) - (bounds.origin.x + bounds.size.width)).abs();
@@ -482,8 +514,60 @@ fn edge_target(
     edge: DockEdge,
     hidden: bool,
 ) -> Option<gpui::Point<gpui::Pixels>> {
-    let area = window.display(cx)?.bounds();
+    let area = work_area(window, cx)?;
     Some(edge_origin(edge, hidden, window.bounds(), area))
+}
+
+fn work_area(window: &Window, cx: &App) -> Option<Bounds<gpui::Pixels>> {
+    #[cfg(target_os = "windows")]
+    if let Some(area) = windows_work_area(window) {
+        return Some(area);
+    }
+
+    window.display(cx).map(|display| display.bounds())
+}
+
+#[cfg(target_os = "windows")]
+fn windows_work_area(window: &Window) -> Option<Bounds<gpui::Pixels>> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
+    };
+
+    let handle = HasWindowHandle::window_handle(window).ok()?;
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return None;
+    };
+    let monitor = unsafe { MonitorFromWindow(handle.hwnd.get() as HWND, MONITOR_DEFAULTTONEAREST) };
+    if monitor.is_null() {
+        return None;
+    }
+
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    if unsafe { GetMonitorInfoW(monitor, &mut info) } == 0 {
+        return None;
+    }
+
+    let scale = window.scale_factor();
+    if !scale.is_finite() || scale <= 0.0 {
+        return None;
+    }
+    let rect = info.rcWork;
+    if rect.right <= rect.left || rect.bottom <= rect.top {
+        return None;
+    }
+
+    Some(Bounds {
+        origin: point(px(rect.left as f32 / scale), px(rect.top as f32 / scale)),
+        size: size(
+            px((rect.right - rect.left) as f32 / scale),
+            px((rect.bottom - rect.top) as f32 / scale),
+        ),
+    })
 }
 
 fn edge_origin(
@@ -600,18 +684,17 @@ pub fn open_dock_window(state: Entity<AppState>, cx: &mut App) {
             },
             {
                 let state = state.clone();
-                move |window, cx| {
-                    let view = cx.new(|cx| DockWindow::new(state.clone(), window, cx));
-                    cx.new(|cx| gpui_component::Root::new(view, window, cx))
-                }
+                move |window, cx| cx.new(|cx| DockWindow::new(state.clone(), window, cx))
             },
         )
         .expect("open dock");
 
-    state.update(cx, |s, _| s.dock_window = Some(handle));
+    state.update(cx, |s, _| s.dock_window = Some(handle.into()));
     let always_on_top = state.read(cx).settings.always_on_top;
     let dock_edge = state.read(cx).settings.dock_edge;
     let _ = handle.update(cx, |_, window, cx| {
+        #[cfg(target_os = "windows")]
+        disable_native_frame(window);
         crate::ui::apply_window_topmost(window, always_on_top);
         if crate::ui::can_position_window(window)
             && let Some(target) = dock_edge.and_then(|edge| edge_target(window, cx, edge, true))

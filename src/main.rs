@@ -25,6 +25,7 @@ pub(crate) const POWER_ICON_PATH: &str = "icons/power.svg";
 pub(crate) const UPLOAD_ICON_PATH: &str = "icons/upload.svg";
 pub(crate) const DOWNLOAD_ICON_PATH: &str = "icons/download.svg";
 pub(crate) const REFRESH_ICON_PATH: &str = "icons/refresh-cw.svg";
+pub(crate) const GRIP_HORIZONTAL_ICON_PATH: &str = "icons/grip-horizontal.svg";
 
 struct AppAssets;
 
@@ -41,6 +42,9 @@ impl AssetSource for AppAssets {
             REFRESH_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!(
                 "../assets/refresh-cw.svg"
             )))),
+            GRIP_HORIZONTAL_ICON_PATH => Ok(Some(Cow::Borrowed(include_bytes!(
+                "../assets/grip-horizontal.svg"
+            )))),
             _ => ComponentAssets.load(path),
         }
     }
@@ -55,6 +59,7 @@ impl AssetSource for AppAssets {
                 UPLOAD_ICON_PATH,
                 DOWNLOAD_ICON_PATH,
                 REFRESH_ICON_PATH,
+                GRIP_HORIZONTAL_ICON_PATH,
             ]
             .into_iter()
             .filter(|asset| asset.starts_with(path))
