@@ -74,12 +74,9 @@ fn main() {
             let state = cx.new(AppState::new);
             tray::spawn_tray(state.clone(), cx);
 
-            let docked = state.read(cx).settings.docked;
-            if docked {
-                ui::dock_window::open_dock_window(state.clone(), cx);
-            } else {
-                ui::main_window::open_main_window(state.clone(), cx);
-            }
+            // Match the Tauri boot path: the main board is the initial window;
+            // dock mode is entered explicitly by the user during the session.
+            ui::main_window::open_main_window_at_startup(state.clone(), cx);
 
             cx.activate(true);
         });

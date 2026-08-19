@@ -1,6 +1,7 @@
 pub mod dock_window;
 pub mod editor_window;
 pub mod main_window;
+pub mod media;
 pub mod modal;
 pub mod style;
 pub mod theme;
@@ -17,19 +18,8 @@ pub fn init(cx: &mut App) {
 }
 
 pub(crate) fn standard_window_kind(always_on_top: bool) -> WindowKind {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = always_on_top;
-        WindowKind::Normal
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        if always_on_top {
-            WindowKind::PopUp
-        } else {
-            WindowKind::Normal
-        }
-    }
+    let _ = always_on_top;
+    WindowKind::Normal
 }
 
 pub(crate) fn apply_window_topmost(window: &Window, enabled: bool) {
@@ -64,9 +54,41 @@ pub(crate) fn apply_window_topmost(window: &Window, enabled: bool) {
             );
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        let _ = (window, enabled);
+        use objc2_app_kit::{NSFloatingWindowLevel, NSNormalWindowLevel};
+
+        let _ = with_ns_window(window, |native_window| {
+            native_window.setLevel(if enabled {
+                NSFloatingWindowLevel
+            } else {
+                NSNormalWindowLevel
+            });
+        });
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use x11rb::connection::Connection as _;
+        use x11rb::protocol::xproto::{ClientMessageEvent, ConnectionExt as _, EventMask};
+
+        let _ = with_x11_window(window, |native, xid| {
+            let event = ClientMessageEvent::new(
+                32,
+                xid,
+                native.wm_state,
+                [u32::from(enabled), native.wm_state_above, 0, 1, 0],
+            );
+            native
+                .connection
+                .send_event(
+                    false,
+                    native.root,
+                    EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+                    event,
+                )
+                .is_ok()
+                && native.connection.flush().is_ok()
+        });
     }
 }
 
@@ -110,9 +132,35 @@ pub(crate) fn apply_main_window_constraints(window: &Window) {
             );
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        let _ = window;
+        use objc2_foundation::NSSize;
+
+        let _ = with_ns_window(window, |native_window| {
+            native_window.setContentMaxSize(NSSize::new(
+                crate::models::MAX_WINDOW_WIDTH as f64,
+                crate::models::MAX_WINDOW_HEIGHT as f64,
+            ));
+        });
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use x11rb::connection::Connection as _;
+        use x11rb::properties::WmSizeHints;
+
+        let scale = window.scale_factor();
+        let max_width = (crate::models::MAX_WINDOW_WIDTH * scale).round() as i32;
+        let max_height = (crate::models::MAX_WINDOW_HEIGHT * scale).round() as i32;
+        let _ = with_x11_window(window, |native, xid| {
+            let mut hints = WmSizeHints::get_normal_hints(&native.connection, xid)
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .flatten()
+                .unwrap_or_default();
+            hints.max_size = Some((max_width, max_height));
+            hints.set_normal_hints(&native.connection, xid).is_ok()
+                && native.connection.flush().is_ok()
+        });
     }
 }
 
@@ -213,9 +261,168 @@ pub(crate) fn move_window_to(window: &Window, origin: Point<Pixels>) -> bool {
             ) != 0
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        let _ = (window, origin);
-        false
+        use objc2_foundation::NSPoint;
+
+        with_ns_window(window, |native_window| {
+            let Some(screen) = native_window.screen() else {
+                return false;
+            };
+            let frame = screen.frame();
+            native_window.setFrameTopLeftPoint(NSPoint::new(
+                frame.origin.x + f32::from(origin.x) as f64,
+                frame.origin.y + frame.size.height - f32::from(origin.y) as f64,
+            ));
+            true
+        })
+        .unwrap_or(false)
     }
+    #[cfg(target_os = "linux")]
+    {
+        use x11rb::connection::Connection as _;
+        use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt as _};
+
+        let scale = window.scale_factor();
+        let x = (f32::from(origin.x) * scale).round() as i32;
+        let y = (f32::from(origin.y) * scale).round() as i32;
+        with_x11_window(window, |native, xid| {
+            native
+                .connection
+                .configure_window(xid, &ConfigureWindowAux::new().x(x).y(y))
+                .is_ok()
+                && native.connection.flush().is_ok()
+        })
+        .unwrap_or(false)
+    }
+}
+
+pub(crate) fn can_position_window(window: &Window) -> bool {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+        return false;
+    };
+    matches!(
+        handle.as_raw(),
+        RawWindowHandle::Win32(_) | RawWindowHandle::AppKit(_) | RawWindowHandle::Xcb(_)
+    )
+}
+
+pub(crate) fn set_window_visible(window: &Window, visible: bool) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        use windows_sys::Win32::Foundation::HWND;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOW, ShowWindow};
+
+        let Ok(handle) = HasWindowHandle::window_handle(window) else {
+            return false;
+        };
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            return false;
+        };
+        unsafe {
+            ShowWindow(
+                handle.hwnd.get() as HWND,
+                if visible { SW_SHOW } else { SW_HIDE },
+            );
+        }
+        true
+    }
+    #[cfg(target_os = "macos")]
+    {
+        with_ns_window(window, |native_window| {
+            if visible {
+                native_window.orderFrontRegardless();
+            } else {
+                native_window.orderOut(None);
+            }
+        })
+        .is_some()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use x11rb::connection::Connection as _;
+        use x11rb::protocol::xproto::ConnectionExt as _;
+
+        with_x11_window(window, |native, xid| {
+            let result = if visible {
+                native.connection.map_window(xid)
+            } else {
+                native.connection.unmap_window(xid)
+            };
+            result.is_ok() && native.connection.flush().is_ok()
+        })
+        .unwrap_or(false)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn with_ns_window<T>(
+    window: &Window,
+    operation: impl FnOnce(&objc2_app_kit::NSWindow) -> T,
+) -> Option<T> {
+    use objc2_app_kit::NSView;
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+    let handle = HasWindowHandle::window_handle(window).ok()?;
+    let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
+        return None;
+    };
+    let view = unsafe { handle.ns_view.cast::<NSView>().as_ref() };
+    let native_window = view.window()?;
+    Some(operation(&native_window))
+}
+
+#[cfg(target_os = "linux")]
+struct X11Native {
+    connection: x11rb::rust_connection::RustConnection,
+    root: u32,
+    wm_state: u32,
+    wm_state_above: u32,
+}
+
+#[cfg(target_os = "linux")]
+impl X11Native {
+    fn connect() -> Option<Self> {
+        use x11rb::connection::Connection as _;
+        use x11rb::protocol::xproto::ConnectionExt as _;
+
+        let (connection, screen_index) = x11rb::connect(None).ok()?;
+        let root = connection.setup().roots.get(screen_index)?.root;
+        let wm_state = connection
+            .intern_atom(false, b"_NET_WM_STATE")
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+        let wm_state_above = connection
+            .intern_atom(false, b"_NET_WM_STATE_ABOVE")
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+        Some(Self {
+            connection,
+            root,
+            wm_state,
+            wm_state_above,
+        })
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn with_x11_window<T>(window: &Window, operation: impl FnOnce(&X11Native, u32) -> T) -> Option<T> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use std::sync::OnceLock;
+
+    static X11_NATIVE: OnceLock<Option<X11Native>> = OnceLock::new();
+
+    let handle = HasWindowHandle::window_handle(window).ok()?;
+    let RawWindowHandle::Xcb(handle) = handle.as_raw() else {
+        return None;
+    };
+    let native = X11_NATIVE.get_or_init(X11Native::connect).as_ref()?;
+    Some(operation(native, handle.window.get()))
 }

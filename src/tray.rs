@@ -37,6 +37,15 @@ struct NativeMenu {
     quit: MenuItem,
 }
 
+#[cfg(target_os = "macos")]
+struct MacTray {
+    _tray: tray_icon::TrayIcon,
+    menu: NativeMenu,
+}
+
+#[cfg(target_os = "macos")]
+impl gpui::Global for MacTray {}
+
 impl NativeMenu {
     fn new(labels: &TrayLabels) -> Self {
         let menu = Menu::new();
@@ -65,17 +74,17 @@ impl NativeMenu {
     }
 
     fn command_for(&self, event: &MenuEvent) -> Option<TrayCommand> {
-        if event.id == *self.topmost.id() {
-            Some(TrayCommand::ToggleTopmost)
-        } else if event.id == *self.language.id() {
-            Some(TrayCommand::ToggleLanguage)
-        } else if event.id == *self.dock.id() {
-            Some(TrayCommand::ToggleDock)
-        } else if event.id == *self.quit.id() {
-            Some(TrayCommand::Quit)
-        } else {
-            None
-        }
+        command_for_menu_id(&event.id)
+    }
+}
+
+fn command_for_menu_id(id: &tray_icon::menu::MenuId) -> Option<TrayCommand> {
+    match id.as_ref() {
+        NATIVE_MENU_TOPMOST_ID => Some(TrayCommand::ToggleTopmost),
+        NATIVE_MENU_LANGUAGE_ID => Some(TrayCommand::ToggleLanguage),
+        NATIVE_MENU_DOCK_ID => Some(TrayCommand::ToggleDock),
+        NATIVE_MENU_QUIT_ID => Some(TrayCommand::Quit),
+        _ => None,
     }
 }
 
@@ -111,6 +120,75 @@ pub fn spawn_tray(state: Entity<AppState>, cx: &mut gpui::App) {
     let (control_tx, control_rx) = std::sync::mpsc::channel::<TrayControl>();
     let _ = TRAY_CONTROL.set(Mutex::new(control_tx));
 
+    #[cfg(target_os = "macos")]
+    {
+        // AppKit requires NSStatusItem creation and mutation on the main thread.
+        // GPUI's foreground executor is the application main thread, so retain
+        // the tray and its menu in a GPUI global and poll both event channels
+        // from there.
+        let tray_menu = NativeMenu::new(&labels);
+        let tray = TrayIconBuilder::new()
+            .with_menu(Box::new(tray_menu.menu.clone()))
+            .with_menu_on_left_click(false)
+            .with_tooltip("Q Note")
+            .with_icon(load_tray_icon())
+            .build();
+
+        if let Ok(tray) = tray {
+            cx.set_global(MacTray {
+                _tray: tray,
+                menu: tray_menu,
+            });
+        }
+
+        let menu_channel = MenuEvent::receiver();
+        let tray_channel = TrayIconEvent::receiver();
+        cx.spawn(async move |cx: &mut AsyncApp| {
+            let mut current_labels = labels;
+            loop {
+                while let Ok(control) = control_rx.try_recv() {
+                    match control {
+                        TrayControl::UpdateLabels(next_labels) => {
+                            if next_labels != current_labels {
+                                let _ = cx.update(|cx| {
+                                    if let Some(tray) = cx.try_global::<MacTray>() {
+                                        tray.menu.update_labels(&next_labels);
+                                    }
+                                });
+                                current_labels = next_labels;
+                            }
+                        }
+                    }
+                }
+
+                while let Ok(event) = menu_channel.try_recv() {
+                    if let Some(command) = command_for_menu_id(&event.id) {
+                        let _ = tx.send(command);
+                    }
+                }
+
+                while let Ok(event) = tray_channel.try_recv() {
+                    if matches!(
+                        event,
+                        TrayIconEvent::Click {
+                            button: tray_icon::MouseButton::Left,
+                            button_state: tray_icon::MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
+                        let _ = tx.send(TrayCommand::ShowMain);
+                    }
+                }
+
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(50))
+                    .await;
+            }
+        })
+        .detach();
+    }
+
+    #[cfg(not(target_os = "macos"))]
     std::thread::Builder::new()
         .name("q-note-tray".into())
         .spawn(move || {

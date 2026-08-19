@@ -27,6 +27,15 @@ pub enum Language {
     En,
 }
 
+impl Language {
+    pub fn element_key(self) -> u64 {
+        match self {
+            Language::Zh => 0,
+            Language::En => 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AttachmentKind {
@@ -72,7 +81,7 @@ impl Note {
     pub fn copy_text(&self) -> String {
         let content = self.content.trim();
         if !content.is_empty() {
-            return content.to_string();
+            return self.content.clone();
         }
         self.attachments
             .iter()
@@ -200,7 +209,10 @@ pub fn parse_hex_color(hex: &str) -> u32 {
 }
 
 pub fn is_likely_image_path(value: &str) -> bool {
-    let lower = value.to_lowercase();
+    // URLs commonly carry cache-busting query strings or fragments. Match the
+    // actual path extension just like the original web implementation did.
+    let clean = value.split(['?', '#']).next().unwrap_or(value);
+    let lower = clean.to_lowercase();
     [
         ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp",
     ]

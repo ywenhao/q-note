@@ -6,7 +6,7 @@ use crate::models::Language;
 use crate::models::{
     AppData, AppSettings, Note, NoteDraft, PendingUpdateDraft, create_default_settings,
 };
-use crate::note_ordering::{get_top_sort_order, normalize_manual_order, sort_notes};
+use crate::note_ordering::{get_top_sort_order, reorder_note, sort_notes};
 use crate::storage::{self, Database};
 use crate::updater::UpdateInfo;
 
@@ -63,9 +63,24 @@ impl AppState {
             dock_position: None,
         };
 
-        let _ = crate::autostart::apply(state.settings.auto_start);
+        let mut settings_changed = false;
         if state.settings.docked {
+            // The Tauri boot path always starts the main window. Dock mode is a
+            // transient session state, so do not resurrect a stale floating ball.
+            state.settings.docked = false;
+            state.settings.dock_edge = None;
+            state.settings.dock_on_edge = false;
             state.settings.keep_full_main = false;
+            state.dock_position = None;
+            settings_changed = true;
+        }
+        if let Ok(auto_start) = crate::autostart::is_enabled()
+            && auto_start != state.settings.auto_start
+        {
+            state.settings.auto_start = auto_start;
+            settings_changed = true;
+        }
+        if settings_changed {
             let _ = state.persist_settings();
         }
         state
@@ -219,7 +234,6 @@ impl AppState {
             return Ok(());
         };
         f(note);
-        note.updated_at = now_ms();
         let note = note.clone();
         self.db.save_note(&note)?;
         self.notes = sort_notes(std::mem::take(&mut self.notes));
@@ -241,15 +255,36 @@ impl AppState {
         })
     }
 
-    #[allow(dead_code)]
-    pub fn reorder_notes(
+    pub fn reorder_note(
         &mut self,
-        notes: Vec<Note>,
+        dragged_id: &str,
+        target_id: &str,
+        after: bool,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let notes = normalize_manual_order(notes);
+        let Some(notes) = reorder_note(&self.notes, dragged_id, target_id, after) else {
+            return Ok(());
+        };
         self.db.save_notes_order(&notes)?;
         self.notes = notes;
+        cx.notify();
+        Ok(())
+    }
+
+    pub fn set_note_height(
+        &mut self,
+        id: &str,
+        height: i64,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let Some(note) = self.notes.iter_mut().find(|note| note.id == id) else {
+            return Ok(());
+        };
+        if note.text_height == Some(height) {
+            return Ok(());
+        }
+        note.text_height = Some(height);
+        self.db.save_note(note)?;
         cx.notify();
         Ok(())
     }

@@ -5014,6 +5014,7 @@ version = "0.2.9"
 dependencies = [
  "anyhow",
  "auto-launch",
+ "base64 0.22.1",
  "chrono",
  "dirs 6.0.0",
  "embed-resource",
@@ -5022,18 +5023,24 @@ dependencies = [
  "gpui-component-assets",
  "gtk",
  "image",
+ "objc2-app-kit",
+ "objc2-foundation",
  "open",
  "raw-window-handle",
  "rfd",
  "rusqlite",
+ "self-replace",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "smallvec",
+ "tempfile",
  "tray-icon",
  "ureq",
  "url",
  "uuid",
  "windows-sys 0.61.2",
+ "x11rb",
 ]
 
 [[package]]
@@ -5872,6 +5879,17 @@ checksum = "6ce2691df843ecc5d231c0b14ece2acc3efb62c0a398c7e1d875f3983ce020e3"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "self-replace"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03ec815b5eab420ab893f63393878d89c90fdd94c0bcc44c07abb8ad95552fb7"
+dependencies = [
+ "fastrand 2.5.0",
+ "tempfile",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

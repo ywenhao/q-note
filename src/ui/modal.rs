@@ -41,8 +41,54 @@ pub(crate) fn panel_animation() -> Animation {
 }
 
 pub(crate) fn modal_layer() -> Stateful<Div> {
+    overlay_layer("modal-layer")
+}
+
+pub(crate) fn modal_backdrop() -> Stateful<Div> {
+    overlay_backdrop("modal-backdrop")
+}
+
+pub(crate) fn animate_overlay(
+    name: &'static str,
+    overlay: Stateful<Div>,
+    closing: bool,
+    generation: u64,
+) -> impl IntoElement {
+    overlay.with_animation(
+        SharedString::from(format!(
+            "{name}-overlay-{}-{generation}",
+            if closing { "out" } else { "in" }
+        )),
+        overlay_animation(),
+        move |this, delta| {
+            let t = if closing { 1. - delta } else { delta };
+            this.opacity(t)
+        },
+    )
+}
+
+pub(crate) fn animate_panel(
+    name: &'static str,
+    panel: impl Styled + IntoElement + 'static,
+    closing: bool,
+    generation: u64,
+) -> impl IntoElement {
+    panel.with_animation(
+        SharedString::from(format!(
+            "{name}-panel-{}-{generation}",
+            if closing { "out" } else { "in" }
+        )),
+        panel_animation(),
+        move |this, delta| {
+            let t = if closing { 1. - delta } else { delta };
+            this.opacity(t).mt(px(8. * (1. - t)))
+        },
+    )
+}
+
+pub(crate) fn overlay_layer(id: &'static str) -> Stateful<Div> {
     div()
-        .id("modal-layer")
+        .id(id)
         .absolute()
         .top_0()
         .left_0()
@@ -56,9 +102,9 @@ pub(crate) fn modal_layer() -> Stateful<Div> {
         .occlude()
 }
 
-pub(crate) fn modal_backdrop() -> Stateful<Div> {
+pub(crate) fn overlay_backdrop(id: &'static str) -> Stateful<Div> {
     div()
-        .id("modal-backdrop")
+        .id(id)
         .absolute()
         .top_0()
         .left_0()
@@ -67,45 +113,9 @@ pub(crate) fn modal_backdrop() -> Stateful<Div> {
         .occlude()
 }
 
-pub(crate) fn animate_overlay(
-    overlay: Stateful<Div>,
-    closing: bool,
-    generation: u64,
-) -> impl IntoElement {
-    overlay.with_animation(
-        SharedString::from(format!(
-            "modal-overlay-{}-{generation}",
-            if closing { "out" } else { "in" }
-        )),
-        overlay_animation(),
-        move |this, delta| {
-            let t = if closing { 1. - delta } else { delta };
-            this.opacity(t)
-        },
-    )
-}
-
-pub(crate) fn animate_panel(
-    panel: impl Styled + IntoElement + 'static,
-    closing: bool,
-    generation: u64,
-) -> impl IntoElement {
-    panel.with_animation(
-        SharedString::from(format!(
-            "modal-panel-{}-{generation}",
-            if closing { "out" } else { "in" }
-        )),
-        panel_animation(),
-        move |this, delta| {
-            let t = if closing { 1. - delta } else { delta };
-            this.opacity(t).mt(px(8. * (1. - t)))
-        },
-    )
-}
-
-pub(crate) fn settings_shell() -> Stateful<Div> {
+pub(crate) fn settings_shell(lang_key: u64) -> Stateful<Div> {
     v_flex()
-        .id("settings-dialog")
+        .id(("settings-dialog", lang_key))
         .w(px(SETTINGS_DIALOG_WIDTH))
         .max_w(relative(1.))
         .gap(px(7.))
@@ -117,9 +127,9 @@ pub(crate) fn settings_shell() -> Stateful<Div> {
         .shadow(modal_panel_shadow())
 }
 
-pub(crate) fn confirm_shell() -> Stateful<Div> {
+pub(crate) fn confirm_shell(id: &'static str, lang_key: u64) -> Stateful<Div> {
     v_flex()
-        .id("confirm-dialog")
+        .id((id, lang_key))
         .w_full()
         .max_w(px(CONFIRM_DIALOG_WIDTH))
         .p(px(18.))
@@ -314,4 +324,21 @@ pub(crate) fn danger_button(id: impl Into<SharedString>) -> Stateful<Div> {
         .text_sm()
         .cursor_pointer()
         .hover(|style| style.bg(color(0xfd5f57)))
+}
+
+pub(crate) fn primary_button(id: impl Into<SharedString>) -> Stateful<Div> {
+    h_flex()
+        .id(id.into())
+        .h(px(28.))
+        .px(px(10.))
+        .items_center()
+        .justify_center()
+        .rounded(px(8.))
+        .border_1()
+        .border_color(color_alpha(0x1d1d1f, 0.18))
+        .bg(color_alpha(0x1d1d1f, 0.92))
+        .text_color(color(0xffffff))
+        .text_sm()
+        .cursor_pointer()
+        .hover(|style| style.bg(color_alpha(0x1d1d1f, 0.75)))
 }
