@@ -26,6 +26,7 @@ const DOCK_REVEAL_ANCHOR_MAX_AGE: std::time::Duration = std::time::Duration::fro
 // Check the final half-circle hit area only after the 130 ms snap animation settles.
 const CONCEAL_GUARD_SETTLE_MS: u64 = 160;
 const CONCEAL_GUARD_POLL_MS: u64 = 30;
+const CONCEALED_ENTRY_POLL_MS: u64 = 30;
 const REVEAL_EXIT_POLL_MS: u64 = 30;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -227,9 +228,6 @@ impl DockWindow {
     }
 
     fn set_revealed(&mut self, revealed: bool, window: &mut Window, cx: &mut Context<Self>) {
-        if !revealed {
-            self.cancel_reveal_watch();
-        }
         if !crate::ui::can_position_window(window) {
             self.revealed = true;
             return;
@@ -237,6 +235,7 @@ impl DockWindow {
         if self.moving || self.revealed == revealed {
             return;
         }
+        self.cancel_reveal_watch();
         let Some(edge) = self.state.read(cx).settings.dock_edge else {
             self.revealed = true;
             self.clear_edge_clip(window, cx);
@@ -258,6 +257,9 @@ impl DockWindow {
         self.animate_to(target, area, edge, window, cx);
         if revealed {
             self.watch_revealed_pointer_exit(window, cx);
+        } else {
+            #[cfg(target_os = "windows")]
+            self.watch_concealed_pointer_entry(window, cx);
         }
     }
 
@@ -400,6 +402,49 @@ impl DockWindow {
                 }
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(REVEAL_EXIT_POLL_MS))
+                    .await;
+            }
+        })
+        .detach();
+    }
+
+    #[cfg(target_os = "windows")]
+    fn watch_concealed_pointer_entry(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.reveal_revision = self.reveal_revision.wrapping_add(1);
+        let revision = self.reveal_revision;
+        cx.spawn_in(window, async move |this, cx| {
+            // Wait for the conceal animation before testing the final visible half.
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(CONCEAL_GUARD_SETTLE_MS))
+                .await;
+            loop {
+                let keep_waiting = this
+                    .update_in(cx, |this, window, cx| {
+                        if this.reveal_revision != revision
+                            || this.revealed
+                            || this.moving
+                            || !this.state.read(cx).settings.docked
+                        {
+                            return false;
+                        }
+                        let Some(edge) = this.state.read(cx).settings.dock_edge else {
+                            return false;
+                        };
+                        if this.conceal_until_hover_exit {
+                            return true;
+                        }
+                        if pointer_inside_concealed_dock(window, edge) {
+                            this.set_revealed(true, window, cx);
+                            return false;
+                        }
+                        true
+                    })
+                    .unwrap_or(false);
+                if !keep_waiting {
+                    break;
+                }
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(CONCEALED_ENTRY_POLL_MS))
                     .await;
             }
         })
@@ -910,6 +955,11 @@ fn clear_native_clip(window: &Window) {
 }
 
 fn pointer_inside_dock(window: &Window) -> bool {
+    #[cfg(target_os = "windows")]
+    if let Some(inside) = native_pointer_inside_dock(window) {
+        return inside;
+    }
+
     let pointer = window.mouse_position();
     let x = f32::from(pointer.x);
     let y = f32::from(pointer.y);
@@ -917,6 +967,11 @@ fn pointer_inside_dock(window: &Window) -> bool {
 }
 
 fn pointer_inside_concealed_dock(window: &Window, edge: DockEdge) -> bool {
+    #[cfg(target_os = "windows")]
+    if let Some(inside) = native_pointer_inside_concealed_dock(window, edge) {
+        return inside;
+    }
+
     let pointer = window.mouse_position();
     let x = f32::from(pointer.x);
     let y = f32::from(pointer.y);
@@ -932,6 +987,68 @@ fn pointer_inside_concealed_dock(window: &Window, edge: DockEdge) -> bool {
         DockEdge::Bottom => y >= 0.0 && y < half,
     };
     inside_cross_axis && inside_visible_half
+}
+
+#[cfg(target_os = "windows")]
+fn native_pointer_inside_dock(window: &Window) -> Option<bool> {
+    let (geometry, pointer) = native_dock_pointer(window)?;
+    Some(
+        pointer.x >= geometry.client_left
+            && pointer.x < geometry.client_left + geometry.client_width
+            && pointer.y >= geometry.client_top
+            && pointer.y < geometry.client_top + geometry.client_height,
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn native_pointer_inside_concealed_dock(window: &Window, edge: DockEdge) -> Option<bool> {
+    let (geometry, pointer) = native_dock_pointer(window)?;
+    let client_right = geometry.client_left + geometry.client_width;
+    let client_bottom = geometry.client_top + geometry.client_height;
+    let half_width = geometry.client_width / 2;
+    let half_height = geometry.client_height / 2;
+    let inside = match edge {
+        DockEdge::Left => {
+            pointer.x >= geometry.client_left + half_width
+                && pointer.x < client_right
+                && pointer.y >= geometry.client_top
+                && pointer.y < client_bottom
+        }
+        DockEdge::Right => {
+            pointer.x >= geometry.client_left
+                && pointer.x < client_right - half_width
+                && pointer.y >= geometry.client_top
+                && pointer.y < client_bottom
+        }
+        DockEdge::Top => {
+            pointer.x >= geometry.client_left
+                && pointer.x < client_right
+                && pointer.y >= geometry.client_top + half_height
+                && pointer.y < client_bottom
+        }
+        DockEdge::Bottom => {
+            pointer.x >= geometry.client_left
+                && pointer.x < client_right
+                && pointer.y >= geometry.client_top
+                && pointer.y < client_bottom - half_height
+        }
+    };
+    Some(inside)
+}
+
+#[cfg(target_os = "windows")]
+fn native_dock_pointer(
+    window: &Window,
+) -> Option<(NativeDockGeometry, windows_sys::Win32::Foundation::POINT)> {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    let geometry = native_dock_geometry(window)?;
+    let mut pointer = POINT::default();
+    if unsafe { GetCursorPos(&mut pointer) } == 0 {
+        return None;
+    }
+    Some((geometry, pointer))
 }
 
 fn detect_snap_edge(window: &Window, cx: &App) -> Option<DockEdge> {
@@ -1236,6 +1353,9 @@ fn open_dock_window(state: Entity<AppState>, return_snap_edge: Option<DockEdge>,
             dock.apply_edge_clip(target, area, edge, window, cx);
             if returning_to_edge {
                 dock.schedule_return_snap(edge, window, cx);
+            } else {
+                #[cfg(target_os = "windows")]
+                dock.watch_concealed_pointer_entry(window, cx);
             }
             return;
         }
