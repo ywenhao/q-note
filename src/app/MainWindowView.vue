@@ -79,7 +79,7 @@ function previewImages(items: ImagePreviewItem[], index: number) {
   <main v-if="!ready" class="app-shell is-loading">
     <QMark class="loading-mark" />
   </main>
-  <main v-else class="app-shell" @click="closeMenu" @contextmenu="openMenu($event)">
+  <main v-else class="app-shell" @click="closeMenu" @contextmenu.prevent>
     <div class="app-column">
       <AppHeader
         :always-on-label="alwaysOnLabel"
@@ -153,7 +153,13 @@ function previewImages(items: ImagePreviewItem[], index: number) {
       :update="updateInfo"
       @cancel="cancelUpdateDownload"
     />
-    <ContextMenu v-if="menu" :items="contextItems" :x="menu.x" :y="menu.y" @close="closeMenu" />
+    <ContextMenu
+      v-if="menu && contextItems.length"
+      :items="contextItems"
+      :x="menu.x"
+      :y="menu.y"
+      @close="closeMenu"
+    />
     <ConfirmDialog
       v-if="showDeleteAllConfirm"
       :body="t.deleteAllBody"

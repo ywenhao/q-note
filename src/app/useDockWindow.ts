@@ -75,7 +75,6 @@ export function useDockWindow() {
     handleCopy,
     handleDelete,
     notes,
-    onDeleteAll: () => undefined,
     openEditor,
     patchNote,
     quitApp,

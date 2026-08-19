@@ -15,7 +15,6 @@ interface UseMenuControllerOptions {
   handleCopy: (note: Note) => Promise<void>;
   handleDelete: (id: string) => Promise<void>;
   notes: Ref<Note[]>;
-  onDeleteAll: () => void;
   openEditor: (note: Note | null) => Promise<void>;
   patchNote: (id: string, patch: Partial<Note>) => Promise<void>;
   quitApp: () => Promise<void>;
@@ -70,14 +69,10 @@ export function useMenuController(options: UseMenuControllerOptions) {
       : null;
     return createMainContextItems({
       note,
-      notesCount: options.notes.value.length,
       onCopyNote: (item) => void options.handleCopy(item),
-      onDeleteAll: options.onDeleteAll,
       onDeleteNote: (id) => void options.handleDelete(id),
       onEditNote: (item) => void options.openEditor(item),
-      onNewNote: () => void options.openEditor(null),
       onToggleNotePin: (item) => void options.patchNote(item.id, { pinned: !item.pinned }),
-      settings: options.settings.value,
       t: options.t.value,
     });
   });

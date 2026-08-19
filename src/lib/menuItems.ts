@@ -5,7 +5,6 @@ import {
   PencilIcon,
   PinIcon,
   PinOffIcon,
-  PlusIcon,
   PowerIcon,
   Trash2Icon,
 } from "../icons";
@@ -24,14 +23,10 @@ interface CommonMenuOptions {
 
 interface MainMenuOptions {
   note: Note | null;
-  notesCount: number;
   onCopyNote: (note: Note) => void;
-  onDeleteAll: () => void;
   onDeleteNote: (id: string) => void;
   onEditNote: (note: Note) => void;
-  onNewNote: () => void;
   onToggleNotePin: (note: Note) => void;
-  settings: AppSettings;
   t: Translation;
 }
 
@@ -41,54 +36,38 @@ interface DockMenuOptions extends CommonMenuOptions {
 }
 
 export function createMainContextItems(options: MainMenuOptions): ContextMenuItem[] {
-  const { note, notesCount, settings, t } = options;
-  if (note) {
-    return [
-      {
-        id: "copy",
-        icon: FileInputIcon,
-        label: t.copy,
-        onSelect: () => options.onCopyNote(note),
-      },
-      {
-        id: "edit",
-        icon: PencilIcon,
-        label: t.edit,
-        onSelect: () => options.onEditNote(note),
-      },
-      {
-        id: "pin",
-        icon: note.pinned ? PinOffIcon : PinIcon,
-        label: note.pinned ? t.unpin : t.pin,
-        onSelect: () => options.onToggleNotePin(note),
-      },
-      {
-        destructive: true,
-        id: "delete",
-        icon: Trash2Icon,
-        label: t.delete,
-        onSelect: () => options.onDeleteNote(note.id),
-      },
-    ];
-  }
-
-  if (settings.docked) {
+  const { note, t } = options;
+  if (!note) {
     return [];
   }
 
-  const items: ContextMenuItem[] = [
-    { id: "new", icon: PlusIcon, label: t.newNote, onSelect: options.onNewNote },
-  ];
-  if (notesCount > 0) {
-    items.push({
+  return [
+    {
+      id: "copy",
+      icon: FileInputIcon,
+      label: t.copy,
+      onSelect: () => options.onCopyNote(note),
+    },
+    {
+      id: "edit",
+      icon: PencilIcon,
+      label: t.edit,
+      onSelect: () => options.onEditNote(note),
+    },
+    {
+      id: "pin",
+      icon: note.pinned ? PinOffIcon : PinIcon,
+      label: note.pinned ? t.unpin : t.pin,
+      onSelect: () => options.onToggleNotePin(note),
+    },
+    {
       destructive: true,
-      id: "delete-all",
+      id: "delete",
       icon: Trash2Icon,
-      label: t.deleteAll,
-      onSelect: options.onDeleteAll,
-    });
-  }
-  return items;
+      label: t.delete,
+      onSelect: () => options.onDeleteNote(note.id),
+    },
+  ];
 }
 
 export function createDockMenuItems(options: DockMenuOptions): ContextMenuItem[] {
