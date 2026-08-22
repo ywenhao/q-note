@@ -130,9 +130,6 @@ export function useMainWindow() {
     handleCopy,
     handleDelete,
     notes,
-    onDeleteAll: () => {
-      showDeleteAllConfirm.value = true;
-    },
     openEditor,
     patchNote,
     quitApp,
