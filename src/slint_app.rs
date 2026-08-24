@@ -243,9 +243,7 @@ impl Controller {
         let weak = Rc::downgrade(self);
         self.ui.on_start_window_drag(move || {
             if let Some(controller) = weak.upgrade() {
-                controller.ui.window().with_winit_window(|window| {
-                    let _ = window.drag_window();
-                });
+                start_window_drag(controller.ui.window());
             }
         });
 
@@ -367,11 +365,18 @@ impl Controller {
             let Some(controller) = weak.upgrade() else {
                 return;
             };
+            let text_width = main_note_text_width(&controller.ui);
             let (minimum, maximum) = controller
                 .state
                 .borrow()
                 .note_by_id(id.as_str())
-                .map(|note| (default_note_height(note), full_note_height(note)))
+                .map(|note| {
+                    let lines = wrapped_note_lines(&note.content, text_width);
+                    (
+                        lines.min(2) * NOTE_LINE_HEIGHT as i64,
+                        lines * NOTE_LINE_HEIGHT as i64,
+                    )
+                })
                 .unwrap_or((NOTE_LINE_HEIGHT as i64, NOTE_LINE_HEIGHT as i64));
             let snapped = ((requested as f32 / NOTE_LINE_HEIGHT).ceil() * NOTE_LINE_HEIGHT) as i64;
             if controller
@@ -601,12 +606,15 @@ impl Controller {
 
         let weak = Rc::downgrade(self);
         ui.on_start_window_drag(move || {
-            if let Some(controller) = weak.upgrade()
-                && let Some(editor) = controller.editor.borrow().as_ref()
-            {
-                editor.ui.window().with_winit_window(|window| {
-                    let _ = window.drag_window();
-                });
+            if let Some(controller) = weak.upgrade() {
+                let editor = controller
+                    .editor
+                    .borrow()
+                    .as_ref()
+                    .map(|editor| editor.ui.as_weak());
+                if let Some(editor) = editor.and_then(|editor| editor.upgrade()) {
+                    start_window_drag(editor.window());
+                }
             }
         });
 
@@ -1400,9 +1408,11 @@ impl Controller {
         session.suppress_click_until = Some(Instant::now() + Duration::from_millis(600));
         session.edge = None;
         clear_dock_clip(&session.ui);
-        session.ui.window().with_winit_window(|window| {
-            let _ = window.drag_window();
-        });
+        let dock_ui = session.ui.as_weak();
+        drop(dock);
+        if let Some(dock_ui) = dock_ui.upgrade() {
+            start_window_drag(dock_ui.window());
+        }
     }
 
     fn dock_pointer_up(self: &Rc<Self>) {
@@ -1626,6 +1636,7 @@ impl Controller {
             move || {
                 if let Some(controller) = weak.upgrade() {
                     controller.persist_main_bounds();
+                    controller.refresh();
                 }
             },
         );
@@ -1935,7 +1946,7 @@ impl Controller {
         };
         if info.current_binary().is_none() {
             crate::updater::open_release_page(Some(&info.version));
-            self.ui.set_modal_kind(0);
+            self.ui.invoke_close_modal();
             self.show_toast(self.state.borrow().tr().update_open_release.to_string());
             return;
         }
@@ -1988,7 +1999,7 @@ impl Controller {
         *download = None;
         drop(download);
         self.state.borrow_mut().update.available = None;
-        self.ui.set_modal_kind(0);
+        self.ui.invoke_close_modal();
         self.refresh();
     }
 
@@ -2000,7 +2011,7 @@ impl Controller {
             state.update.available = None;
             state.update.checking = false;
         }
-        self.ui.set_modal_kind(0);
+        self.ui.invoke_close_modal();
         self.refresh();
         self.show_toast(message);
     }
@@ -2074,6 +2085,7 @@ impl Controller {
 
     fn refresh(&self) {
         let state = self.state.borrow();
+        let note_text_width = main_note_text_width(&self.ui);
         let remote_urls = state
             .notes
             .iter()
@@ -2091,7 +2103,7 @@ impl Controller {
             state
                 .notes
                 .iter()
-                .map(|note| note_to_ui(note, image_only, &cache))
+                .map(|note| note_to_ui(note, image_only, &cache, note_text_width))
                 .collect::<Vec<_>>(),
         );
         let strings = strings_to_ui(state.tr());
@@ -2120,6 +2132,46 @@ impl Controller {
             dock.ui.set_topmost(state.settings.always_on_top);
         }
     }
+}
+
+fn start_window_drag(window: &slint::Window) {
+    #[cfg(target_os = "windows")]
+    {
+        let started = window
+            .with_winit_window(|native| {
+                use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+                use windows_sys::Win32::Foundation::HWND;
+                use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    HTCAPTION, SendMessageW, WM_NCLBUTTONDOWN,
+                };
+
+                let Ok(handle) = native.window_handle() else {
+                    return false;
+                };
+                let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+                    return false;
+                };
+                unsafe {
+                    let _ = ReleaseCapture();
+                    let _ = SendMessageW(
+                        handle.hwnd.get() as HWND,
+                        WM_NCLBUTTONDOWN,
+                        HTCAPTION as usize,
+                        0,
+                    );
+                }
+                true
+            })
+            .unwrap_or(false);
+        if started {
+            return;
+        }
+    }
+
+    window.with_winit_window(|native| {
+        let _ = native.drag_window();
+    });
 }
 
 fn window_work_area(window: &slint::Window) -> Option<WorkArea> {
@@ -2337,9 +2389,11 @@ fn note_to_ui(
     note: &Note,
     image_only_label: &str,
     remote_images: &HashMap<String, slint::Image>,
+    text_width: f32,
 ) -> UiNote {
-    let minimum = default_note_height(note);
-    let maximum = full_note_height(note).max(minimum);
+    let wrapped_lines = wrapped_note_lines(&note.content, text_width);
+    let minimum = wrapped_lines.min(2) * NOTE_LINE_HEIGHT as i64;
+    let maximum = wrapped_lines * NOTE_LINE_HEIGHT as i64;
     let text_height = note.text_height.unwrap_or(minimum).clamp(minimum, maximum);
     let image_only = note.content.trim().is_empty()
         && note
@@ -2349,7 +2403,11 @@ fn note_to_ui(
     let display_content = if image_only {
         image_only_label.to_string()
     } else {
-        note.content.clone()
+        truncate_note_content(
+            &note.content,
+            note_columns_per_line(text_width),
+            (text_height / NOTE_LINE_HEIGHT as i64).max(1) as usize,
+        )
     };
     let images = note
         .attachments
@@ -2418,24 +2476,76 @@ fn attachment_name_from_value(value: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn default_note_height(note: &Note) -> i64 {
-    if note.content.trim().is_empty()
-        || (note.content.chars().count() <= 34 && !note.content.contains('\n'))
-    {
-        NOTE_LINE_HEIGHT as i64
-    } else {
-        (NOTE_LINE_HEIGHT * 2.0) as i64
+fn wrapped_note_lines(content: &str, text_width: f32) -> i64 {
+    use unicode_width::UnicodeWidthChar as _;
+
+    if content.trim().is_empty() {
+        return 1;
     }
+    let columns_per_line = note_columns_per_line(text_width);
+    content
+        .split('\n')
+        .map(|line| {
+            let columns = line
+                .chars()
+                .map(|character| character.width().unwrap_or(0))
+                .sum::<usize>()
+                .max(1);
+            columns.div_ceil(columns_per_line) as i64
+        })
+        .sum::<i64>()
+        .max(1)
 }
 
-fn full_note_height(note: &Note) -> i64 {
-    let lines = note
-        .content
-        .lines()
-        .map(|line| line.chars().count().max(1).div_ceil(34))
-        .sum::<usize>()
-        .max(1);
-    (lines as f32 * NOTE_LINE_HEIGHT) as i64
+fn note_columns_per_line(text_width: f32) -> usize {
+    (text_width / 7.2).floor().max(1.0) as usize
+}
+
+fn truncate_note_content(content: &str, columns_per_line: usize, max_lines: usize) -> String {
+    use unicode_width::UnicodeWidthChar as _;
+
+    if wrapped_note_lines(content, columns_per_line as f32 * 7.2) <= max_lines as i64 {
+        return content.to_string();
+    }
+
+    let last_line_limit = columns_per_line.saturating_sub(3).max(1);
+    let mut output = String::new();
+    let mut line = 1usize;
+    let mut columns = 0usize;
+
+    for character in content.chars() {
+        if character == '\n' {
+            if line >= max_lines {
+                break;
+            }
+            output.push(character);
+            line += 1;
+            columns = 0;
+            continue;
+        }
+
+        let width = character.width().unwrap_or(0);
+        if columns + width > columns_per_line {
+            line += 1;
+            columns = 0;
+            if line > max_lines {
+                break;
+            }
+        }
+        if line == max_lines && columns + width > last_line_limit {
+            break;
+        }
+        output.push(character);
+        columns += width;
+    }
+
+    format!("{}...", output.trim_end())
+}
+
+fn main_note_text_width(ui: &MainWindow) -> f32 {
+    let scale = ui.window().scale_factor().max(1.0);
+    let logical_width = (ui.window().size().width as f32 / scale).max(300.0);
+    (logical_width - 58.0).max(80.0)
 }
 
 fn color_from_hex(hex: &str) -> Color {
@@ -2559,5 +2669,35 @@ fn strings_to_ui(tr: crate::i18n::Translation) -> UiStrings {
         url: tr.url.into(),
         zoom_in: tr.zoom_in.into(),
         zoom_out: tr.zoom_out.into(),
+    }
+}
+
+#[cfg(test)]
+mod text_layout_tests {
+    use super::{truncate_note_content, wrapped_note_lines};
+
+    #[test]
+    fn short_text_stays_on_one_line_without_ellipsis() {
+        let text = "hello world";
+        assert_eq!(wrapped_note_lines(text, 240.0), 1);
+        assert_eq!(truncate_note_content(text, 33, 1), text);
+    }
+
+    #[test]
+    fn long_chinese_text_keeps_prefix_and_appends_ellipsis() {
+        let text = "整理轮播相关的代码，需要可读性好，代码工整，注意不要把功能改坏了";
+        let result = truncate_note_content(text, 20, 2);
+        assert!(result.starts_with("整理轮播"));
+        assert!(result.ends_with("..."));
+        assert!(!result.starts_with("代码工整"));
+    }
+
+    #[test]
+    fn explicit_newlines_contribute_to_wrapped_line_count() {
+        assert_eq!(wrapped_note_lines("one\ntwo\nthree", 240.0), 3);
+        assert_eq!(
+            truncate_note_content("one\ntwo\nthree", 33, 2),
+            "one\ntwo..."
+        );
     }
 }

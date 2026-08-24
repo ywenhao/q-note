@@ -2,7 +2,7 @@ use std::sync::mpsc;
 
 use tray_icon::{
     TrayIconBuilder, TrayIconEvent,
-    menu::{Menu, MenuEvent, MenuItem},
+    menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
 };
 
 const MENU_TOPMOST_ID: &str = "q-note-toggle-topmost";
@@ -32,6 +32,7 @@ struct NativeMenu {
     topmost: MenuItem,
     language: MenuItem,
     dock: MenuItem,
+    _separator: PredefinedMenuItem,
     quit: MenuItem,
 }
 
@@ -41,16 +42,19 @@ impl NativeMenu {
         let topmost = MenuItem::with_id(MENU_TOPMOST_ID, &labels.topmost, true, None);
         let language = MenuItem::with_id(MENU_LANGUAGE_ID, &labels.language, true, None);
         let dock = MenuItem::with_id(MENU_DOCK_ID, &labels.dock, true, None);
+        let separator = PredefinedMenuItem::separator();
         let quit = MenuItem::with_id(MENU_QUIT_ID, &labels.quit, true, None);
         let _ = menu.append(&topmost);
         let _ = menu.append(&language);
         let _ = menu.append(&dock);
+        let _ = menu.append(&separator);
         let _ = menu.append(&quit);
         Self {
             menu,
             topmost,
             language,
             dock,
+            _separator: separator,
             quit,
         }
     }

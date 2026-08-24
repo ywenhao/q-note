@@ -4362,6 +4362,7 @@ dependencies = [
  "slint-build",
  "tempfile",
  "tray-icon",
+ "unicode-width",
  "ureq",
  "url",
  "uuid",

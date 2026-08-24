@@ -21,6 +21,7 @@ export component DockWindow inherits Window {
     in-out property <length> clip-top: 0px;
     in-out property <length> clip-width: 30px;
     in-out property <length> clip-height: 30px;
+    property <float> appear-progress: 0.0;
     callback pointer-down(float, float);
     callback pointer-move(float, float);
     callback pointer-up;
@@ -31,11 +32,23 @@ export component DockWindow inherits Window {
     callback restore-main;
     callback quit;
 
+    animate appear-progress { duration: 180ms; easing: ease-out; }
+
+    appear-timer := Timer {
+        interval: 1ms;
+        running: true;
+        triggered => {
+            self.running = false;
+            root.appear-progress = 1.0;
+        }
+    }
+
     clip-shell := Rectangle {
         x: root.clip-left;
         y: root.clip-top;
         width: root.clip-width;
         height: root.clip-height;
+        opacity: root.appear-progress;
         border-radius: 15px;
         background: Theme.app-background;
         border-width: 1px;

@@ -12,7 +12,9 @@ export component EditorWindow inherits Window {
     preferred-height: 640px;
     min-width: 420px;
     min-height: 520px;
-    background: Theme.editor-background;
+    max-width: 1000px;
+    max-height: 800px;
+    background: transparent;
     default-font-size: Theme.font-body;
     always-on-top: root.topmost;
 
@@ -47,6 +49,7 @@ export component EditorWindow inherits Window {
         border-radius: Theme.window-radius;
         border-width: root.drop-active ? 2px : 0px;
         border-color: Theme.accent;
+        clip: true;
 
         VerticalLayout {
             padding: 12px;
@@ -57,12 +60,12 @@ export component EditorWindow inherits Window {
                 background: transparent;
                 HorizontalLayout {
                     spacing: 8px;
-                    alignment: center;
+                    alignment: stretch;
                     Rectangle {
                         horizontal-stretch: 1;
                         HorizontalLayout {
                             spacing: 8px;
-                            alignment: center;
+                            alignment: start;
                             QMark { mark-size: 20px; }
                             Text {
                                 text: root.note-id == "" ? root.strings.editor-new-title : root.strings.editor-edit-title;

@@ -18,6 +18,9 @@ export component ImagePreview inherits Rectangle {
     property <length> offset-y: 0px;
     property <length> drag-offset-x: 0px;
     property <length> drag-offset-y: 0px;
+    property <float> preview-progress: root.open ? 1.0 : 0.0;
+
+    animate preview-progress { duration: 160ms; easing: ease-out; }
 
     function reset-view() {
         root.zoom = 1.0;
@@ -39,7 +42,8 @@ export component ImagePreview inherits Rectangle {
         }
     }
 
-    visible: root.open;
+    visible: root.preview-progress > 0.0;
+    opacity: root.preview-progress;
     background: #18212fc2;
     clip: true;
 
@@ -50,11 +54,11 @@ export component ImagePreview inherits Rectangle {
         }
     }
 
-    TouchArea { clicked => { root.open = false; } }
+    TouchArea { enabled: root.open; clicked => { root.open = false; } }
 
     stage := Rectangle {
         x: 44px;
-        y: 54px;
+        y: 54px + (1.0 - root.preview-progress) * 8px;
         width: parent.width - 88px;
         height: parent.height - 96px;
         background: transparent;

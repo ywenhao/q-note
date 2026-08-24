@@ -40,6 +40,7 @@ tray-icon = "0.21"
 uuid = { version = "1", features = ["v4"] }
 ureq = { version = "3", features = ["json"] }
 url = "2"
+unicode-width = "0.2"
 
 [build-dependencies]
 slint-build = "=1.17.1"

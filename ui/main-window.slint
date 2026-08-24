@@ -15,7 +15,7 @@ export component MainWindow inherits Window {
     min-height: 450px;
     max-width: 1000px;
     max-height: 800px;
-    background: Theme.app-background;
+    background: transparent;
     default-font-size: Theme.font-body;
 
     in property <[UiNote]> notes;
@@ -70,11 +70,94 @@ export component MainWindow inherits Window {
     callback confirm-update;
     callback cancel-update-download;
 
+    property <bool> modal-shown: false;
+    property <float> modal-progress: root.modal-shown ? 1.0 : 0.0;
+    property <bool> palette-shown: false;
+    property <float> palette-progress: root.palette-shown ? 1.0 : 0.0;
+    property <float> toast-progress: root.toast-visible ? 1.0 : 0.0;
+
+    animate modal-progress { duration: 160ms; easing: ease-out; }
+    animate palette-progress { duration: 140ms; easing: ease-out; }
+    animate toast-progress { duration: 140ms; easing: ease-out; }
+
+    public function close-modal() {
+        if root.modal-kind == 0 { return; }
+        modal-open-timer.stop();
+        root.modal-shown = false;
+        modal-close-timer.start();
+    }
+
+    function close-palette() {
+        if root.palette-note-id == "" { return; }
+        palette-open-timer.stop();
+        root.palette-shown = false;
+        palette-close-timer.start();
+    }
+
+    changed modal-kind => {
+        if root.modal-kind != 0 {
+            modal-close-timer.stop();
+            root.modal-shown = false;
+            modal-open-timer.start();
+        } else {
+            modal-open-timer.stop();
+            root.modal-shown = false;
+        }
+    }
+
+    changed palette-note-id => {
+        if root.palette-note-id != "" {
+            palette-close-timer.stop();
+            root.palette-shown = false;
+            palette-open-timer.start();
+        } else {
+            palette-open-timer.stop();
+            root.palette-shown = false;
+        }
+    }
+
+    modal-open-timer := Timer {
+        interval: 1ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if root.modal-kind != 0 { root.modal-shown = true; }
+        }
+    }
+
+    modal-close-timer := Timer {
+        interval: 160ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if !root.modal-shown { root.modal-kind = 0; }
+        }
+    }
+
+    palette-open-timer := Timer {
+        interval: 1ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if root.palette-note-id != "" { root.palette-shown = true; }
+        }
+    }
+
+    palette-close-timer := Timer {
+        interval: 140ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if !root.palette-shown { root.palette-note-id = ""; }
+        }
+    }
+
     always-on-top: root.topmost;
 
     Rectangle {
         background: Theme.app-background;
         border-radius: Theme.window-radius;
+        clip: true;
 
         VerticalLayout {
             padding-left: 10px;
@@ -89,7 +172,7 @@ export component MainWindow inherits Window {
 
                 HorizontalLayout {
                     spacing: 8px;
-                    alignment: center;
+                    alignment: stretch;
 
                     title-drag := Rectangle {
                         horizontal-stretch: 1;
@@ -97,7 +180,7 @@ export component MainWindow inherits Window {
 
                         HorizontalLayout {
                             spacing: 8px;
-                            alignment: center;
+                            alignment: start;
                             QMark { mark-size: 22px; }
                             Text {
                                 text: root.strings.app-title;
@@ -209,6 +292,7 @@ export component MainWindow inherits Window {
                             width: parent.width;
                             note: note;
                             strings: root.strings;
+                            palette-active: root.palette-note-id == note.id;
                             copy-note(id) => { root.copy-note(id); }
                             edit-note(id) => { root.edit-note(id); }
                             toggle-pin(id) => { root.toggle-pin(id); }
@@ -254,11 +338,12 @@ export component MainWindow inherits Window {
 
         if root.palette-note-id != "": Rectangle {
             background: transparent;
-            TouchArea { clicked => { root.palette-note-id = ""; } }
+            opacity: root.palette-progress;
+            TouchArea { enabled: root.palette-shown; clicked => { root.close-palette(); } }
 
             Rectangle {
                 x: parent.width - 126px;
-                y: 90px;
+                y: 90px + (1.0 - root.palette-progress) * 6px;
                 width: 112px;
                 height: 84px;
                 border-radius: Theme.control-radius;
@@ -282,18 +367,20 @@ export component MainWindow inherits Window {
                         mouse-cursor: pointer;
                         clicked => {
                             root.change-color(root.palette-note-id, swatch.hex);
-                            root.palette-note-id = "";
+                            root.close-palette();
                         }
                     }
                 }
             }
         }
 
-        if root.toast-visible: Rectangle {
+        Rectangle {
+            visible: root.toast-progress > 0.0;
             x: (parent.width - self.width) / 2;
-            y: parent.height - 72px;
+            y: parent.height - 72px + (1.0 - root.toast-progress) * 6px;
             width: toast-label.preferred-width + 24px;
             height: 30px;
+            opacity: root.toast-progress;
             border-radius: 15px;
             background: #1d1d1fe0;
             drop-shadow-blur: 14px;
@@ -309,11 +396,12 @@ export component MainWindow inherits Window {
 
         if root.modal-kind == 1: Rectangle {
             background: #1d1d1f3d;
-            TouchArea { clicked => { root.modal-kind = 0; } }
+            opacity: root.modal-progress;
+            TouchArea { enabled: root.modal-shown; clicked => { root.close-modal(); } }
 
             Rectangle {
                 x: max(12px, (parent.width - self.width) / 2);
-                y: (parent.height - self.height) / 2;
+                y: (parent.height - self.height) / 2 + (1.0 - root.modal-progress) * 10px;
                 width: min(420px, parent.width - 24px);
                 height: confirm-layout.preferred-height;
                 border-radius: Theme.window-radius;
@@ -344,13 +432,13 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: end;
                         spacing: 8px;
-                        PillButton { text: root.strings.cancel; clicked => { root.modal-kind = 0; } }
+                        PillButton { text: root.strings.cancel; clicked => { root.close-modal(); } }
                         PillButton {
                             text: root.strings.delete;
                             danger: true;
                             clicked => {
                                 root.confirm-delete-all();
-                                root.modal-kind = 0;
+                                root.close-modal();
                             }
                         }
                     }
@@ -360,11 +448,12 @@ export component MainWindow inherits Window {
 
         if root.modal-kind == 2: Rectangle {
             background: #1d1d1f3d;
-            TouchArea { clicked => { root.modal-kind = 0; } }
+            opacity: root.modal-progress;
+            TouchArea { enabled: root.modal-shown; clicked => { root.close-modal(); } }
 
             Rectangle {
                 x: max(12px, (parent.width - self.width) / 2);
-                y: (parent.height - self.height) / 2;
+                y: (parent.height - self.height) / 2 + (1.0 - root.modal-progress) * 10px;
                 width: min(300px, parent.width - 24px);
                 height: settings-layout.preferred-height;
                 border-radius: Theme.window-radius;
@@ -379,17 +468,24 @@ export component MainWindow inherits Window {
                 settings-layout := VerticalLayout {
                     padding: 16px;
                     spacing: 10px;
-                    HorizontalLayout {
-                        alignment: center;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 28px;
                         Text {
-                            horizontal-stretch: 1;
                             text: root.strings.settings-title;
                             color: Theme.text;
                             font-size: Theme.font-title;
                             font-weight: 650;
+                            horizontal-alignment: center;
                             vertical-alignment: center;
                         }
-                        IconButton { icon: "×"; clicked => { root.modal-kind = 0; } }
+                        IconButton {
+                            x: parent.width - self.width;
+                            y: 0px;
+                            icon: "×";
+                            tooltip: root.strings.close-panel;
+                            clicked => { root.close-modal(); }
+                        }
                     }
 
                     Rectangle {
@@ -469,10 +565,11 @@ export component MainWindow inherits Window {
 
         if root.modal-kind == 3: Rectangle {
             background: #1d1d1f3d;
-            TouchArea { clicked => { root.modal-kind = 0; } }
+            opacity: root.modal-progress;
+            TouchArea { enabled: root.modal-shown; clicked => { root.close-modal(); } }
             Rectangle {
                 x: max(12px, (parent.width - self.width) / 2);
-                y: (parent.height - self.height) / 2;
+                y: (parent.height - self.height) / 2 + (1.0 - root.modal-progress) * 10px;
                 width: min(420px, parent.width - 24px);
                 height: update-confirm-layout.preferred-height;
                 border-radius: Theme.window-radius;
@@ -508,7 +605,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: end;
                         spacing: 8px;
-                        PillButton { text: root.strings.cancel; clicked => { root.modal-kind = 0; } }
+                        PillButton { text: root.strings.cancel; clicked => { root.close-modal(); } }
                         PillButton { text: root.strings.update-confirm; primary: true; clicked => { root.confirm-update(); } }
                     }
                 }
@@ -517,9 +614,10 @@ export component MainWindow inherits Window {
 
         if root.modal-kind == 4: Rectangle {
             background: #1d1d1f3d;
+            opacity: root.modal-progress;
             Rectangle {
                 x: max(12px, (parent.width - self.width) / 2);
-                y: (parent.height - self.height) / 2;
+                y: (parent.height - self.height) / 2 + (1.0 - root.modal-progress) * 10px;
                 width: min(420px, parent.width - 24px);
                 height: update-download-layout.preferred-height;
                 border-radius: Theme.window-radius;
