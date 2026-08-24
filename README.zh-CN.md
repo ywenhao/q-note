@@ -22,7 +22,9 @@
 
 Q Note 是一个贴近鼠标的小型桌面便签应用，适合快速记录和反复复制：保存文本片段、截图、图片 URL、本地路径和参考备注；置顶重要条目；给卡片上色；需要腾出屏幕时收成 30px 悬浮球。
 
-本分支使用 **GPUI** + **gpui-component** 完全重写（替代 Tauri + Vue）。数据仍保存在同一 SQLite 路径 `~/.q-note/q-note.db`。
+完整且与框架无关的功能、交互和迁移约束见 [功能规格](./docs/FEATURES.md)。
+
+本分支使用 **Slint 1.17** + Rust 完全重写（替代 GPUI 版和更早的 Tauri + Vue 版）。数据仍保存在同一 SQLite 路径 `~/.q-note/q-note.db`。
 
 ## 快速开始
 
@@ -60,12 +62,12 @@ cargo run
 
 | 领域   | 方案                                      |
 | ------ | ----------------------------------------- |
-| 桌面 UI | GPUI 0.2 + gpui-component 0.5            |
-| 样式   | 自定义 Q Note 主题 + 原有色板             |
+| 桌面 UI | Slint 1.17 + winit 后端                  |
+| 样式   | Slint 自定义组件 + 统一 Q Note 视觉令牌    |
 | 存储   | SQLite（`rusqlite`）                      |
 | 托盘   | `tray-icon`                               |
 
-> crates.io 上的 `gpui-base` 只是空壳占位程序，**不能**用来保样式。本项目通过 `gpui-component` 主题定制 + 手绘壳层/卡片（`#ffd150`）保持原有视觉。
+界面由 Slint 声明式组件绘制，并通过 Rust 桥接 SQLite、系统托盘、剪贴板、文件对话框、窗口贴边和自更新流程。主面板继续使用 `#ffd150`。
 
 ## 数据位置
 

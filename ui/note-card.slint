@@ -1,0 +1,242 @@
+import { Theme } from "tokens.slint";
+import { IconButton } from "components.slint";
+import { UiNote, UiStrings } from "models.slint";
+
+export component NoteCard inherits Rectangle {
+    in property <UiNote> note;
+    in property <UiStrings> strings;
+    callback copy-note(string);
+    callback edit-note(string);
+    callback toggle-pin(string);
+    callback open-palette(string, string);
+    callback delete-note(string);
+    callback preview-image(string, string);
+    callback resize-note(string, int);
+    callback make-drag-data(string) -> data-transfer;
+    callback reorder-note(data-transfer, string, bool);
+
+    property <bool> actions-visible: false;
+    property <int> resize-start-height: root.note.text-height;
+    property <data-transfer> drag-payload;
+
+    close-actions-timer := Timer {
+        interval: 260ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if !card-area.has-hover && !actions-hover.has-hover {
+                root.actions-visible = false;
+            }
+        }
+    }
+
+    width: 100%;
+    height: max(56px, card-layout.preferred-height);
+    border-radius: Theme.card-radius;
+    border-width: 1px;
+    border-color: root.note.pinned ? #007aff47 : #ffffff80;
+    background: root.note.color;
+    drop-shadow-blur: card-area.has-hover ? 20px : 14px;
+    drop-shadow-offset-y: card-area.has-hover ? 8px : 4px;
+    drop-shadow-color: card-area.has-hover ? #1f232824 : #1f23281a;
+
+    card-layout := VerticalLayout {
+        padding-left: 10px;
+        padding-right: 28px;
+        padding-top: 10px;
+        padding-bottom: 9px;
+        spacing: 8px;
+
+        Text {
+            text: root.note.display-content;
+            color: root.note.muted ? #1f232873 : Theme.text;
+            font-size: Theme.font-body;
+            wrap: word-wrap;
+            overflow: clip;
+            height: root.note.text-height * 1px;
+            vertical-alignment: top;
+        }
+
+        if root.note.images.length > 0: HorizontalLayout {
+            spacing: 8px;
+            height: 58px;
+            for attachment in root.note.images: Rectangle {
+                width: 58px;
+                height: 58px;
+                border-radius: 7px;
+                border-width: 1px;
+                border-color: #1d273524;
+                background: #ffffff75;
+                clip: true;
+
+                Image {
+                    source: attachment.image;
+                    image-fit: cover;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.preview-image(root.note.id, attachment.id); }
+                }
+            }
+        }
+
+        if root.note.files.length > 0: VerticalLayout {
+            spacing: 6px;
+            for attachment in root.note.files: Rectangle {
+                height: 30px;
+                border-radius: Theme.control-radius;
+                border-width: 1px;
+                border-color: Theme.border;
+                background: #ffffff7a;
+
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 6px;
+                    alignment: center;
+                    Image { width: 13px; height: 13px; source: @image-url("../assets/file.svg"); colorize: Theme.text-muted; image-fit: contain; }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: attachment.label;
+                        color: #1f2328c2;
+                        font-size: Theme.font-small;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    if root.note.pinned: Rectangle {
+        x: 4px;
+        y: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        background: #ffffff6b;
+        Text {
+            text: "•";
+            color: #007affc2;
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    drag-source := DragArea {
+        data: root.drag-payload;
+        allow-move: true;
+
+        card-area := TouchArea {
+            mouse-cursor: pointer;
+            changed has-hover => {
+                if self.has-hover {
+                    root.actions-visible = true;
+                    close-actions-timer.stop();
+                } else {
+                    close-actions-timer.start();
+                }
+            }
+            pointer-event(event) => {
+                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                    root.drag-payload = root.make-drag-data(root.note.id);
+                }
+            }
+            clicked => { root.copy-note(root.note.id); }
+        }
+    }
+
+    DropArea {
+        can-drop(event) => {
+            return DragAction.move;
+        }
+        dropped(event) => {
+            root.reorder-note(event.data, root.note.id, event.position.y > self.height / 2);
+            return DragAction.move;
+        }
+    }
+
+    ContextMenuArea {
+        Menu {
+            MenuItem { title: root.strings.copy; activated => { root.copy-note(root.note.id); } }
+            MenuItem { title: root.strings.edit; activated => { root.edit-note(root.note.id); } }
+            MenuItem { title: root.note.pinned ? root.strings.unpin : root.strings.pin; activated => { root.toggle-pin(root.note.id); } }
+            MenuSeparator { }
+            MenuItem { title: root.strings.delete; activated => { root.delete-note(root.note.id); } }
+        }
+    }
+
+    actions-area := Rectangle {
+        visible: root.actions-visible;
+        x: parent.width - self.width - 4px;
+        y: 4px;
+        width: actions.preferred-width + 8px;
+        height: 30px;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: #3c3c4314;
+        background: #ffffffdb;
+        drop-shadow-blur: 10px;
+        drop-shadow-color: #1f23281f;
+
+        actions-hover := TouchArea {
+            changed has-hover => {
+                if self.has-hover {
+                    root.actions-visible = true;
+                    close-actions-timer.stop();
+                } else {
+                    close-actions-timer.start();
+                }
+            }
+        }
+
+        actions := HorizontalLayout {
+            padding: 3px;
+            spacing: 2px;
+            alignment: center;
+            IconButton {
+                width: 22px; height: 22px; use-image: true; icon-size: 14px;
+                icon-image: root.note.pinned ? @image-url("../assets/pin-off.svg") : @image-url("../assets/pin.svg");
+                tooltip: root.note.pinned ? root.strings.unpin : root.strings.pin;
+                clicked => { root.toggle-pin(root.note.id); }
+            }
+            IconButton { width: 22px; height: 22px; use-image: true; icon-size: 14px; icon-image: @image-url("../assets/edit.svg"); tooltip: root.strings.edit; clicked => { root.edit-note(root.note.id); } }
+            IconButton { width: 22px; height: 22px; use-image: true; icon-size: 14px; icon-image: @image-url("../assets/palette.svg"); tooltip: root.strings.color; clicked => { root.open-palette(root.note.id, root.note.color-hex); } }
+            IconButton { width: 22px; height: 22px; use-image: true; icon-size: 14px; icon-image: @image-url("../assets/copy.svg"); tooltip: root.strings.copy; clicked => { root.copy-note(root.note.id); } }
+            IconButton {
+                width: 22px; height: 22px; use-image: true; icon-size: 14px; icon-image: @image-url("../assets/trash.svg");
+                tooltip: root.strings.delete;
+                foreground: Theme.danger; hover-foreground: Theme.danger;
+                clicked => { root.delete-note(root.note.id); }
+            }
+        }
+    }
+
+    resize-handle := Rectangle {
+        x: parent.width - 36px;
+        y: parent.height - 12px;
+        width: 24px;
+        height: 11px;
+        border-radius: 6px;
+        visible: card-area.has-hover || resize-area.pressed;
+        background: resize-area.has-hover ? #ffffff80 : transparent;
+        Image { x: 6px; y: 1px; width: 12px; height: 10px; source: @image-url("../assets/grip-horizontal.svg"); colorize: Theme.text-muted; image-fit: contain; }
+        resize-area := TouchArea {
+            mouse-cursor: ns-resize;
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down {
+                    root.resize-start-height = root.note.text-height;
+                }
+                if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
+                    root.resize-note(root.note.id, root.note.text-height);
+                }
+            }
+            moved => {
+                root.resize-note(root.note.id, root.resize-start-height + (self.mouse-y - self.pressed-y) / 1px);
+            }
+        }
+    }
+
+}

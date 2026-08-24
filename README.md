@@ -22,7 +22,9 @@
 
 Q Note is a small desktop app for keeping short notes close to your cursor. It is built for quick capture and repeated copy workflows: save text snippets, screenshots, image URLs, local file paths, and small reference notes; pin the important ones; mark cards with color; and collapse the whole app into a tiny floating Q icon when you need the screen space.
 
-This branch rewrites the app on **GPUI** + **gpui-component** (replacing Tauri + Vue). Data stays in the same SQLite database under `~/.q-note/q-note.db`.
+See the framework-independent [functional specification](./docs/FEATURES.md) for the complete behavior, interaction, and migration baseline.
+
+This branch rewrites the app with **Slint 1.17** + Rust (replacing the GPUI version and the earlier Tauri + Vue version). Data stays in the same SQLite database under `~/.q-note/q-note.db`.
 
 ## Quick Start
 
@@ -67,14 +69,14 @@ sudo apt-get install -y libgtk-3-dev libcairo2-dev libpango1.0-dev \
 
 | Area          | Tooling                                      |
 | ------------- | -------------------------------------------- |
-| Desktop UI    | GPUI 0.2 + gpui-component 0.5                |
-| Styling       | Custom Q Note theme + original color tokens  |
+| Desktop UI    | Slint 1.17 + winit backend                   |
+| Styling       | Custom Slint components + Q Note tokens      |
 | Storage       | SQLite (`rusqlite`, bundled)                 |
 | Tray          | `tray-icon`                                  |
 | File dialogs  | `rfd`                                        |
 | Autostart     | `auto-launch`                                |
 
-> Note: crates.io `gpui-base` is an empty placeholder binary and is **not** used. Visual parity is done with `gpui-component` Theme customization plus hand-styled shell/cards (`#ffd150` board, cream editor, pastel note colors).
+The UI is rendered with declarative Slint components and connected from Rust to SQLite, the system tray, clipboard, file dialogs, edge docking, and self-update workflows. The yellow `#ffd150` board, cream editor, and pastel note palette are preserved.
 
 ## Data Location
 

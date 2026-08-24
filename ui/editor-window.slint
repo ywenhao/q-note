@@ -1,0 +1,320 @@
+import { Theme } from "tokens.slint";
+import { QMark, IconButton, PillButton, WindowControls } from "components.slint";
+import { UiAttachment, UiColor, UiStrings } from "models.slint";
+import { ImagePreview } from "image-preview.slint";
+
+export component EditorWindow inherits Window {
+    title: root.note-id == "" ? root.strings.editor-new-title : root.strings.editor-edit-title;
+    icon: @image-url("../assets/app-icon.png");
+    no-frame: true;
+    resize-border-width: 6px;
+    preferred-width: 520px;
+    preferred-height: 640px;
+    min-width: 420px;
+    min-height: 520px;
+    background: Theme.editor-background;
+    default-font-size: Theme.font-body;
+    always-on-top: root.topmost;
+
+    in property <UiStrings> strings;
+    in property <[UiColor]> palette;
+    in property <[UiAttachment]> images;
+    in property <[UiAttachment]> files;
+    in property <bool> topmost: false;
+    in property <string> note-id;
+    in-out property <string> content-text;
+    in-out property <string> media-value;
+    in-out property <string> selected-color;
+    in-out property <bool> pinned: false;
+    in-out property <bool> drop-active: false;
+    in-out property <bool> preview-open: false;
+    in-out property <int> preview-index: 0;
+
+    callback start-window-drag;
+    callback toggle-topmost;
+    callback minimize;
+    callback close-editor;
+    callback save-editor;
+    callback pick-images;
+    callback add-media(string);
+    callback remove-attachment(string);
+    callback preview-image(string);
+    callback paste-image() -> bool;
+    callback draft-changed;
+
+    Rectangle {
+        background: Theme.editor-background;
+        border-radius: Theme.window-radius;
+        border-width: root.drop-active ? 2px : 0px;
+        border-color: Theme.accent;
+
+        VerticalLayout {
+            padding: 12px;
+            spacing: 12px;
+
+            Rectangle {
+                height: 34px;
+                background: transparent;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: center;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: center;
+                            QMark { mark-size: 20px; }
+                            Text {
+                                text: root.note-id == "" ? root.strings.editor-new-title : root.strings.editor-edit-title;
+                                color: Theme.text;
+                                font-size: Theme.font-title;
+                                font-weight: 650;
+                                vertical-alignment: center;
+                            }
+                        }
+                        TouchArea {
+                            pointer-event(event) => {
+                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                    root.start-window-drag();
+                                }
+                            }
+                        }
+                    }
+                    WindowControls {
+                        always-on-top: root.topmost;
+                        topmost-tooltip: root.topmost ? root.strings.always-off : root.strings.always-on;
+                        minimize-tooltip: root.strings.minimize;
+                        close-tooltip: root.strings.close-panel;
+                        toggle-topmost => { root.toggle-topmost(); }
+                        minimize => { root.minimize(); }
+                        close => { root.close-editor(); }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 24px;
+                for swatch[index] in root.palette: Rectangle {
+                    x: index * 27px;
+                    y: 2px;
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 10px;
+                    border-width: swatch.hex == root.selected-color ? 2px : 1px;
+                    border-color: swatch.hex == root.selected-color ? #1d273573 : #1d273529;
+                    background: swatch.value;
+                    drop-shadow-blur: swatch.hex == root.selected-color ? 5px : 0px;
+                    drop-shadow-color: #1f232829;
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.selected-color = swatch.hex;
+                            root.draft-changed();
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                min-height: 140px;
+                border-width: 1px;
+                border-color: #3c3c431a;
+                background: #ffffff80;
+                clip: true;
+
+                if root.content-text == "" && !content-input.has-focus: Text {
+                    x: 16px;
+                    y: 14px;
+                    width: parent.width - 32px;
+                    text: root.strings.content-placeholder;
+                    color: #3c3c4378;
+                    font-size: Theme.font-body;
+                    wrap: word-wrap;
+                }
+
+                content-input := TextInput {
+                    x: 16px;
+                    y: 14px;
+                    width: parent.width - 32px;
+                    height: parent.height - 28px;
+                    text <=> root.content-text;
+                    color: Theme.text;
+                    font-size: Theme.font-body;
+                    single-line: false;
+                    wrap: word-wrap;
+                    edited => { root.draft-changed(); }
+                    key-pressed(event) => {
+                        if event.modifiers.control && (event.text == "v" || event.text == "V") {
+                            if root.paste-image() { return accept; }
+                        }
+                        return reject;
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 36px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: center;
+                    PillButton {
+                        text: root.strings.add-image;
+                        use-image: true;
+                        icon-image: @image-url("../assets/image.svg");
+                        clicked => { root.pick-images(); }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        min-width: 190px;
+                        height: 34px;
+                        border-radius: Theme.control-radius;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        background: #ffffff9e;
+                        if root.media-value == "" && !media-input.has-focus: Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            text: root.strings.media-placeholder;
+                            color: #3c3c4378;
+                            font-size: Theme.font-body;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
+                        media-input := TextInput {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            height: parent.height;
+                            text <=> root.media-value;
+                            color: Theme.text;
+                            font-size: Theme.font-body;
+                            single-line: true;
+                            accepted => { root.add-media(root.media-value); }
+                        }
+                    }
+                    PillButton {
+                        text: root.strings.add-media;
+                        icon: "+";
+                        clicked => { root.add-media(root.media-value); }
+                    }
+                }
+            }
+
+            if root.images.length > 0 || root.files.length > 0: Rectangle {
+                height: min(180px, attachment-layout.preferred-height);
+                clip: true;
+
+                attachment-scroll := Flickable {
+                    viewport-width: self.width;
+                    viewport-height: max(self.height, attachment-layout.preferred-height);
+
+                    attachment-layout := VerticalLayout {
+                        width: parent.width;
+                        spacing: 10px;
+                        if root.images.length > 0: Rectangle {
+                            height: 86px;
+                            image-strip := Flickable {
+                                viewport-width: max(self.width, image-row.preferred-width);
+                                viewport-height: self.height;
+                                image-row := HorizontalLayout {
+                                    height: 84px;
+                                    spacing: 8px;
+                                    for attachment in root.images: Rectangle {
+                                        width: 108px;
+                                        height: 84px;
+                                        border-radius: Theme.control-radius;
+                                        border-width: 1px;
+                                        border-color: #1d273524;
+                                        background: #ffffff80;
+                                        clip: true;
+                                        Image { source: attachment.image; image-fit: cover; }
+                                        TouchArea { mouse-cursor: pointer; clicked => { root.preview-image(attachment.id); } }
+                                        Rectangle {
+                                            x: parent.width - 28px; y: 6px; width: 22px; height: 22px;
+                                            border-radius: 11px; background: #ffffffdb;
+                                            Text { text: "×"; color: Theme.danger; font-size: 15px; horizontal-alignment: center; vertical-alignment: center; }
+                                            TouchArea { mouse-cursor: pointer; clicked => { root.remove-attachment(attachment.id); } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        for attachment in root.files: Rectangle {
+                            height: 38px;
+                            border-radius: Theme.control-radius;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            background: #ffffff9e;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 6px;
+                                spacing: 7px;
+                                alignment: center;
+                                Image { width: 14px; height: 14px; source: @image-url("../assets/file.svg"); colorize: Theme.text-muted; image-fit: contain; }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: attachment.label;
+                                    color: Theme.text;
+                                    font-size: Theme.font-small;
+                                    overflow: elide;
+                                    vertical-alignment: center;
+                                }
+                                IconButton {
+                                    width: 24px; height: 24px; icon: "×";
+                                    foreground: Theme.danger; hover-foreground: Theme.danger;
+                                    clicked => { root.remove-attachment(attachment.id); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 30px;
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 8px;
+                    Rectangle {
+                        width: pin-row.preferred-width;
+                        height: 28px;
+                        pin-row := HorizontalLayout {
+                            spacing: 8px;
+                            alignment: center;
+                            Rectangle {
+                                width: 16px; height: 16px; border-radius: 3px;
+                                border-width: 1px;
+                                border-color: root.pinned ? Theme.accent : #3c3c4357;
+                                background: root.pinned ? Theme.accent : #ffffffb8;
+                                if root.pinned: Text { text: "✓"; color: white; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            Text { text: root.strings.pin; color: Theme.text; font-size: Theme.font-body; vertical-alignment: center; }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.pinned = !root.pinned;
+                                root.draft-changed();
+                            }
+                        }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    PillButton { text: root.strings.cancel; clicked => { root.close-editor(); } }
+                    PillButton { text: root.strings.save; primary: true; clicked => { root.save-editor(); } }
+                }
+            }
+        }
+
+        ImagePreview {
+            open <=> root.preview-open;
+            images: root.images;
+            index <=> root.preview-index;
+            previous-label: root.strings.previous-image;
+            next-label: root.strings.next-image;
+            zoom-in-label: root.strings.zoom-in;
+            zoom-out-label: root.strings.zoom-out;
+            reset-label: root.strings.reset-view;
+            close-label: root.strings.cancel;
+        }
+    }
+}

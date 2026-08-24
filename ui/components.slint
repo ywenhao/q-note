@@ -1,0 +1,175 @@
+import { Theme } from "tokens.slint";
+
+export component QMark inherits Rectangle {
+    in property <length> mark-size: 24px;
+    width: root.mark-size;
+    height: root.mark-size;
+    border-radius: root.mark-size / 2;
+    background: Theme.app-background;
+    border-width: 1px;
+    border-color: #18212f20;
+
+    Text {
+        text: "Q";
+        color: #18212f;
+        font-size: root.mark-size * 0.55;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <image> icon-image;
+    in property <bool> use-image: false;
+    in property <length> icon-size: 15px;
+    in property <string> tooltip;
+    in property <color> foreground: Theme.text-muted;
+    in property <color> hover-foreground: Theme.accent;
+    in property <color> hover-background: #ffffff78;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    width: 28px;
+    height: 28px;
+    border-radius: Theme.control-radius;
+    background: area.has-hover && root.enabled ? root.hover-background : transparent;
+    opacity: root.enabled ? 1 : 0.38;
+
+    if !root.use-image: Text {
+        text: root.icon;
+        color: area.has-hover && root.enabled ? root.hover-foreground : root.foreground;
+        font-size: 16px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+
+    if root.use-image: Image {
+        x: (parent.width - root.icon-size) / 2;
+        y: (parent.height - root.icon-size) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        source: root.icon-image;
+        colorize: area.has-hover && root.enabled ? root.hover-foreground : root.foreground;
+        image-fit: contain;
+    }
+
+    area := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Tooltip { text: @markdown("\{root.tooltip}"); }
+}
+
+export component PillButton inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <image> icon-image;
+    in property <bool> use-image: false;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    min-width: 34px;
+    height: 30px;
+    border-radius: Theme.control-radius;
+    border-width: 1px;
+    border-color: root.primary ? #1d1d1f2e : Theme.border;
+    background: !root.enabled ? #ffffff42
+        : root.primary ? (area.pressed ? #1d1d1fbf : #1d1d1feb)
+        : area.has-hover ? #ffffffb8 : Theme.surface;
+    opacity: root.enabled ? 1 : 0.42;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        alignment: center;
+
+        if root.icon != "" && !root.use-image: Text {
+            text: root.icon;
+            color: root.primary ? white : root.danger ? Theme.danger : Theme.text;
+            font-size: 14px;
+            vertical-alignment: center;
+        }
+
+
+        if root.use-image: Image {
+            width: 15px;
+            height: 15px;
+            source: root.icon-image;
+            colorize: root.primary ? white : root.danger ? Theme.danger : Theme.text;
+            image-fit: contain;
+        }
+
+        if root.text != "": Text {
+            text: root.text;
+            color: root.primary ? white : root.danger ? Theme.danger : Theme.text;
+            font-size: Theme.font-body;
+            vertical-alignment: center;
+        }
+    }
+
+    area := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component WindowControls inherits Rectangle {
+    in property <bool> always-on-top: false;
+    in property <string> topmost-tooltip;
+    in property <string> minimize-tooltip;
+    in property <string> close-tooltip;
+    callback toggle-topmost;
+    callback minimize;
+    callback close;
+
+    width: controls.preferred-width;
+    height: 24px;
+    border-radius: 12px;
+    background: #ffffff42;
+    border-width: 1px;
+    border-color: #ffffff6b;
+
+    controls := HorizontalLayout {
+        padding: 2px;
+        spacing: 2px;
+        alignment: center;
+
+        IconButton {
+            width: 18px;
+            height: 18px;
+            use-image: true;
+            icon-size: 11px;
+            icon-image: root.always-on-top ? @image-url("../assets/pin-off.svg") : @image-url("../assets/pin.svg");
+            tooltip: root.topmost-tooltip;
+            foreground: root.always-on-top ? Theme.accent : Theme.text-muted;
+            clicked => { root.toggle-topmost(); }
+        }
+        IconButton {
+            width: 18px;
+            height: 18px;
+            icon: "−";
+            tooltip: root.minimize-tooltip;
+            hover-background: #ffcc00;
+            hover-foreground: white;
+            clicked => { root.minimize(); }
+        }
+        IconButton {
+            width: 18px;
+            height: 18px;
+            icon: "×";
+            tooltip: root.close-tooltip;
+            hover-background: Theme.danger;
+            hover-foreground: white;
+            clicked => { root.close(); }
+        }
+    }
+}

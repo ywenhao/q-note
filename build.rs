@@ -1,4 +1,6 @@
 fn main() {
+    slint_build::compile("ui/app.slint").expect("failed to compile Slint UI");
+
     println!("cargo:rerun-if-changed=app.rc");
     println!("cargo:rerun-if-changed=assets/app-icon.ico");
 

@@ -86,6 +86,7 @@ impl Translation {
         }
     }
 
+    #[allow(dead_code)]
     pub fn update_available_title(&self, version: &str) -> String {
         if self.language_toggle == "en" {
             format!("检测到新版本： {version}")

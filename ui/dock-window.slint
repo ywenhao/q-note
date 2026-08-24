@@ -1,0 +1,75 @@
+import { Theme } from "tokens.slint";
+import { QMark } from "components.slint";
+import { UiStrings } from "models.slint";
+
+export component DockWindow inherits Window {
+    title: "Q Note";
+    icon: @image-url("../assets/app-icon.png");
+    no-frame: true;
+    preferred-width: 30px;
+    preferred-height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    max-width: 30px;
+    max-height: 30px;
+    background: transparent;
+    always-on-top: root.topmost;
+
+    in property <UiStrings> strings;
+    in property <bool> topmost: false;
+    in-out property <length> clip-left: 0px;
+    in-out property <length> clip-top: 0px;
+    in-out property <length> clip-width: 30px;
+    in-out property <length> clip-height: 30px;
+    callback pointer-down(float, float);
+    callback pointer-move(float, float);
+    callback pointer-up;
+    callback clicked;
+    callback hover-changed(bool);
+    callback toggle-topmost;
+    callback toggle-language;
+    callback restore-main;
+    callback quit;
+
+    clip-shell := Rectangle {
+        x: root.clip-left;
+        y: root.clip-top;
+        width: root.clip-width;
+        height: root.clip-height;
+        border-radius: 15px;
+        background: Theme.app-background;
+        border-width: 1px;
+        border-color: #18212f20;
+        clip: true;
+        QMark { x: -root.clip-left; y: -root.clip-top; mark-size: 30px; border-width: 0px; }
+
+        dock-touch := TouchArea {
+            mouse-cursor: pointer;
+            changed has-hover => { root.hover-changed(self.has-hover); }
+            pointer-event(event) => {
+                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                    root.pointer-down(self.mouse-x / 1px, self.mouse-y / 1px);
+                }
+                if event.button == PointerEventButton.left
+                    && (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                    root.pointer-up();
+                }
+            }
+            moved => { root.pointer-move(self.mouse-x / 1px, self.mouse-y / 1px); }
+            clicked => { root.clicked(); }
+        }
+
+        ContextMenuArea {
+            Menu {
+                MenuItem {
+                    title: root.topmost ? root.strings.always-off : root.strings.always-on;
+                    activated => { root.toggle-topmost(); }
+                }
+                MenuItem { title: root.strings.switch-language; activated => { root.toggle-language(); } }
+                MenuItem { title: root.strings.switch-main-window; activated => { root.restore-main(); } }
+                MenuSeparator { }
+                MenuItem { title: root.strings.quit; activated => { root.quit(); } }
+            }
+        }
+    }
+}

@@ -1,15 +1,21 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 pub const APP_BACKGROUND: u32 = 0xffd150;
+#[allow(dead_code)]
 pub const EDITOR_BACKGROUND: u32 = 0xfff9df;
 pub const DOCK_WINDOW_SIZE: f32 = 30.0;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 300.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = 450.0;
+#[allow(dead_code)]
 pub const MAX_WINDOW_WIDTH: f32 = 1000.0;
+#[allow(dead_code)]
 pub const MAX_WINDOW_HEIGHT: f32 = 800.0;
 pub const EDITOR_WINDOW_WIDTH: f32 = 520.0;
 pub const EDITOR_WINDOW_HEIGHT: f32 = 640.0;
+#[allow(dead_code)]
 pub const EDITOR_WINDOW_MIN_WIDTH: f32 = 420.0;
+#[allow(dead_code)]
 pub const EDITOR_WINDOW_MIN_HEIGHT: f32 = 520.0;
 pub const NOTE_LINE_HEIGHT: f32 = 22.0;
 
@@ -28,6 +34,7 @@ pub enum Language {
 }
 
 impl Language {
+    #[allow(dead_code)]
     pub fn element_key(self) -> u64 {
         match self {
             Language::Zh => 0,
@@ -90,6 +97,7 @@ impl Note {
             .join("\n")
     }
 
+    #[allow(dead_code)]
     pub fn display_lines(&self) -> i64 {
         if let Some(h) = self.text_height {
             return (h as f32 / NOTE_LINE_HEIGHT).round().max(1.0) as i64;
