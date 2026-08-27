@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    path::PathBuf,
-    sync::Mutex,
-};
+use std::{fs, path::PathBuf, sync::Mutex};
 
 use tauri::{
     image::Image,
@@ -29,6 +25,15 @@ const DATA_DIR_NAME: &str = ".q-note";
 #[serde(rename_all = "camelCase")]
 struct EditorOpenPayload {
     note_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DockClipRect {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
 }
 
 #[derive(Default)]
@@ -247,6 +252,44 @@ fn apply_main_window_size_constraints(window: &WebviewWindow) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn set_dock_window_clip(app: tauri::AppHandle, clip: Option<DockClipRect>) -> Result<(), String> {
+    let window = app
+        .get_webview_window("dock")
+        .ok_or_else(|| "Dock window not found".to_string())?;
+
+    #[cfg(windows)]
+    {
+        use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
+
+        let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+        if let Some(clip) = clip {
+            if clip.left < 0 || clip.top < 0 || clip.right <= clip.left || clip.bottom <= clip.top {
+                return Err("Invalid dock window clip rectangle".to_string());
+            }
+
+            let region = unsafe { CreateRectRgn(clip.left, clip.top, clip.right, clip.bottom) };
+            if region.is_invalid() {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+
+            if unsafe { SetWindowRgn(hwnd, Some(region), true) } == 0 {
+                unsafe {
+                    let _ = DeleteObject(region.into());
+                }
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+        } else if unsafe { SetWindowRgn(hwnd, None, true) } == 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+    }
+
+    #[cfg(not(windows))]
+    let _ = (window, clip);
+
+    Ok(())
+}
+
+#[tauri::command]
 fn apply_main_window_max_size(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
@@ -425,7 +468,9 @@ async fn open_editor_window(
         window
             .set_decorations(false)
             .map_err(|error| error.to_string())?;
-        window.set_shadow(false).map_err(|error| error.to_string())?;
+        window
+            .set_shadow(false)
+            .map_err(|error| error.to_string())?;
         apply_editor_window_size_constraints(&window)?;
         window
             .set_always_on_top(always_on_top)
@@ -505,6 +550,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             apply_main_window_max_size,
+            set_dock_window_clip,
             get_bundle_type,
             quit_app,
             get_database_url,

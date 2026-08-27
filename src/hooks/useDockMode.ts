@@ -152,7 +152,7 @@ export function useDockMode(options: UseDockModeOptions) {
     }
     clearDockRevealAnchor();
     dockDrag.value = true;
-    dockDragSession = await beginQIconDrag();
+    dockDragSession = await beginQIconDrag(options.settings.value.dockEdge);
     if (!dockDragSession) {
       dockDrag.value = false;
     }

@@ -38,6 +38,13 @@ export interface QIconDragSession {
   window: Window;
 }
 
+interface DockClipRect {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
@@ -417,9 +424,73 @@ function getDockEdgeState(
   };
 }
 
-async function moveDockWindow(window: Window, state: WindowState, animate = false) {
+function getDockClipRect(
+  position: PhysicalPosition,
+  size: PhysicalSize,
+  monitor: Monitor,
+): DockClipRect | null {
+  const area = getWorkArea(monitor);
+  const clip = {
+    bottom: Math.round(clamp(area.bottom - position.y, 0, size.height)),
+    left: Math.round(clamp(area.left - position.x, 0, size.width)),
+    right: Math.round(clamp(area.right - position.x, 0, size.width)),
+    top: Math.round(clamp(area.top - position.y, 0, size.height)),
+  };
+
+  if (
+    clip.left === 0 &&
+    clip.top === 0 &&
+    clip.right === size.width &&
+    clip.bottom === size.height
+  ) {
+    return null;
+  }
+
+  return clip;
+}
+
+function getDockClipArea(clip: DockClipRect | null, size: PhysicalSize) {
+  return clip ? (clip.right - clip.left) * (clip.bottom - clip.top) : size.width * size.height;
+}
+
+function dockClipRectsMatch(left: DockClipRect | null, right: DockClipRect | null) {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      left.bottom === right.bottom &&
+      left.left === right.left &&
+      left.right === right.right &&
+      left.top === right.top)
+  );
+}
+
+async function setDockWindowClip(clip: DockClipRect | null) {
+  await invoke("set_dock_window_clip", { clip });
+}
+
+async function moveDockWindow(
+  window: Window,
+  state: WindowState,
+  animate = false,
+  clipMonitor: Monitor | null = null,
+) {
+  const size = clipMonitor ? await window.outerSize() : null;
   if (!animate) {
-    await window.setPosition(new PhysicalPosition(state.x, state.y));
+    const start = await window.outerPosition();
+    const nextPosition = new PhysicalPosition(state.x, state.y);
+    const startClip = clipMonitor && size ? getDockClipRect(start, size, clipMonitor) : null;
+    const nextClip = clipMonitor && size ? getDockClipRect(nextPosition, size, clipMonitor) : null;
+
+    if (clipMonitor && size && getDockClipArea(nextClip, size) < getDockClipArea(startClip, size)) {
+      await setDockWindowClip(nextClip);
+      await window.setPosition(nextPosition);
+    } else {
+      await window.setPosition(nextPosition);
+      if (clipMonitor) {
+        await setDockWindowClip(nextClip);
+      }
+    }
     return;
   }
 
@@ -428,28 +499,54 @@ async function moveDockWindow(window: Window, state: WindowState, animate = fals
   const deltaY = state.y - start.y;
 
   if (deltaX === 0 && deltaY === 0) {
+    if (clipMonitor && size) {
+      await setDockWindowClip(getDockClipRect(start, size, clipMonitor));
+    }
     return;
   }
 
-  await new Promise<void>((resolve) => {
+  let activeClip = clipMonitor && size ? getDockClipRect(start, size, clipMonitor) : null;
+  if (clipMonitor) {
+    await setDockWindowClip(activeClip);
+  }
+
+  await new Promise<void>((resolve, reject) => {
     const startedAt = performance.now();
     const step = () => {
       void (async () => {
-        const progress = clamp((performance.now() - startedAt) / DOCK_SLIDE_DURATION, 0, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        await window.setPosition(
-          new PhysicalPosition(
+        try {
+          const progress = clamp((performance.now() - startedAt) / DOCK_SLIDE_DURATION, 0, 1);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          const nextPosition = new PhysicalPosition(
             Math.round(start.x + deltaX * eased),
             Math.round(start.y + deltaY * eased),
-          ),
-        );
+          );
+          const nextClip =
+            clipMonitor && size ? getDockClipRect(nextPosition, size, clipMonitor) : null;
+          const clipChanged = !dockClipRectsMatch(activeClip, nextClip);
+          const clipContracts =
+            clipChanged &&
+            size !== null &&
+            getDockClipArea(nextClip, size) < getDockClipArea(activeClip, size);
 
-        if (progress < 1) {
-          requestAnimationFrame(step);
-          return;
+          if (clipContracts) {
+            await setDockWindowClip(nextClip);
+          }
+          await window.setPosition(nextPosition);
+          if (clipChanged && !clipContracts) {
+            await setDockWindowClip(nextClip);
+          }
+          activeClip = nextClip;
+
+          if (progress < 1) {
+            requestAnimationFrame(step);
+            return;
+          }
+
+          resolve();
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
         }
-
-        resolve();
       })();
     };
 
@@ -495,6 +592,7 @@ export async function applyQIconWindow(state: WindowState | null): Promise<Windo
     return null;
   }
 
+  await setDockWindowClip(null);
   const dockSize = await applyDockWindowSize(window);
   const dockMargin = await designPixelsToPhysical(window, DOCK_MARGIN);
   const monitor = await getMonitorForState(state);
@@ -540,7 +638,9 @@ export async function hideDockWindow() {
   await (await getWindowByLabel(DOCK_WINDOW_LABEL))?.hide();
 }
 
-export async function beginQIconDrag(): Promise<QIconDragSession | null> {
+export async function beginQIconDrag(
+  edge: DockEdge | null = null,
+): Promise<QIconDragSession | null> {
   if (!isTauriRuntime()) {
     return null;
   }
@@ -548,6 +648,20 @@ export async function beginQIconDrag(): Promise<QIconDragSession | null> {
   const window = await getWindowByLabel(DOCK_WINDOW_LABEL);
   if (!window) {
     return null;
+  }
+
+  if (edge) {
+    await applyDockWindowSize(window);
+    const [position, size] = await Promise.all([window.outerPosition(), window.outerSize()]);
+    const monitor = await getMonitorForDockWindow(edge, position, size);
+    if (monitor) {
+      const revealedState = getDockEdgeState(edge, monitor, position, size, false);
+      await moveDockWindow(window, revealedState, false, monitor);
+    } else {
+      await setDockWindowClip(null);
+    }
+  } else {
+    await setDockWindowClip(null);
   }
 
   const [pointer, position] = await Promise.all([cursorPosition(), window.outerPosition()]);
@@ -673,7 +787,7 @@ export async function snapQIconWindow(edge: DockEdge) {
 
   const nextState = getDockEdgeState(edge, monitor, position, size, true);
 
-  await moveDockWindow(window, nextState, true);
+  await moveDockWindow(window, nextState, true, monitor);
 
   return nextState;
 }
@@ -697,7 +811,7 @@ export async function revealQIconWindow(edge: DockEdge) {
   }
 
   const nextState = getDockEdgeState(edge, monitor, position, size, false);
-  await moveDockWindow(window, nextState, true);
+  await moveDockWindow(window, nextState, true, monitor);
 
   return nextState;
 }

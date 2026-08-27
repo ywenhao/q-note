@@ -3171,6 +3171,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
+ "windows",
 ]
 
 [[package]]
