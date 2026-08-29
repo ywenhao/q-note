@@ -27,13 +27,14 @@
     "format": "vp format",
     "format:check": "vp format --check",
     "typecheck": "vue-tsc --build --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "check": "vp check",
     "check:fix": "vp check --fix",
     "prepare": "vp config",
-    "test:context-menu": "node --test tests/contextMenuPosition.test.ts",
-    "test:update-draft": "node --test tests/updateDraft.test.ts tests/updateRecovery.test.ts",
-    "test:updater": "node --test tests/updateProgress.test.ts tests/updateInstallHint.test.ts",
-    "test:window-state": "node --test tests/windowState.test.ts"
+    "test:context-menu": "node --experimental-strip-types --test tests/contextMenuPosition.test.ts",
+    "test:update-draft": "node --experimental-strip-types --test tests/updateDraft.test.ts tests/updateRecovery.test.ts",
+    "test:updater": "node --experimental-strip-types --test tests/updateProgress.test.ts tests/updateInstallHint.test.ts",
+    "test:window-state": "node --experimental-strip-types --test tests/windowState.test.ts"
   },
   "dependencies": {
     "@lucide/vue": "1.28.0",
@@ -46,18 +47,18 @@
     "@tauri-apps/plugin-sql": "^2.4.0",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "drizzle-orm": "^0.45.2",
-    "vue": "3.6.0-rc.2",
+    "vue": "3.6.0-rc.6",
     "vue-draggable-plus": "^0.6.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@vitejs/plugin-vue": "^6.0.8",
-    "bumpp": "^12.1.1",
+    "bumpp": "^12.2.2",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "^8.2.0",
+    "vite": "^8.2.2",
     "vite-plus": "^0.2.7",
-    "vue-tsc": "^3.3.9"
+    "vue-tsc": "^3.3.11"
   }
 }

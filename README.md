@@ -38,6 +38,7 @@ pnpm tauri dev
 | `pnpm dev`           | Start the Vite dev server                 |
 | `pnpm tauri dev`     | Start the Tauri desktop app               |
 | `pnpm typecheck`     | Run TypeScript build checks               |
+| `pnpm test`          | Run the Node test suite                   |
 | `pnpm check`         | Run Vite+ checks                          |
 | `pnpm check:fix`     | Fix Vite+ check issues                    |
 | `pnpm format`        | Format with Vite+                         |

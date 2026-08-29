@@ -10,6 +10,7 @@ Q Note is a Tauri 2 desktop app with Vue 3.6 Vapor, TypeScript, Vite+, Tailwind 
 - Start the web dev server with `pnpm dev`.
 - Start the desktop app with `pnpm tauri dev`.
 - Run TypeScript checks with `pnpm typecheck`.
+- Run the test suite with `pnpm test`.
 - Run Vite+ checks with `pnpm check`.
 - Format with `pnpm format`.
 - Build the frontend with `pnpm build`.

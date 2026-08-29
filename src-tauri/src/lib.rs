@@ -1,4 +1,8 @@
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 
 use tauri::{
     image::Image,
@@ -20,6 +24,7 @@ const EDITOR_WINDOW_GAP: i32 = 12;
 const APP_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 const DATABASE_FILE_NAME: &str = "q-note.db";
 const DATA_DIR_NAME: &str = ".q-note";
+const APP_IDENTIFIER: &str = "com.win11.q-note";
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -141,22 +146,77 @@ fn database_url() -> Result<String, String> {
     Ok(format!("sqlite:{}", database_path()?.to_string_lossy()))
 }
 
-fn migrate_legacy_database(app: &tauri::AppHandle, next_path: &PathBuf) -> Result<(), String> {
+fn config_dir_candidates() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    #[cfg(windows)]
+    {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            let appdata = PathBuf::from(appdata);
+            dirs.push(appdata.join(APP_IDENTIFIER));
+            dirs.push(appdata.join("Q Note"));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = home_dir() {
+            let support = home.join("Library").join("Application Support");
+            dirs.push(support.join(APP_IDENTIFIER));
+            dirs.push(support.join("Q Note"));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let config_home = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| home_dir().ok().map(|home| home.join(".config")));
+        if let Some(config_home) = config_home {
+            dirs.push(config_home.join(APP_IDENTIFIER));
+            dirs.push(config_home.join("q-note"));
+            dirs.push(config_home.join("Q Note"));
+        }
+    }
+
+    dirs
+}
+
+fn legacy_database_candidates() -> Vec<PathBuf> {
+    config_dir_candidates()
+        .into_iter()
+        .map(|dir| dir.join(DATABASE_FILE_NAME))
+        .collect()
+}
+
+fn copy_first_existing_database(next_path: &Path, candidates: &[PathBuf]) -> Result<bool, String> {
     if next_path.exists() {
-        return Ok(());
+        return Ok(false);
     }
 
-    let legacy_path = app
-        .path()
-        .app_config_dir()
-        .map_err(|error| error.to_string())?
-        .join(DATABASE_FILE_NAME);
-
-    if legacy_path.exists() {
-        fs::copy(legacy_path, next_path).map_err(|error| error.to_string())?;
+    for legacy_path in candidates {
+        if legacy_path.exists() && legacy_path != next_path {
+            if let Some(parent) = next_path.parent() {
+                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            fs::copy(legacy_path, next_path).map_err(|error| error.to_string())?;
+            return Ok(true);
+        }
     }
 
-    Ok(())
+    Ok(false)
+}
+
+fn migrate_legacy_database_before_open() -> Result<bool, String> {
+    copy_first_existing_database(&database_path()?, &legacy_database_candidates())
+}
+
+fn migrate_legacy_database(app: &tauri::AppHandle, next_path: &PathBuf) -> Result<bool, String> {
+    let mut candidates = legacy_database_candidates();
+    if let Ok(app_config) = app.path().app_config_dir() {
+        candidates.insert(0, app_config.join(DATABASE_FILE_NAME));
+    }
+    copy_first_existing_database(next_path, &candidates)
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -416,7 +476,7 @@ fn quit_app(app: tauri::AppHandle) {
 #[tauri::command]
 fn get_database_url(app: tauri::AppHandle) -> Result<String, String> {
     let path = database_path()?;
-    migrate_legacy_database(&app, &path)?;
+    let _ = migrate_legacy_database(&app, &path)?;
     Ok(format!("sqlite:{}", path.to_string_lossy()))
 }
 
@@ -514,6 +574,7 @@ async fn open_editor_window(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = migrate_legacy_database_before_open();
     let db_url = database_url().expect("failed to resolve Q Note database path");
 
     tauri::Builder::default()
@@ -639,4 +700,53 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_case_dir(label: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "q-note-legacy-{}-{}-{}",
+            label,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    #[test]
+    fn skips_legacy_copy_when_destination_exists() {
+        let dir = temp_case_dir("skip");
+        let dest = dir.join("next.db");
+        let src = dir.join("legacy.db");
+        fs::write(&dest, b"new").unwrap();
+        fs::write(&src, b"old").unwrap();
+
+        let copied = copy_first_existing_database(&dest, &[src]).unwrap();
+
+        assert!(!copied);
+        assert_eq!(fs::read(&dest).unwrap(), b"new");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn copies_first_existing_legacy_database() {
+        let dir = temp_case_dir("copy");
+        let dest = dir.join("nested").join("next.db");
+        let missing = dir.join("missing.db");
+        let src = dir.join("legacy.db");
+        fs::write(&src, b"legacy-bytes").unwrap();
+
+        let copied = copy_first_existing_database(&dest, &[missing, src]).unwrap();
+
+        assert!(copied);
+        assert_eq!(fs::read(&dest).unwrap(), b"legacy-bytes");
+        let _ = fs::remove_dir_all(dir);
+    }
 }

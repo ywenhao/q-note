@@ -2,31 +2,33 @@ import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import { desc, eq } from "drizzle-orm";
 import { drizzle, type SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
-import {
-  DEFAULT_NOTE_COLOR,
-  type AppData,
-  type AppSettings,
-  type AttachmentKind,
-  type AttachmentSource,
-  type ExportPayload,
-  type Language,
-  type Note,
-  type NoteAttachment,
-} from "../types";
+import { type AppData, type AppSettings, type Note, type NoteAttachment } from "../types";
+import { inferAttachmentKind, normalizeImportPayload } from "./appData";
 import { isTauriRuntime } from "./env";
-import { isLikelyImagePath } from "./images";
+import {
+  APP_SETTINGS_KEY,
+  persistDeleteAllNotes,
+  persistDeleteNote,
+  persistReplaceAppData,
+  persistSaveNote,
+  persistSaveNotesOrder,
+  type NotePersistClient,
+} from "./notePersist";
 import { attachmentsTable, notesTable, schema, settingsTable } from "./schema";
+import { createDefaultSettings, normalizeSettings, parseStoredSettings } from "./settingsState";
+import { mapSqliteProxyResult } from "./sqliteProxy";
 import {
   parsePendingUpdateDraft,
   serializePendingUpdateDraft,
   type PendingUpdateDraft,
 } from "./updateDraft";
-import { normalizeWindowState } from "./windowState";
 
+export { createExportPayload, normalizeImportPayload } from "./appData";
+export { createDefaultSettings, normalizeSettings, parseStoredSettings } from "./settingsState";
 export { windowSizeMatches } from "./windowState";
 
 const FALLBACK_DB_URL = "sqlite:q-note.db";
-const SETTINGS_KEY = "app";
+const SETTINGS_KEY = APP_SETTINGS_KEY;
 const PENDING_UPDATE_DRAFT_KEY = "pending-update-editor-draft";
 const WEB_STORAGE_KEY = "q-note:web-data";
 const WEB_PENDING_UPDATE_DRAFT_KEY = "q-note:pending-update-editor-draft";
@@ -34,37 +36,8 @@ const WEB_PENDING_UPDATE_DRAFT_KEY = "q-note:pending-update-editor-draft";
 let dbUrlPromise: Promise<string> | null = null;
 let dbPromise: Promise<Database> | null = null;
 let drizzlePromise: Promise<SqliteRemoteDatabase<typeof schema>> | null = null;
-
-function readSystemLanguage() {
-  if (typeof navigator === "undefined") {
-    return "en";
-  }
-
-  return navigator.language || navigator.languages?.[0] || "en";
-}
-
-function detectDefaultLanguage(): Language {
-  const language = readSystemLanguage().toLowerCase();
-
-  if (language.startsWith("zh")) {
-    return "zh";
-  }
-
-  return "en";
-}
-
-export function createDefaultSettings(): AppSettings {
-  return {
-    language: detectDefaultLanguage(),
-    alwaysOnTop: false,
-    autoStart: false,
-    dockOnEdge: false,
-    docked: false,
-    dockEdge: null,
-    keepFullMain: false,
-    window: null,
-  };
-}
+let persistClient: NotePersistClient | null = null;
+let persistTxDepth = 0;
 
 function getDbUrl() {
   if (!isTauriRuntime()) {
@@ -87,8 +60,7 @@ function getDrizzleDb() {
       async (query, params, method) => {
         if (method === "all" || method === "get" || method === "values") {
           const rows = await db.select<Record<string, unknown>[]>(query, params);
-          const values = rows.map((row) => Object.values(row));
-          return { rows: method === "get" ? values[0] : values };
+          return mapSqliteProxyResult(query, rows, method);
         }
 
         await db.execute(query, params);
@@ -99,116 +71,6 @@ function getDrizzleDb() {
   );
 
   return drizzlePromise;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function toLanguage(value: unknown): Language {
-  if (value === "zh" || value === "en") {
-    return value;
-  }
-
-  return detectDefaultLanguage();
-}
-
-function inferAttachmentKind(source: AttachmentSource, value: string): AttachmentKind {
-  if (source === "data") {
-    return /^data:image\//i.test(value) ? "image" : "file";
-  }
-
-  return isLikelyImagePath(value) ? "image" : "file";
-}
-
-export function normalizeSettings(value: unknown): AppSettings {
-  const defaults = createDefaultSettings();
-
-  if (!isObject(value)) {
-    return defaults;
-  }
-
-  const windowState = normalizeWindowState(value.window);
-  return {
-    language: toLanguage(value.language),
-    alwaysOnTop: Boolean(value.alwaysOnTop),
-    autoStart: Boolean(value.autoStart),
-    dockOnEdge: typeof value.dockOnEdge === "boolean" ? value.dockOnEdge : defaults.dockOnEdge,
-    docked: Boolean(value.docked),
-    dockEdge:
-      value.dockEdge === "left" ||
-      value.dockEdge === "right" ||
-      value.dockEdge === "top" ||
-      value.dockEdge === "bottom"
-        ? value.dockEdge
-        : null,
-    keepFullMain: Boolean(value.keepFullMain),
-    window: windowState,
-  };
-}
-
-function normalizeAttachment(value: unknown): NoteAttachment | null {
-  if (!isObject(value) || typeof value.value !== "string") {
-    return null;
-  }
-
-  const source =
-    value.source === "url" || value.source === "path" || value.source === "data"
-      ? value.source
-      : "url";
-  const kind =
-    value.kind === "file" || value.kind === "image"
-      ? value.kind
-      : inferAttachmentKind(source, value.value);
-
-  return {
-    id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
-    kind,
-    source,
-    value: value.value,
-    name: typeof value.name === "string" ? value.name : undefined,
-    createdAt: Number(value.createdAt) || Date.now(),
-  };
-}
-
-function normalizeNote(value: unknown): Note | null {
-  if (!isObject(value)) {
-    return null;
-  }
-
-  const updatedAt = Number(value.updatedAt) || Date.now();
-  const attachments = Array.isArray(value.attachments)
-    ? value.attachments
-        .map(normalizeAttachment)
-        .filter((item): item is NoteAttachment => Boolean(item))
-    : [];
-
-  return {
-    id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
-    content: typeof value.content === "string" ? value.content : "",
-    color: typeof value.color === "string" ? value.color : DEFAULT_NOTE_COLOR,
-    pinned: Boolean(value.pinned),
-    sortOrder: Number.isFinite(Number(value.sortOrder)) ? Number(value.sortOrder) : -updatedAt,
-    textHeight: typeof value.textHeight === "number" ? value.textHeight : null,
-    attachments,
-    createdAt: Number(value.createdAt) || Date.now(),
-    updatedAt,
-  };
-}
-
-export function normalizeImportPayload(value: unknown): AppData {
-  if (!isObject(value)) {
-    throw new Error("Invalid Q Note data");
-  }
-
-  const notes = Array.isArray(value.notes)
-    ? value.notes.map(normalizeNote).filter((item): item is Note => Boolean(item))
-    : [];
-
-  return {
-    notes,
-    settings: normalizeSettings(value.settings),
-  };
 }
 
 function loadWebData(): AppData {
@@ -275,7 +137,7 @@ export async function loadAppData(): Promise<AppData> {
   }));
 
   const settings = settingsRows[0]?.value
-    ? normalizeSettings(JSON.parse(settingsRows[0].value))
+    ? parseStoredSettings(settingsRows[0].value)
     : createDefaultSettings();
 
   return { notes, settings };
@@ -294,7 +156,7 @@ export async function loadPersistedSettings(): Promise<AppSettings> {
     .limit(1);
 
   return settingsRows[0]?.value
-    ? normalizeSettings(JSON.parse(settingsRows[0].value))
+    ? parseStoredSettings(settingsRows[0].value)
     : createDefaultSettings();
 }
 
@@ -310,6 +172,8 @@ export async function flushDatabase() {
   } finally {
     dbPromise = null;
     drizzlePromise = null;
+    persistClient = null;
+    persistTxDepth = 0;
   }
 }
 
@@ -376,6 +240,101 @@ export async function clearPendingUpdateDraft() {
   await db.delete(settingsTable).where(eq(settingsTable.key, PENDING_UPDATE_DRAFT_KEY));
 }
 
+function getPersistClient(): NotePersistClient {
+  persistClient ??= createSqlitePersistClient();
+  return persistClient;
+}
+
+function createSqlitePersistClient(): NotePersistClient {
+  return {
+    async transaction(work) {
+      if (persistTxDepth > 0) {
+        return work();
+      }
+
+      const db = await getDrizzleDb();
+      persistTxDepth += 1;
+      try {
+        return await db.transaction(async () => work());
+      } finally {
+        persistTxDepth -= 1;
+      }
+    },
+    async upsertNote(note) {
+      const db = await getDrizzleDb();
+      await db
+        .insert(notesTable)
+        .values({
+          id: note.id,
+          content: note.content,
+          color: note.color,
+          pinned: note.pinned ? 1 : 0,
+          sortOrder: note.sortOrder,
+          textHeight: note.textHeight,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+        })
+        .onConflictDoUpdate({
+          target: notesTable.id,
+          set: {
+            content: note.content,
+            color: note.color,
+            pinned: note.pinned ? 1 : 0,
+            sortOrder: note.sortOrder,
+            textHeight: note.textHeight,
+            updatedAt: note.updatedAt,
+          },
+        });
+    },
+    async deleteAttachmentsForNote(noteId) {
+      const db = await getDrizzleDb();
+      await db.delete(attachmentsTable).where(eq(attachmentsTable.noteId, noteId));
+    },
+    async insertAttachment(noteId, attachment) {
+      const db = await getDrizzleDb();
+      await db.insert(attachmentsTable).values({
+        id: attachment.id,
+        noteId,
+        kind: attachment.kind,
+        source: attachment.source,
+        value: attachment.value,
+        name: attachment.name ?? null,
+        createdAt: attachment.createdAt,
+      });
+    },
+    async deleteNote(noteId) {
+      const db = await getDrizzleDb();
+      await db.delete(notesTable).where(eq(notesTable.id, noteId));
+    },
+    async deleteAllNotes() {
+      const db = await getDrizzleDb();
+      await db.delete(attachmentsTable);
+      await db.delete(notesTable);
+    },
+    async deleteAllSettings() {
+      const db = await getDrizzleDb();
+      await db.delete(settingsTable);
+    },
+    async upsertSettings(key, value) {
+      const db = await getDrizzleDb();
+      await db.insert(settingsTable).values({ key, value }).onConflictDoUpdate({
+        target: settingsTable.key,
+        set: { value },
+      });
+    },
+    async updateNoteOrder(note) {
+      const db = await getDrizzleDb();
+      await db
+        .update(notesTable)
+        .set({
+          pinned: note.pinned ? 1 : 0,
+          sortOrder: note.sortOrder,
+        })
+        .where(eq(notesTable.id, note.id));
+    },
+  };
+}
+
 export async function saveNote(note: Note) {
   if (!isTauriRuntime()) {
     const data = loadWebData();
@@ -384,43 +343,7 @@ export async function saveNote(note: Note) {
     return;
   }
 
-  const db = await getDrizzleDb();
-  await db
-    .insert(notesTable)
-    .values({
-      id: note.id,
-      content: note.content,
-      color: note.color,
-      pinned: note.pinned ? 1 : 0,
-      sortOrder: note.sortOrder,
-      textHeight: note.textHeight,
-      createdAt: note.createdAt,
-      updatedAt: note.updatedAt,
-    })
-    .onConflictDoUpdate({
-      target: notesTable.id,
-      set: {
-        content: note.content,
-        color: note.color,
-        pinned: note.pinned ? 1 : 0,
-        sortOrder: note.sortOrder,
-        textHeight: note.textHeight,
-        updatedAt: note.updatedAt,
-      },
-    });
-
-  await db.delete(attachmentsTable).where(eq(attachmentsTable.noteId, note.id));
-  for (const attachment of note.attachments) {
-    await db.insert(attachmentsTable).values({
-      id: attachment.id,
-      noteId: note.id,
-      kind: attachment.kind,
-      source: attachment.source,
-      value: attachment.value,
-      name: attachment.name ?? null,
-      createdAt: attachment.createdAt,
-    });
-  }
+  await persistSaveNote(getPersistClient(), note);
 }
 
 export async function saveNotesOrder(notes: Note[]) {
@@ -434,16 +357,7 @@ export async function saveNotesOrder(notes: Note[]) {
     return;
   }
 
-  const db = await getDrizzleDb();
-  for (const note of notes) {
-    await db
-      .update(notesTable)
-      .set({
-        pinned: note.pinned ? 1 : 0,
-        sortOrder: note.sortOrder,
-      })
-      .where(eq(notesTable.id, note.id));
-  }
+  await persistSaveNotesOrder(getPersistClient(), notes);
 }
 
 export async function deleteNote(id: string) {
@@ -453,9 +367,7 @@ export async function deleteNote(id: string) {
     return;
   }
 
-  const db = await getDrizzleDb();
-  await db.delete(attachmentsTable).where(eq(attachmentsTable.noteId, id));
-  await db.delete(notesTable).where(eq(notesTable.id, id));
+  await persistDeleteNote(getPersistClient(), id);
 }
 
 export async function deleteAllNotes() {
@@ -465,9 +377,7 @@ export async function deleteAllNotes() {
     return;
   }
 
-  const db = await getDrizzleDb();
-  await db.delete(attachmentsTable);
-  await db.delete(notesTable);
+  await persistDeleteAllNotes(getPersistClient());
 }
 
 export async function replaceAppData(data: AppData) {
@@ -476,22 +386,5 @@ export async function replaceAppData(data: AppData) {
     return;
   }
 
-  const db = await getDrizzleDb();
-  await db.delete(attachmentsTable);
-  await db.delete(notesTable);
-  await db.delete(settingsTable);
-
-  await saveSettings(data.settings);
-  for (const note of data.notes) {
-    await saveNote(note);
-  }
-}
-
-export function createExportPayload(data: AppData): ExportPayload {
-  return {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    notes: data.notes,
-    settings: data.settings,
-  };
+  await persistReplaceAppData(getPersistClient(), data);
 }

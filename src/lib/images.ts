@@ -1,8 +1,9 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { NoteAttachment } from "../types";
 import { isTauriRuntime } from "./env";
+import { isLikelyImagePath } from "./imagePath";
 
-const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"]);
+export { isLikelyImagePath } from "./imagePath";
 
 export function getAttachmentSrc(attachment: NoteAttachment) {
   if (attachment.source === "path" && isTauriRuntime()) {
@@ -22,13 +23,6 @@ export function isImageAttachment(attachment: Pick<NoteAttachment, "kind" | "sou
     /^data:image\//i.test(attachment.value) ||
     isLikelyImagePath(attachment.value)
   );
-}
-
-export function isLikelyImagePath(value: string) {
-  const cleanValue = value.split(/[?#]/)[0] ?? value;
-  const extension = cleanValue.split(".").pop()?.toLowerCase();
-
-  return Boolean(extension && IMAGE_EXTENSIONS.has(extension));
 }
 
 function readUrls(value: string, onlyImages = true) {

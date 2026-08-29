@@ -60,6 +60,7 @@ pnpm install
 pnpm dev
 pnpm tauri dev
 pnpm typecheck
+pnpm test
 pnpm check
 pnpm check:fix
 pnpm format
