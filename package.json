@@ -27,7 +27,7 @@
     "format": "vp format",
     "format:check": "vp format --check",
     "typecheck": "vue-tsc --build --noEmit",
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test": "node --experimental-strip-types --experimental-sqlite --test tests/*.test.ts",
     "check": "vp check",
     "check:fix": "vp check --fix",
     "prepare": "vp config",

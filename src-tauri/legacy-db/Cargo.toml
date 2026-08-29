@@ -1,0 +1,7 @@
+[package]
+name = "q-note-legacy-db"
+version = "0.2.12"
+description = "Legacy Q Note database path and first-launch copy helpers."
+edition = "2021"
+license = "MIT"
+publish = false

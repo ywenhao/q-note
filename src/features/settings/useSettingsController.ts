@@ -72,8 +72,12 @@ export function useSettingsController(options: UseSettingsControllerOptions) {
 
   async function toggleAlwaysOnTop() {
     const nextValue = !settings.value.alwaysOnTop;
-    await applyAlwaysOnTop(nextValue);
-    await persistSettings({ alwaysOnTop: nextValue });
+    try {
+      await persistSettings({ alwaysOnTop: nextValue });
+      await applyAlwaysOnTop(nextValue);
+    } catch {
+      showToast(t.value.saveFailed, { kind: "error" });
+    }
   }
 
   async function toggleAutoStart() {

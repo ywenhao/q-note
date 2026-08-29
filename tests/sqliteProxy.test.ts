@@ -77,6 +77,30 @@ test("returns the first mapped row for get queries", () => {
   assert.deepEqual(result.rows, ["note-1", "hello"]);
 });
 
+test("maps SELECT * rows by table column names, not object key order", () => {
+  const row = {
+    color: "#fff9db",
+    content: "hello",
+    created_at: 10,
+    id: "note-1",
+    pinned: 1,
+    sort_order: -20,
+    text_height: null,
+    updated_at: 30,
+  };
+
+  assert.deepEqual(mapProxyRowValues(row, 'select * from "notes"'), [
+    "note-1",
+    "hello",
+    "#fff9db",
+    1,
+    -20,
+    null,
+    10,
+    30,
+  ]);
+});
+
 test("keeps all mapped rows for all queries", () => {
   const result = mapSqliteProxyResult(
     'select "id", "content" from "notes"',

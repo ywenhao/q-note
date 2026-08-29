@@ -33,3 +33,18 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  rust:
+    name: Cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo test
+        run: cargo test --manifest-path src-tauri/legacy-db/Cargo.toml
+        env:
+          CARGO_TERM_COLOR: always

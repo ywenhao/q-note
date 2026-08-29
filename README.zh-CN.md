@@ -61,6 +61,7 @@ pnpm dev
 pnpm tauri dev
 pnpm typecheck
 pnpm test
+cargo test --manifest-path src-tauri/legacy-db/Cargo.toml
 pnpm check
 pnpm check:fix
 pnpm format

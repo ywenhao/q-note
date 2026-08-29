@@ -15,6 +15,7 @@ import {
   type NotePersistClient,
 } from "./notePersist";
 import { attachmentsTable, notesTable, schema, settingsTable } from "./schema";
+import { createSqlNotePersistClient } from "./sqlNotePersist";
 import { createDefaultSettings, normalizeSettings, parseStoredSettings } from "./settingsState";
 import { mapSqliteProxyResult } from "./sqliteProxy";
 import {
@@ -37,7 +38,6 @@ let dbUrlPromise: Promise<string> | null = null;
 let dbPromise: Promise<Database> | null = null;
 let drizzlePromise: Promise<SqliteRemoteDatabase<typeof schema>> | null = null;
 let persistClient: NotePersistClient | null = null;
-let persistTxDepth = 0;
 
 function getDbUrl() {
   if (!isTauriRuntime()) {
@@ -173,7 +173,6 @@ export async function flushDatabase() {
     dbPromise = null;
     drizzlePromise = null;
     persistClient = null;
-    persistTxDepth = 0;
   }
 }
 
@@ -241,98 +240,11 @@ export async function clearPendingUpdateDraft() {
 }
 
 function getPersistClient(): NotePersistClient {
-  persistClient ??= createSqlitePersistClient();
+  persistClient ??= createSqlNotePersistClient(async (sql, params) => {
+    const db = await getDb();
+    await db.execute(sql, params ?? []);
+  });
   return persistClient;
-}
-
-function createSqlitePersistClient(): NotePersistClient {
-  return {
-    async transaction(work) {
-      if (persistTxDepth > 0) {
-        return work();
-      }
-
-      const db = await getDrizzleDb();
-      persistTxDepth += 1;
-      try {
-        return await db.transaction(async () => work());
-      } finally {
-        persistTxDepth -= 1;
-      }
-    },
-    async upsertNote(note) {
-      const db = await getDrizzleDb();
-      await db
-        .insert(notesTable)
-        .values({
-          id: note.id,
-          content: note.content,
-          color: note.color,
-          pinned: note.pinned ? 1 : 0,
-          sortOrder: note.sortOrder,
-          textHeight: note.textHeight,
-          createdAt: note.createdAt,
-          updatedAt: note.updatedAt,
-        })
-        .onConflictDoUpdate({
-          target: notesTable.id,
-          set: {
-            content: note.content,
-            color: note.color,
-            pinned: note.pinned ? 1 : 0,
-            sortOrder: note.sortOrder,
-            textHeight: note.textHeight,
-            updatedAt: note.updatedAt,
-          },
-        });
-    },
-    async deleteAttachmentsForNote(noteId) {
-      const db = await getDrizzleDb();
-      await db.delete(attachmentsTable).where(eq(attachmentsTable.noteId, noteId));
-    },
-    async insertAttachment(noteId, attachment) {
-      const db = await getDrizzleDb();
-      await db.insert(attachmentsTable).values({
-        id: attachment.id,
-        noteId,
-        kind: attachment.kind,
-        source: attachment.source,
-        value: attachment.value,
-        name: attachment.name ?? null,
-        createdAt: attachment.createdAt,
-      });
-    },
-    async deleteNote(noteId) {
-      const db = await getDrizzleDb();
-      await db.delete(notesTable).where(eq(notesTable.id, noteId));
-    },
-    async deleteAllNotes() {
-      const db = await getDrizzleDb();
-      await db.delete(attachmentsTable);
-      await db.delete(notesTable);
-    },
-    async deleteAllSettings() {
-      const db = await getDrizzleDb();
-      await db.delete(settingsTable);
-    },
-    async upsertSettings(key, value) {
-      const db = await getDrizzleDb();
-      await db.insert(settingsTable).values({ key, value }).onConflictDoUpdate({
-        target: settingsTable.key,
-        set: { value },
-      });
-    },
-    async updateNoteOrder(note) {
-      const db = await getDrizzleDb();
-      await db
-        .update(notesTable)
-        .set({
-          pinned: note.pinned ? 1 : 0,
-          sortOrder: note.sortOrder,
-        })
-        .where(eq(notesTable.id, note.id));
-    },
-  };
 }
 
 export async function saveNote(note: Note) {

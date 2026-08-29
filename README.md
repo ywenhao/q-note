@@ -33,20 +33,21 @@ pnpm tauri dev
 
 ## Commands
 
-| Command              | Purpose                                   |
-| -------------------- | ----------------------------------------- |
-| `pnpm dev`           | Start the Vite dev server                 |
-| `pnpm tauri dev`     | Start the Tauri desktop app               |
-| `pnpm typecheck`     | Run TypeScript build checks               |
-| `pnpm test`          | Run the Node test suite                   |
-| `pnpm check`         | Run Vite+ checks                          |
-| `pnpm check:fix`     | Fix Vite+ check issues                    |
-| `pnpm format`        | Format with Vite+                         |
-| `pnpm format:check`  | Check formatting                          |
-| `pnpm build`         | Build the frontend                        |
-| `pnpm release:patch` | Bump patch version, commit, tag, and push |
-| `pnpm release:minor` | Bump minor version, commit, tag, and push |
-| `pnpm release:major` | Bump major version, commit, tag, and push |
+| Command                                                     | Purpose                                   |
+| ----------------------------------------------------------- | ----------------------------------------- |
+| `pnpm dev`                                                  | Start the Vite dev server                 |
+| `pnpm tauri dev`                                            | Start the Tauri desktop app               |
+| `pnpm typecheck`                                            | Run TypeScript build checks               |
+| `pnpm test`                                                 | Run the Node test suite                   |
+| `cargo test --manifest-path src-tauri/legacy-db/Cargo.toml` | Run Rust library tests                    |
+| `pnpm check`                                                | Run Vite+ checks                          |
+| `pnpm check:fix`                                            | Fix Vite+ check issues                    |
+| `pnpm format`                                               | Format with Vite+                         |
+| `pnpm format:check`                                         | Check formatting                          |
+| `pnpm build`                                                | Build the frontend                        |
+| `pnpm release:patch`                                        | Bump patch version, commit, tag, and push |
+| `pnpm release:minor`                                        | Bump minor version, commit, tag, and push |
+| `pnpm release:major`                                        | Bump major version, commit, tag, and push |
 
 ## Release
 
