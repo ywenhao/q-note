@@ -80,10 +80,14 @@ export function useNotesController(options: UseNotesControllerOptions) {
           updatedAt: now,
         };
 
-    commitNotes([nextNote, ...notes.value.filter((note) => note.id !== nextNote.id)]);
-    await saveNote(nextNote);
-    showToast(t.value.saved);
-    await closeEditor();
+    try {
+      await saveNote(nextNote);
+      commitNotes([nextNote, ...notes.value.filter((note) => note.id !== nextNote.id)]);
+      showToast(t.value.saved);
+      await closeEditor();
+    } catch {
+      showToast(t.value.saveFailed, { kind: "error" });
+    }
   }
 
   async function handleCopy(note: Note) {
@@ -116,8 +120,12 @@ export function useNotesController(options: UseNotesControllerOptions) {
             )
           : (patch.sortOrder ?? target.sortOrder),
     };
-    commitNotes([nextNote, ...notes.value.filter((note) => note.id !== id)]);
-    await saveNote(nextNote);
+    try {
+      await saveNote(nextNote);
+      commitNotes([nextNote, ...notes.value.filter((note) => note.id !== id)]);
+    } catch {
+      showToast(t.value.saveFailed, { kind: "error" });
+    }
   }
 
   async function reorderNotes(draggedId: string, targetId: string, placement: "before" | "after") {
@@ -139,18 +147,30 @@ export function useNotesController(options: UseNotesControllerOptions) {
       pinned: targetNote.pinned,
     });
     const orderedNotes = normalizeManualOrder(nextNotes);
-    commitNotes(orderedNotes);
-    await saveNotesOrder(orderedNotes);
+    try {
+      await saveNotesOrder(orderedNotes);
+      commitNotes(orderedNotes);
+    } catch {
+      showToast(t.value.saveFailed, { kind: "error" });
+    }
   }
 
   async function handleDelete(id: string) {
-    commitNotes(notes.value.filter((note) => note.id !== id));
-    await deleteNote(id);
+    try {
+      await deleteNote(id);
+      commitNotes(notes.value.filter((note) => note.id !== id));
+    } catch {
+      showToast(t.value.deleteFailed, { kind: "error" });
+    }
   }
 
   async function handleDeleteAll() {
-    commitNotes([]);
-    await deleteAllNotes();
+    try {
+      await deleteAllNotes();
+      commitNotes([]);
+    } catch {
+      showToast(t.value.deleteFailed, { kind: "error" });
+    }
   }
 
   return {

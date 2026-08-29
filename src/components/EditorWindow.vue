@@ -13,6 +13,7 @@ import {
   savePendingUpdateDraft,
 } from "../lib/storage";
 import { createNoteDraft, createPendingUpdateDraft } from "../lib/updateDraft";
+import { useToast } from "../hooks/useToast";
 import { setCurrentWindowAlwaysOnTop } from "../hooks/useWindowChrome";
 import {
   PREPARE_UPDATE_ACK_EVENT,
@@ -24,6 +25,7 @@ import { MAIN_WINDOW_LABEL, readPendingEditorNoteId } from "../lib/windowControl
 import type { AppSettings, Note, NoteDraft } from "../types";
 import NoteEditor from "./NoteEditor.vue";
 import QMark from "./QMark.vue";
+import Toast from "./Toast.vue";
 import WindowChrome from "./WindowChrome.vue";
 
 interface EditorOpenPayload {
@@ -38,6 +40,7 @@ const notes = ref<Note[]>([]);
 const ready = ref(false);
 const settings = ref<AppSettings>(createDefaultSettings());
 const draft = ref<NoteDraft>(createNoteDraft(null));
+const { showToast, toast } = useToast();
 let recoveryActive = false;
 let recoverySaveTimer: number | null = null;
 let disposed = false;
@@ -222,9 +225,13 @@ async function handleSaveDraft(nextDraft: NoteDraft) {
         createdAt: now,
         updatedAt: now,
       };
-  await saveNote(nextNote);
-  await emit("q-note-note-saved", nextNote);
-  await closeEditorWindow();
+  try {
+    await saveNote(nextNote);
+    await emit("q-note-note-saved", nextNote);
+    await closeEditorWindow();
+  } catch {
+    showToast(t.value.saveFailed, { kind: "error" });
+  }
 }
 
 function handleDraftChange(nextDraft: NoteDraft) {
@@ -269,5 +276,6 @@ function handleDraftChange(nextDraft: NoteDraft) {
       @draft-change="handleDraftChange"
       @save="handleSaveDraft"
     />
+    <Toast :icon="toast?.icon" :kind="toast?.kind" :message="toast?.message ?? null" />
   </main>
 </template>

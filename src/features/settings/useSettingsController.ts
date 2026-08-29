@@ -34,8 +34,8 @@ export function useSettingsController(options: UseSettingsControllerOptions) {
 
   async function persistSettings(patch: Partial<AppSettings>) {
     const nextSettings = normalizeSettings({ ...settings.value, ...patch });
-    settings.value = nextSettings;
     await saveSettings(nextSettings);
+    settings.value = nextSettings;
     if (isTauriRuntime()) {
       await emit("q-note-settings-updated", nextSettings);
     }
@@ -58,9 +58,9 @@ export function useSettingsController(options: UseSettingsControllerOptions) {
         return;
       }
       const nextData = normalizeImportPayload(payload);
+      await replaceAppData(nextData);
       commitNotes(nextData.notes);
       settings.value = nextData.settings;
-      await replaceAppData(nextData);
       await applyAlwaysOnTop(nextData.settings.alwaysOnTop);
       const autoStart = await applyAutoStart(nextData.settings.autoStart);
       await persistSettings({ autoStart });
@@ -72,8 +72,12 @@ export function useSettingsController(options: UseSettingsControllerOptions) {
 
   async function toggleAlwaysOnTop() {
     const nextValue = !settings.value.alwaysOnTop;
-    await applyAlwaysOnTop(nextValue);
-    await persistSettings({ alwaysOnTop: nextValue });
+    try {
+      await persistSettings({ alwaysOnTop: nextValue });
+      await applyAlwaysOnTop(nextValue);
+    } catch {
+      showToast(t.value.saveFailed, { kind: "error" });
+    }
   }
 
   async function toggleAutoStart() {

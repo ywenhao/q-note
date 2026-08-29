@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{path::PathBuf, sync::Mutex};
+
+#[path = "../legacy-db/src/lib.rs"]
+mod legacy_db;
 
 use tauri::{
     image::Image,
@@ -9,6 +12,11 @@ use tauri::{
 };
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+use legacy_db::{
+    copy_first_existing_database, database_path, legacy_database_candidates,
+    migrate_legacy_database_before_open, DATABASE_FILE_NAME,
+};
+
 const DOCK_WINDOW_SIZE: f64 = 30.0;
 const EDITOR_WINDOW_WIDTH: f64 = 520.0;
 const EDITOR_WINDOW_HEIGHT: f64 = 640.0;
@@ -18,8 +26,6 @@ const MAIN_WINDOW_MAX_WIDTH: f64 = 1000.0;
 const MAIN_WINDOW_MAX_HEIGHT: f64 = 800.0;
 const EDITOR_WINDOW_GAP: i32 = 12;
 const APP_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
-const DATABASE_FILE_NAME: &str = "q-note.db";
-const DATA_DIR_NAME: &str = ".q-note";
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,53 +116,16 @@ fn migrations() -> Vec<Migration> {
     ]
 }
 
-fn home_dir() -> Result<PathBuf, String> {
-    #[cfg(windows)]
-    {
-        if let Some(path) = std::env::var_os("USERPROFILE").map(PathBuf::from) {
-            return Ok(path);
-        }
-
-        if let (Some(drive), Some(path)) =
-            (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH"))
-        {
-            let mut home = PathBuf::from(drive);
-            home.push(path);
-            return Ok(home);
-        }
-    }
-
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .ok_or_else(|| "Unable to resolve the user home directory".to_string())
-}
-
-fn database_path() -> Result<PathBuf, String> {
-    let dir = home_dir()?.join(DATA_DIR_NAME);
-    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
-    Ok(dir.join(DATABASE_FILE_NAME))
-}
-
 fn database_url() -> Result<String, String> {
     Ok(format!("sqlite:{}", database_path()?.to_string_lossy()))
 }
 
-fn migrate_legacy_database(app: &tauri::AppHandle, next_path: &PathBuf) -> Result<(), String> {
-    if next_path.exists() {
-        return Ok(());
+fn migrate_legacy_database(app: &tauri::AppHandle, next_path: &PathBuf) -> Result<bool, String> {
+    let mut candidates = legacy_database_candidates();
+    if let Ok(app_config) = app.path().app_config_dir() {
+        candidates.insert(0, app_config.join(DATABASE_FILE_NAME));
     }
-
-    let legacy_path = app
-        .path()
-        .app_config_dir()
-        .map_err(|error| error.to_string())?
-        .join(DATABASE_FILE_NAME);
-
-    if legacy_path.exists() {
-        fs::copy(legacy_path, next_path).map_err(|error| error.to_string())?;
-    }
-
-    Ok(())
+    copy_first_existing_database(next_path, &candidates)
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -416,7 +385,7 @@ fn quit_app(app: tauri::AppHandle) {
 #[tauri::command]
 fn get_database_url(app: tauri::AppHandle) -> Result<String, String> {
     let path = database_path()?;
-    migrate_legacy_database(&app, &path)?;
+    let _ = migrate_legacy_database(&app, &path)?;
     Ok(format!("sqlite:{}", path.to_string_lossy()))
 }
 
@@ -514,6 +483,7 @@ async fn open_editor_window(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = migrate_legacy_database_before_open();
     let db_url = database_url().expect("failed to resolve Q Note database path");
 
     tauri::Builder::default()

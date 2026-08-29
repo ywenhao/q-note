@@ -140,7 +140,7 @@ export function useMainWindow() {
     toggleLanguage,
   });
 
-  useAppBoot({ currentWindowLabel, notes, ready, settings });
+  useAppBoot({ currentWindowLabel, notes, ready, settings, showToast });
   useTrayMenuLabels({ alwaysOnLabel, dockToggleLabel, ready, t });
   useTauriEventBridge({
     commitNotes,
