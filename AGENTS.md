@@ -7,14 +7,15 @@ Q Note is a Tauri 2 desktop app with Vue 3.6 Vapor, TypeScript, Vite+, Tailwind 
 ## Commands
 
 - Install dependencies with `pnpm install`.
-- Start the web dev server with `pnpm dev`.
+- Start the web dev server with `pnpm dev` (`vp dev`).
 - Start the desktop app with `pnpm tauri dev`.
 - Run TypeScript checks with `pnpm typecheck`.
 - Run the test suite with `pnpm test`.
 - Run Rust library tests with `cargo test --manifest-path src-tauri/legacy-db/Cargo.toml`.
 - Run Vite+ checks with `pnpm check`.
 - Format with `pnpm format`.
-- Build the frontend with `pnpm build`.
+- Build the frontend with `pnpm build` (runs `pnpm typecheck` and `vp build`).
+- Preview the frontend build with `pnpm preview` (`vp preview`).
 
 ## Release
 

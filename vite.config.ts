@@ -1,4 +1,4 @@
-import { defineConfig, lazyPlugins } from "vite-plus";
+import { defineConfig } from "vite-plus";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -7,7 +7,7 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: lazyPlugins(() => [vue({ features: { vapor: true } }), tailwindcss()]),
+  plugins: [vue({ features: { vapor: true } }), tailwindcss()],
   fmt: {
     ignorePatterns: ["dist/**", "src-tauri/target/**"],
     semi: true,
