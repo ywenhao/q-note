@@ -149,8 +149,6 @@ export function createMemoryNotePersistClient(
         notes = txNotes ?? notes;
         settings = txSettings ?? settings;
         return result;
-      } catch (error) {
-        throw error;
       } finally {
         txNotes = null;
         txSettings = null;
