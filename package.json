@@ -60,5 +60,12 @@
     "vite": "npm:@voidzero-dev/vite-plus-core@^0.3.2",
     "vite-plus": "^0.3.2",
     "vue-tsc": "^3.3.11"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.21.0",
+      "onFail": "download"
+    }
   }
 }
