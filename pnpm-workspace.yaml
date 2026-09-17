@@ -12,7 +12,7 @@ minimumReleaseAgeExclude:
   - typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2
 
 overrides:
-  vite: "npm:@voidzero-dev/vite-plus-core@^0.3.0"
+  vite: "npm:@voidzero-dev/vite-plus-core@^0.3.2"
   "typescript": "npm:typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2"
 
 peerDependencyRules:

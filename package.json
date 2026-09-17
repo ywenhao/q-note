@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/ywenhao/q-note/issues"
   },
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.4.2",
   "type": "module",
   "scripts": {
     "tauri:dev": "tauri dev",
@@ -53,12 +53,12 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
-    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitejs/plugin-vue": "^6.0.9",
     "bumpp": "^12.3.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "npm:@voidzero-dev/vite-plus-core@^0.3.0",
-    "vite-plus": "^0.3.0",
+    "vite": "npm:@voidzero-dev/vite-plus-core@^0.3.2",
+    "vite-plus": "^0.3.2",
     "vue-tsc": "^3.3.11"
   }
 }
