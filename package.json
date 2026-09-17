@@ -47,7 +47,7 @@
     "@tauri-apps/plugin-sql": "^2.4.1",
     "@tauri-apps/plugin-updater": "^2.11.0",
     "drizzle-orm": "^0.45.2",
-    "vue": "3.6.0-rc.7",
+    "vue": "3.6.0-rc.8",
     "vue-draggable-plus": "^0.6.1"
   },
   "devDependencies": {
