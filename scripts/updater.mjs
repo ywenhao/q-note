@@ -1,175 +1,74 @@
-const repository = process.env.GITHUB_REPOSITORY;
-const token = process.env.GITHUB_TOKEN;
-const releaseTag = process.env.RELEASE_TAG?.replace(/^refs\/tags\//, "");
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 
-if (!repository || !token || !releaseTag) {
-  throw new Error("GITHUB_REPOSITORY, GITHUB_TOKEN, and RELEASE_TAG are required");
-}
-
-const [owner, repo] = repository.split("/");
-
-async function github(path, init = {}) {
-  const response = await fetch(`https://api.github.com${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...init.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub API ${response.status} for ${path}: ${body}`);
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
-}
-
-async function getSignature(url) {
-  const response = await fetch(url, {
-    headers: { Accept: "application/octet-stream" },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to download signature ${url}: ${response.status}`);
-  }
-  const text = await response.text();
-  return text.trim().split("\n").at(-1) ?? text.trim();
-}
-
-function setPlatform(platforms, key, url, signature) {
-  if (!url || !signature) {
-    return;
-  }
-  platforms[key] = { signature, url };
-}
-
-async function buildPlatforms(assets) {
+export function createManifest(
+  directory,
+  repository,
+  tag,
+  notes = "",
+  date = new Date().toISOString(),
+) {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repository))
+    throw new Error("Invalid repository");
+  const version = tag.replace(/^v/, "");
+  if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version))
+    throw new Error("Invalid release version");
   const platforms = {};
-
-  for (const asset of assets) {
-    const { name, browser_download_url: url } = asset;
-
-    if (name.endsWith("x64-setup.exe.sig")) {
-      const signature = await getSignature(url);
-      setPlatform(platforms, "windows-x86_64", url.replace(/\.sig$/, ""), signature);
-      setPlatform(platforms, "windows-x86_64-nsis", url.replace(/\.sig$/, ""), signature);
-      continue;
-    }
-
-    if (name.endsWith("arm64-setup.exe.sig")) {
-      const signature = await getSignature(url);
-      setPlatform(platforms, "windows-aarch64", url.replace(/\.sig$/, ""), signature);
-      setPlatform(platforms, "windows-aarch64-nsis", url.replace(/\.sig$/, ""), signature);
-      continue;
-    }
-
-    if (name.endsWith("aarch64.app.tar.gz.sig")) {
-      const signature = await getSignature(url);
-      const bundleUrl = url.replace(/\.sig$/, "");
-      setPlatform(platforms, "darwin-aarch64", bundleUrl, signature);
-      setPlatform(platforms, "darwin-aarch64-app", bundleUrl, signature);
-      continue;
-    }
-
-    if (name.endsWith(".app.tar.gz.sig") && !name.includes("aarch")) {
-      const signature = await getSignature(url);
-      const bundleUrl = url.replace(/\.sig$/, "");
-      setPlatform(platforms, "darwin-x86_64", bundleUrl, signature);
-      setPlatform(platforms, "darwin-x86_64-app", bundleUrl, signature);
-      continue;
-    }
-
-    if (name.endsWith("amd64.AppImage.tar.gz.sig")) {
-      const signature = await getSignature(url);
-      const bundleUrl = url.replace(/\.sig$/, "");
-      setPlatform(platforms, "linux-x86_64-appimage", bundleUrl, signature);
-      setPlatform(platforms, "linux-x86_64", bundleUrl, signature);
-      continue;
-    }
-
-    if (name.endsWith("amd64.deb.sig")) {
-      const signature = await getSignature(url);
-      const bundleUrl = url.replace(/\.sig$/, "");
-      setPlatform(platforms, "linux-x86_64-deb", bundleUrl, signature);
-      continue;
-    }
-
-    if (name.endsWith("x86_64.rpm.sig")) {
-      const signature = await getSignature(url);
-      const bundleUrl = url.replace(/\.sig$/, "");
-      setPlatform(platforms, "linux-x86_64-rpm", bundleUrl, signature);
-    }
+  for (const file of readdirSync(directory).filter((name) =>
+    /^(windows|linux|darwin)-[\w_]+\.json$/.test(name),
+  )) {
+    const metadata = JSON.parse(readFileSync(join(directory, file), "utf8"));
+    if (
+      metadata.format !== "binary" ||
+      !Number.isSafeInteger(metadata.size) ||
+      metadata.size <= 0 ||
+      !/^[a-f0-9]{64}$/.test(metadata.sha256) ||
+      !/^[\w.-]+$/.test(metadata.name) ||
+      ![
+        "windows-x86_64",
+        "linux-x86_64",
+        "darwin-aarch64",
+        "darwin-x86_64",
+      ].includes(metadata.platform)
+    )
+      throw new Error(`Invalid metadata: ${file}`);
+    const bytes = readFileSync(join(directory, metadata.name));
+    if (
+      file !== `${metadata.platform}.json` ||
+      bytes.length !== metadata.size ||
+      createHash("sha256").update(bytes).digest("hex") !== metadata.sha256
+    )
+      throw new Error(`Artifact does not match metadata: ${file}`);
+    platforms[metadata.platform] = {
+      url: `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(metadata.name)}`,
+      format: "binary",
+      size: metadata.size,
+      sha256: metadata.sha256,
+    };
   }
-
-  return platforms;
+  if (!Object.keys(platforms).length)
+    throw new Error("No native updater artifacts");
+  return { version, notes, pub_date: date, platforms };
 }
 
-async function uploadReleaseAsset(release, fileName, content, contentType) {
-  const uploadUrl = release.upload_url.replace(
-    "{?name,label}",
-    `?name=${encodeURIComponent(fileName)}`,
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  const directory = resolve(process.argv[2] || "dist/packages");
+  const manifest = createManifest(
+    directory,
+    process.env.GITHUB_REPOSITORY || "ywenhao/q-note",
+    process.env.RELEASE_TAG || "",
+    process.env.RELEASE_NOTES || "",
   );
-
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-      "Content-Type": contentType,
-    },
-    body: content,
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub upload ${response.status} for ${fileName}: ${body}`);
-  }
-
-  return response.json();
-}
-
-async function replaceLatestJson(release, latestJson) {
-  for (const asset of release.assets) {
-    if (asset.name === "latest.json") {
-      await github(`/repos/${owner}/${repo}/releases/assets/${asset.id}`, {
-        method: "DELETE",
-      });
-    }
-  }
-
-  const content = JSON.stringify(latestJson, null, 2);
-  await uploadReleaseAsset(release, "latest.json", content, "application/json");
-}
-
-async function main() {
-  const release = await github(`/repos/${owner}/${repo}/releases/tags/${releaseTag}`);
-  const platforms = await buildPlatforms(release.assets);
-
-  if (Object.keys(platforms).length === 0) {
-    throw new Error("No updater artifacts found in release assets");
-  }
-
-  const latestJson = {
-    version: releaseTag.replace(/^v/, ""),
-    notes: release.body ?? "",
-    pub_date: release.published_at ?? new Date().toISOString(),
-    platforms,
-  };
-
-  await replaceLatestJson(release, latestJson);
+  writeFileSync(
+    join(directory, "latest.json"),
+    JSON.stringify(manifest, null, 2) + "\n",
+  );
   console.log(
-    `Updated latest.json for ${releaseTag} with keys: ${Object.keys(platforms).join(", ")}`,
+    `Generated latest.json for ${Object.keys(manifest.platforms).join(", ")}`,
   );
 }
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});

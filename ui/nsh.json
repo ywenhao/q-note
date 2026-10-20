@@ -1,0 +1,8 @@
+{
+  "name": "Q Note",
+  "id": "com.win11.q-note",
+  "version": "0.2.12",
+  "build": 1,
+  "appearance": "light",
+  "rust": "../native"
+}

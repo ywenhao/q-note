@@ -2,19 +2,10 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "pnpm: dev",
+      "label": "native: dev",
       "type": "shell",
       "command": "pnpm",
       "args": ["dev"],
-      "isBackground": true,
-      "problemMatcher": [],
-      "group": "build"
-    },
-    {
-      "label": "tauri: dev",
-      "type": "shell",
-      "command": "pnpm",
-      "args": ["tauri", "dev"],
       "isBackground": true,
       "problemMatcher": [],
       "group": {
@@ -23,21 +14,26 @@
       }
     },
     {
-      "label": "ts: typecheck",
+      "label": "native: typecheck",
       "type": "shell",
       "command": "pnpm",
-      "args": ["exec", "tsc", "--noEmit"],
-      "problemMatcher": "$tsc",
+      "args": ["typecheck"],
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "native: test",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test"],
+      "problemMatcher": [],
       "group": "test"
     },
     {
       "label": "cargo: check",
       "type": "shell",
       "command": "cargo",
-      "args": ["check"],
-      "options": {
-        "cwd": "${workspaceFolder}/src-tauri"
-      },
+      "args": ["check", "--workspace", "--locked"],
       "problemMatcher": "$rustc",
       "group": "test"
     }

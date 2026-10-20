@@ -35,3 +35,7 @@ coverage
 *.sw?
 
 /target
+/.tools
+**/.nsh
+/ui/mark.ts
+/.playwright-mcp

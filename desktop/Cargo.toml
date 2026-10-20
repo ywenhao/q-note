@@ -1,0 +1,37 @@
+[package]
+name = "q-note"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+q-note-native = { path = "../native" }
+nsh-engine.workspace = true
+nsh-core.workspace = true
+nsh-ui-mobile = "=0.1.1"
+serde_json.workspace = true
+anyhow = "1"
+env_logger = "0.11"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nsh-platform-linux = "=0.1.1"
+ksni = { version = "0.3", features = ["blocking"] }
+x11rb = { version = "0.13", features = ["shape"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+nsh-platform-windows = "=0.1.1"
+tray-icon = "0.21"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_System_Ole", "Win32_UI_Controls", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+nsh-platform-macos = "=0.1.1"
+tray-icon = "0.21"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSWindow", "NSView", "NSScreen", "NSEvent", "NSColor", "NSImage", "NSButton"] }
+objc2-foundation = { version = "0.3", features = ["NSTimer", "NSRunLoop", "NSString", "NSGeometry", "NSNotification"] }
+block2 = "0.6"
+objc2-quartz-core = { version = "0.3", features = ["CALayer"] }
+
+[build-dependencies]
+winresource = "0.1"

@@ -2,39 +2,47 @@
 
 ## Project
 
-Q Note is a Tauri 2 desktop app with Vue 3.6 Vapor, TypeScript, Vite+, Tailwind CSS, and SQLite.
+Q Note is a desktop app built with Longbridge Native Shell (NSH 0.1.1), TypeScript TSX native components, Rust, and SQLite. It supports Windows, macOS, and Linux; mobile is outside scope. The UI uses NSH signals, native views, and Canvas icons. It does not use a WebView, Vue, React, or a browser DOM.
 
 ## Commands
 
-- Install dependencies with `pnpm install`.
-- Start the web dev server with `pnpm dev` (`vp dev`).
-- Start the desktop app with `pnpm tauri dev`.
-- Run TypeScript checks with `pnpm typecheck`.
-- Run the test suite with `pnpm test`.
-- Run Rust library tests with `cargo test --manifest-path src-tauri/legacy-db/Cargo.toml`.
-- Run Vite+ checks with `pnpm check`.
-- Format with `pnpm format`.
-- Build the frontend with `pnpm build` (runs `pnpm typecheck` and `vp build`).
-- Preview the frontend build with `pnpm preview` (`vp preview`).
+- Install JavaScript tooling with `pnpm install`.
+- Download the pinned NSH CLI and source with `pnpm setup` (requires `gh` authentication or `GH_TOKEN`).
+- Start the native app with rebuild-on-change using `pnpm dev`.
+- Check all three window entry points with `pnpm typecheck`.
+- Generate embedded UI bundles with `pnpm build:ui` before direct Cargo desktop builds.
+- Run storage, ordering, geometry, image, updater, and release-metadata tests with `pnpm test`.
+- Build a debug desktop binary with `cargo build -p q-note --locked`.
+- Run real Linux native-window regression with `pnpm test:desktop` after the debug build (requires Xvfb, Openbox, xdotool, xclip, ImageMagick, and D-Bus).
+- Run type, formatting, and workspace checks with `pnpm check`.
+- Format with `pnpm format`; verify with `pnpm format:check`.
+- Build the release desktop executable with `pnpm build`.
+- Package the current host executable and updater metadata with `pnpm package`.
+- Set `Q_NOTE_DATA_DIR` to an isolated directory for manual and automated tests. Never exercise destructive scenarios on personal data.
 
 ## Release
 
-- Bump version, sync `Cargo.lock`, commit, tag, and push with `pnpm release:patch`, `pnpm release:minor`, or `pnpm release:major`.
-- The release script uses `bumpp` with `--all` so `src-tauri/Cargo.lock` is included in the same `release: vX.Y.Z` commit. Do not remove `--all`; without it, `bumpp` only commits the version files it edits.
-- `scripts/sync-cargo-lock.mjs` runs during release via `cargo update` to refresh the `q-note` entry in `Cargo.lock` after `src-tauri/Cargo.toml` is bumped.
-- Pushing a `v*` tag triggers `.github/workflows/release.yml`, which builds platform artifacts and uploads `latest.json` for the in-app updater.
+- Bump version, sync the root `Cargo.lock`, commit, tag, and push with `pnpm release:patch`, `pnpm release:minor`, or `pnpm release:major`.
+- Version files are `package.json`, the root `Cargo.toml`, and `ui/nsh.json`.
+- Keep `bumpp --all` so both workspace package versions in `Cargo.lock` enter the release commit.
+- `scripts/sync-cargo-lock.mjs` refreshes workspace versions offline before committing.
+- Pushing a `v*` tag triggers native Windows x64, Linux x64, and macOS builds, then publishes portable packages, raw executable updates, checksums/sizes, and `latest.json`.
+- Packaging and updater manifest generation must agree on platform keys and the `binary` artifact format. Do not publish Tauri updater signatures for native executable updates.
+- NSH crates and the downloaded CLI/source must stay on the same pinned release. See `scripts/native-shell.mjs`.
 
 ## Working Rules
 
 - Use `pnpm` for JavaScript dependencies and scripts.
-- Write components as Vue SFCs with `<script setup lang="ts" vapor>` and use Vue composables for reusable stateful behavior.
-- Keep the frontend in Vapor mode and do not add React or a VDOM compatibility layer.
-- Keep UI text in `src/i18n.ts` so Chinese and English stay aligned.
-- Store durable note and setting data through `src/lib/storage.ts`.
-- Keep Tauri permissions in `src-tauri/capabilities/default.json` narrow and explicit.
-- Keep comments in English and add them only when they clarify non-obvious logic.
-- Preserve the main background color `#ffd150`.
-- Keep card color choices in `src/types.ts` so the palette remains centralized.
+- Write TSX with NSH primitives and signals. Keep native rendering; do not add a WebView or a VDOM compatibility layer.
+- Keep application UI text in `ui/i18n.ts`; keep operating-system window/tray labels centralized in `desktop/src/host.rs`. Chinese and English must cover identical actions.
+- Put durable data mutations in `native/src/storage`; commit before changing shared application state.
+- Reuse the existing SQLite schema and data paths. Legacy copying must happen before a new database is created and must never overwrite an existing destination.
+- Keep NSH capability declarations in `desktop/src/host.rs` explicit and limited to actual UI needs.
+- Keep comments in English and add them only for non-obvious logic.
+- Preserve the main background color `#ffd150` and editor background `#fff9df`.
+- Keep the ordered 12-color palette centralized in `native/src/models.rs`; the UI reads it from shared state.
+- Key note and attachment lists by their durable IDs so asynchronous image and input events cannot dispose active controls.
+- UI bundles are embedded in the Rust executable. Regenerate them before validating or packaging desktop changes.
 - Do not remove user data during import/export changes unless the import flow explicitly replaces data.
 
 ## Functional Specification Sync (Mandatory)

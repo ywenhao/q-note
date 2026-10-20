@@ -1,0 +1,7 @@
+ui/.nsh
+ui/mark.ts
+ui/assets
+node_modules
+dist
+target
+.tools

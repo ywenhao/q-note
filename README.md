@@ -1,143 +1,69 @@
-<p align="center">
-  <img src="./app-icon.png" alt="Q Note icon" width="120" height="120" />
-</p>
-
+<p align="center"><img src="./app-icon.png" alt="Q Note" width="120" height="120" /></p>
 <h1 align="center">Q Note</h1>
+<p align="center">A compact desktop board for reusable text, pictures, and file references. <a href="./README.zh-CN.md">中文说明</a></p>
 
-<p align="center">
-  A compact desktop note board for snippets, images, links, and local paths you reuse often.
-</p>
+## Native Shell edition
 
-<p align="center">
-  <a href="./README.zh-CN.md">中文说明</a>
-</p>
+This branch reimplements Q Note with [Longbridge Native Shell](https://github.com/longbridge/nsh) 0.1.1 and Rust. TSX describes native controls and Canvas icons; the app ships no WebView, Vue, or React runtime. Windows, macOS, and Linux are supported. Mobile is outside this branch's scope.
 
-## Screenshots
+| Main board                                                               | Independent editor                                                     |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| <img src="./docs/images/q-note-main.png" alt="Main board" width="300" /> | <img src="./docs/images/q-note-editor.png" alt="Editor" width="390" /> |
 
-| Main board                                                                      | Editor window                                                                        |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| <img src="./docs/images/q-note-main.png" alt="Q Note main board" width="288" /> | <img src="./docs/images/q-note-editor.png" alt="Q Note editor window" width="360" /> |
+Click a card to copy it. Pin, recolor, reorder, or expand its text; add embedded pictures, image URLs, local paths, dropped files, or clipboard screenshots in the independent editor. The image viewer supports navigation, zoom, and panning. Collapse the yellow board to a 30px Q icon with edge snapping and hover reveal. Chinese/English, global always-on-top, tray restoration, launch at login, JSON import/export, and verified executable updates are included.
 
-## Overview
+The complete, framework-independent behavior baseline is [docs/FEATURES.md](./docs/FEATURES.md). Architecture and verification details are in [docs/NATIVE_SHELL.md](./docs/NATIVE_SHELL.md).
 
-Q Note is a small Tauri desktop app for keeping short notes close to your cursor. It is built for quick capture and repeated copy workflows: save text snippets, screenshots, image URLs, local file paths, and small reference notes; pin the important ones; drag cards into the order you want; mark cards with color; and collapse the whole app into a tiny floating Q icon when you need the screen space.
+## Development
 
-The interface stays intentionally compact. The main board is a narrow yellow panel with a short toolbar, card list, tray integration, always-on-top mode, and a floating icon mode that can snap to desktop edges while staying partly visible. Editing happens in a separate window so the main panel does not resize or jump.
-
-## Quick Start
+Install Rust stable, Node.js 24, pnpm, and [GitHub CLI](https://cli.github.com/). Authenticate `gh` or set `GH_TOKEN` to download the pinned NSH release and source. macOS needs Xcode command-line tools; Windows needs the Visual Studio C++ workload and Windows SDK. Linux needs GTK 4 development headers, libclang, CMake, pkg-config, and a desktop session with a file-picker portal.
 
 ```bash
+# Ubuntu 24.04 or newer
+sudo apt-get install libgtk-4-dev libclang-dev cmake pkg-config
 pnpm install
-pnpm tauri dev
+pnpm setup
+pnpm dev
 ```
 
-## Commands
+| Command                          | Result                                              |
+| -------------------------------- | --------------------------------------------------- |
+| `pnpm typecheck`                 | Check all three native window entries               |
+| `pnpm test`                      | Rust domain/storage tests and update manifest tests |
+| `pnpm build:ui`                  | Generate the UI bundles embedded by Cargo           |
+| `cargo build -p q-note --locked` | Build the debug native executable after bundling    |
+| `pnpm check`                     | Types, formatting, and Rust workspace checks        |
+| `pnpm format`                    | Format TSX/tooling and Rust                         |
+| `pnpm build`                     | Typecheck, bundle, and build the release executable |
+| `pnpm package`                   | Package the host executable into `dist/packages`    |
+| `pnpm test:desktop`              | Run the real Linux native-window regression         |
 
-| Command                                                     | Purpose                                   |
-| ----------------------------------------------------------- | ----------------------------------------- |
-| `pnpm dev`                                                  | Start the Vite dev server                 |
-| `pnpm tauri dev`                                            | Start the Tauri desktop app               |
-| `pnpm typecheck`                                            | Run TypeScript build checks               |
-| `pnpm test`                                                 | Run the Node test suite                   |
-| `cargo test --manifest-path src-tauri/legacy-db/Cargo.toml` | Run Rust library tests                    |
-| `pnpm check`                                                | Run Vite+ checks                          |
-| `pnpm check:fix`                                            | Fix Vite+ check issues                    |
-| `pnpm format`                                               | Format with Vite+                         |
-| `pnpm format:check`                                         | Check formatting                          |
-| `pnpm build`                                                | Build the frontend                        |
-| `pnpm release:patch`                                        | Bump patch version, commit, tag, and push |
-| `pnpm release:minor`                                        | Bump minor version, commit, tag, and push |
-| `pnpm release:major`                                        | Bump major version, commit, tag, and push |
+Desktop regression requires `xvfb openbox xdotool xclip imagemagick dbus-x11`. Its screenshots and log are saved in `dist/smoke`. Set `Q_NOTE_DATA_DIR=/path/to/scratch` when testing manually to keep personal notes isolated. `NSH_BIN` and `NSH_SOURCE` can point to a matching 0.1.1 CLI and checkout for offline development. Intel macOS builds the pinned CLI from source because upstream only publishes an ARM macOS CLI.
 
-## Release
+## Data
 
-Maintainers can cut a release with one command:
+The SQLite database remains compatible with previous Q Note versions:
+
+| Platform      | Database                                |
+| ------------- | --------------------------------------- |
+| Windows       | `C:\Users\<username>\.q-note\q-note.db` |
+| macOS / Linux | `~/.q-note/q-note.db`                   |
+
+Before creating a new database, the app copies an existing legacy `%APPDATA%\com.win11.q-note\q-note.db` without overwriting an existing destination or deleting the original. Live SQLite journal contents are included. JSON export contains notes, attachments, settings, format version, and export time. Import replaces all notes and settings atomically; cancellation or failure preserves the previous data.
+
+## Packaging and releases
+
+The branch uses portable packages: Windows x64 `.zip`, Linux x64 `.tar.gz` (requires GTK 4), and macOS `.app.zip` for Apple Silicon and Intel. There is no separate frontend directory to distribute: UI bundles and icons are embedded in the executable. macOS packages use ad-hoc executable signing and are not Developer ID notarized.
 
 ```bash
-pnpm release:patch   # 0.2.5 -> 0.2.6
-pnpm release:minor   # 0.2.5 -> 0.3.0
-pnpm release:major   # 0.2.5 -> 1.0.0
+pnpm release:patch
+pnpm release:minor
+pnpm release:major
 ```
 
-Each release command:
+These commands update `package.json`, workspace `Cargo.toml`, and `ui/nsh.json`, synchronize both workspace entries in `Cargo.lock`, create a version commit/tag, and push them. Keep `bumpp --all` so the lockfile enters the same commit. Tagged builds run the native release workflow, then publish packages, raw updater executables, their SHA-256/size metadata, and `latest.json`. The updater downloads and verifies a matching executable, saves notes/window/draft state, replaces the executable, and restarts after the old process exits. An unwritable application location produces an installation failure while retaining user data.
 
-1. Bumps the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.
-2. Runs `scripts/sync-cargo-lock.mjs` to refresh the `q-note` entry in `src-tauri/Cargo.lock`.
-3. Creates a `release: vX.Y.Z` commit and `vX.Y.Z` tag, then pushes both to `origin`.
-
-The release script uses `bumpp` with `--all` so `Cargo.lock` is included in the same release commit. Do not remove `--all`; without it, only the version files are committed.
-
-Pushing a `v*` tag triggers [`.github/workflows/release.yml`](./.github/workflows/release.yml), which builds Windows, macOS, and Linux artifacts, publishes a GitHub Release, and uploads `latest.json` for the in-app updater.
-
-## Features
-
-| Feature            | Details                                                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| Compact note board | Keep frequently used snippets in a narrow, always-available desktop panel                                                      |
-| Quick copy         | Click a card to copy its text; attachment-only notes copy attachment values                                                    |
-| Card management    | Create, edit, delete, pin, recolor, resize, and drag-sort note cards                                                           |
-| Drag sorting       | Reorder cards with a drag overlay; crossing the pinned boundary automatically pins or unpins the card                          |
-| Separate editor    | Create and edit notes in an independent editor window without changing the main panel size                                     |
-| Images and files   | Add images, drop files/images, paste screenshots, use web image URLs, local paths, and base64 fallback data                    |
-| Image preview      | Click editor thumbnails to view a larger image                                                                                 |
-| Floating Q icon    | Collapse to a 30px Q icon, drag it, snap it to screen edges, show half at the edge, and reveal it on hover                     |
-| Dual-monitor edges | Edge snapping avoids unstable cross-screen offsets by clipping the Q icon inside the current screen                            |
-| Topmost window     | Toggle always-on-top from the toolbar, right-click menu, or tray menu                                                          |
-| Tray icon          | Keep a resident Q icon in the system tray; click it to show the app                                                            |
-| Language switch    | Toggle Chinese and English from the toolbar; the choice is saved locally                                                       |
-| Launch at login    | Enable or disable startup launch from Settings; it is off by default                                                           |
-| Persistence        | Notes, attachments, colors, card order, card heights, window size, topmost state, language, and dock state are saved in SQLite |
-| Import/export      | Export and import notes plus local settings as JSON                                                                            |
-
-## Stack
-
-| Area          | Tooling                                                        |
-| ------------- | -------------------------------------------------------------- |
-| Desktop shell | Tauri 2                                                        |
-| Frontend      | Vue 3.6 Vapor + TypeScript + `<script setup>`                  |
-| Build         | Vite 8 + Vite+                                                 |
-| Styling       | Tailwind CSS 4 + CSS                                           |
-| Drag sorting  | vue-draggable-plus + SortableJS                                |
-| Storage       | SQLite + `@tauri-apps/plugin-sql` + Drizzle proxy              |
-| Files         | `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs`          |
-| Icons         | Lucide icon data rendered by a native Vapor component + Q icon |
-
-Every Vue SFC is explicitly compiled in Vapor mode. Application state lives in Vue composables built with `ref`, `computed`, `watch`, and Vue lifecycle hooks; the project does not ship a React runtime or a VDOM compatibility layer. See [Vue Vapor architecture](./docs/vue-vapor-migration.md) for implementation details.
-
-## Packaging
-
-Release builds are generated by GitHub Actions. See [Release](#release) for the maintainer workflow.
-
-Windows NSIS/MSI, macOS DMG, and Linux AppImage/DEB/RPM artifacts are published to GitHub Releases. The Windows NSIS installer uses `src-tauri/icons/icon.ico` for both installer and uninstaller icons.
-
-## macOS App Trust
-
-Q Note is not currently signed or notarized with an Apple Developer ID certificate. macOS may show a warning such as "Q Note is damaged and can't be opened" after installation. If you downloaded Q Note from the official GitHub Release and trust the app, you can allow it manually:
-
-1. Open **System Settings**.
-2. Go to **Privacy & Security**.
-3. Scroll to the Security section and choose **Open Anyway** for Q Note if the prompt appears.
-4. Alternatively, right-click **Q Note.app** and choose **Open**, then confirm the warning dialog.
-
-If macOS still blocks the app, remove the download quarantine flag in Terminal:
-
-```bash
-sudo xattr -rd com.apple.quarantine "/Applications/Q Note.app"
-open "/Applications/Q Note.app"
-```
-
-Only run the command for an app package you downloaded from a trusted release page.
-
-## Data Location
-
-Q Note stores its SQLite database in the user home folder:
-
-| Platform    | Path                                    |
-| ----------- | --------------------------------------- |
-| Windows     | `C:\Users\<username>\.q-note\q-note.db` |
-| macOS/Linux | `~/.q-note/q-note.db`                   |
-
-If an older Windows install already has data in `%APPDATA%\com.win11.q-note\q-note.db`, Q Note copies it to the new location on first launch.
+macOS may require **Privacy & Security → Open Anyway** or Finder **Open** for an unnotarized download. Linux Wayland compositors can restrict absolute positioning and always-on-top; those window operations safely fall back to compositor behavior. A desktop without a tray host can restore the Linux main window by launching the app again.
 
 ## License
 

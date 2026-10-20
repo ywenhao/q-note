@@ -2,75 +2,68 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build ${{ matrix.platform }}
-    runs-on: ${{ matrix.platform }}
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest, windows-latest]
-
+        os: [ubuntu-24.04, windows-latest, macos-15, macos-15-intel]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Build and publish release
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libclang-dev cmake pkg-config
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm package
+      - uses: actions/upload-artifact@v6
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Q Note ${{ github.ref_name }}
-          releaseDraft: false
-          prerelease: false
-          updaterJsonPreferNsis: true
+          name: packages-${{ matrix.os }}
+          path: |
+            dist/packages/*.zip
+            dist/packages/*.tar.gz
+            dist/packages/*.update
+            dist/packages/*.update.exe
+            dist/packages/*.json
 
-  update-manifest:
-    name: Refresh updater manifest
-    needs: release
-    runs-on: ubuntu-latest
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Refresh latest.json platform keys
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/updater.mjs
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: packages-*
+          path: dist/packages
+          merge-multiple: true
+      - run: node scripts/updater.mjs
+      - name: Publish native packages and updater manifest
+        run: gh release create "$RELEASE_TAG" dist/packages/* --repo "$GITHUB_REPOSITORY" --title "Q Note $RELEASE_TAG" --generate-notes
