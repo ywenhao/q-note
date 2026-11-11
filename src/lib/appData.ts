@@ -14,7 +14,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-export function inferAttachmentKind(source: AttachmentSource, value: string): AttachmentKind {
+export function inferAttachmentKind(
+  source: AttachmentSource,
+  value: string,
+): AttachmentKind {
   if (source === "data") {
     return /^data:image\//i.test(value) ? "image" : "file";
   }
@@ -63,7 +66,9 @@ function normalizeNote(value: unknown): Note | null {
     content: typeof value.content === "string" ? value.content : "",
     color: typeof value.color === "string" ? value.color : DEFAULT_NOTE_COLOR,
     pinned: Boolean(value.pinned),
-    sortOrder: Number.isFinite(Number(value.sortOrder)) ? Number(value.sortOrder) : -updatedAt,
+    sortOrder: Number.isFinite(Number(value.sortOrder))
+      ? Number(value.sortOrder)
+      : -updatedAt,
     textHeight: typeof value.textHeight === "number" ? value.textHeight : null,
     attachments,
     createdAt: Number(value.createdAt) || Date.now(),
@@ -77,7 +82,9 @@ export function normalizeImportPayload(value: unknown): AppData {
   }
 
   const notes = Array.isArray(value.notes)
-    ? value.notes.map(normalizeNote).filter((item): item is Note => Boolean(item))
+    ? value.notes
+        .map(normalizeNote)
+        .filter((item): item is Note => Boolean(item))
     : [];
 
   return {

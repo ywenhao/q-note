@@ -35,3 +35,7 @@ coverage
 *.sw?
 
 /target
+
+# Native Shell generated toolchains, declarations and build output
+.nsh/
+native/target/

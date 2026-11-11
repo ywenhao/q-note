@@ -1,76 +1,75 @@
-name: Release
+name: NSH Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["nsh-v*"]
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build ${{ matrix.platform }}
-    runs-on: ${{ matrix.platform }}
+  package:
+    name: Package ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest, windows-latest]
-
+        include:
+          - { os: windows-latest, target: windows }
+          - { os: macos-latest, target: macos }
+          - { os: ubuntu-latest, target: linux }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev clang
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Build and publish release
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Q Note ${{ github.ref_name }}
-          releaseDraft: false
-          prerelease: false
-          updaterJsonPreferNsis: true
+          workspaces: |
+            native
+            .nsh/rust
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm test:native
+      - run: pnpm test:ui
+      - run: pnpm package:${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nsh-${{ matrix.target }}
+          path: |
+            dist/${{ matrix.target }}/*.zip
+            dist/${{ matrix.target }}/*.tar.gz
+          if-no-files-found: error
 
-  update-manifest:
-    name: Refresh updater manifest
-    needs: release
+  publish:
+    name: Publish dedicated NSH release
+    needs: package
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Refresh latest.json platform keys
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nsh-*
+          merge-multiple: true
+          path: dist/release
+      - name: Verify tag and create NSH manifest
+        shell: bash
+        run: |
+          test "$GITHUB_REF_NAME" = "nsh-v$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")"
+          archives=(dist/release/*.tar.gz dist/release/*.zip)
+          node scripts/nsh.mjs update-manifest --entry . --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" -o dist/release "${archives[@]}"
+      - name: Publish archives and manifest
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/updater.mjs
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/release/* --title "Q Note NSH ${GITHUB_REF_NAME#nsh-}" --generate-notes --latest=false

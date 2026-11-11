@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `;
 
-export function createSqlNotePersistClient(execute: SqlExecute): NotePersistClient {
+export function createSqlNotePersistClient(
+  execute: SqlExecute,
+): NotePersistClient {
   let depth = 0;
 
   return {
@@ -104,11 +106,10 @@ export function createSqlNotePersistClient(execute: SqlExecute): NotePersistClie
       );
     },
     async updateNoteOrder(note: Pick<Note, "id" | "pinned" | "sortOrder">) {
-      await execute("UPDATE notes SET pinned = ?, sort_order = ? WHERE id = ?", [
-        note.pinned ? 1 : 0,
-        note.sortOrder,
-        note.id,
-      ]);
+      await execute(
+        "UPDATE notes SET pinned = ?, sort_order = ? WHERE id = ?",
+        [note.pinned ? 1 : 0, note.sortOrder, note.id],
+      );
     },
   };
 }

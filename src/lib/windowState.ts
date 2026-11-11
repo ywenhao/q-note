@@ -47,7 +47,12 @@ export function normalizeWindowState(value: unknown): WindowState | null {
   const height = Number(value.height);
   const x = Number(value.x);
   const y = Number(value.y);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
     return null;
   }
 
@@ -60,7 +65,10 @@ export function normalizeWindowState(value: unknown): WindowState | null {
   };
 }
 
-export function windowSizeMatches(left: WindowState | null, right: WindowState | null) {
+export function windowSizeMatches(
+  left: WindowState | null,
+  right: WindowState | null,
+) {
   if (!left || !right) {
     return left === right;
   }

@@ -19,7 +19,9 @@ export function reduceUpdateDownloadProgress(
       downloaded: 0,
       percent: 0,
       total:
-        typeof contentLength === "number" && Number.isFinite(contentLength) && contentLength > 0
+        typeof contentLength === "number" &&
+        Number.isFinite(contentLength) &&
+        contentLength > 0
           ? contentLength
           : null,
     };
@@ -33,7 +35,8 @@ export function reduceUpdateDownloadProgress(
     };
   }
 
-  const downloaded = (current?.downloaded ?? 0) + Math.max(0, event.data.chunkLength);
+  const downloaded =
+    (current?.downloaded ?? 0) + Math.max(0, event.data.chunkLength);
   const total = current?.total ?? null;
   return {
     downloaded,

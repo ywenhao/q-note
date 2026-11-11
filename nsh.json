@@ -1,0 +1,55 @@
+{
+  "name": "Q Note",
+  "id": "com.win11.q-note",
+  "version": "0.2.12",
+  "build": 1,
+  "icon": "app-icon.png",
+  "appearance": "light",
+  "locales": ["zh-CN", "en"],
+  "rust": "native",
+  "theme": {
+    "cssVars": {
+      "theme": { "radius": "8px" },
+      "light": {
+        "background": "#ffd150",
+        "foreground": "#1f2328",
+        "card": "#fff9db",
+        "card-foreground": "#1f2328",
+        "popover": "#fffdf4",
+        "popover-foreground": "#1f2328",
+        "primary": "#007aff",
+        "primary-foreground": "#ffffff",
+        "secondary": "#fff9df",
+        "secondary-foreground": "#1f2328",
+        "muted": "#fff9df",
+        "muted-foreground": "#73706b",
+        "accent": "#ffe59a",
+        "accent-foreground": "#1f2328",
+        "destructive": "#ff3b30",
+        "border": "#e6c15b",
+        "input": "#e5dcc2",
+        "ring": "#007aff"
+      }
+    }
+  },
+  "window": {
+    "title": "Q Note",
+    "defaultSize": { "width": 300, "height": 450 },
+    "minSize": { "width": 300, "height": 450 },
+    "maxSize": { "width": 1000, "height": 800 },
+    "frame": "none",
+    "transparent": true,
+    "maximizable": false,
+    "closeOnPress": false
+  },
+  "capabilities": {
+    "network": { "hosts": ["*"] },
+    "clipboard": true,
+    "picker": true,
+    "statusBar": true,
+    "windows": { "kinds": ["normal", "panel"], "max": 2 },
+    "openUrl": { "schemes": ["https"] },
+    "process": { "exit": true }
+  },
+  "updater": { "github": "ywenhao/q-note" }
+}

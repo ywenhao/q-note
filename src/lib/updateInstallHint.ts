@@ -17,7 +17,10 @@ export function getUpdateConfirmBody(t: Translation, bundleType: BundleType) {
   return t.updateConfirmDefault;
 }
 
-export function getUpdateInstallingHint(t: Translation, bundleType: BundleType) {
+export function getUpdateInstallingHint(
+  t: Translation,
+  bundleType: BundleType,
+) {
   if (bundleType === "appimage") {
     return t.updateInstallingAppImage;
   }

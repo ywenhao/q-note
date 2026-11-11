@@ -1,68 +1,42 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
-import type { NoteAttachment } from "../types";
-import { isTauriRuntime } from "./env";
-import { isLikelyImagePath } from "./imagePath";
+import { Buffer } from "buffer";
+import { Files } from "q-note/native";
+import type { NoteAttachment, AttachmentSource } from "../types";
+import { inferAttachmentKind } from "./appData";
 
 export { isLikelyImagePath } from "./imagePath";
 
-export function getAttachmentSrc(attachment: NoteAttachment) {
-  if (attachment.source === "path" && isTauriRuntime()) {
-    return convertFileSrc(attachment.value);
-  }
-
-  return attachment.value;
+export function attachmentFromValue(
+  raw: string,
+  name?: string,
+): NoteAttachment {
+  const value = raw.trim();
+  const source: AttachmentSource = /^data:/i.test(value)
+    ? "data"
+    : /^https?:\/\//i.test(value)
+      ? "url"
+      : "path";
+  return {
+    id: crypto.randomUUID(),
+    kind: inferAttachmentKind(source, value),
+    source,
+    value,
+    name: name ?? value.split(/[\\/]/).pop()?.split(/[?#]/)[0],
+    createdAt: Date.now(),
+  };
 }
 
-export function isImageAttachment(attachment: Pick<NoteAttachment, "kind" | "source" | "value">) {
-  if (attachment.kind === "file") {
-    return false;
-  }
-
-  return (
-    attachment.kind === "image" ||
-    /^data:image\//i.test(attachment.value) ||
-    isLikelyImagePath(attachment.value)
-  );
+export async function readFileAsDataUrl(file: File) {
+  return `data:${file.type || "application/octet-stream"};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`;
 }
 
-function readUrls(value: string, onlyImages = true) {
-  return value
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter((item) => /^https?:\/\//i.test(item) && (!onlyImages || isLikelyImagePath(item)));
+export async function getAttachmentSrc(attachment: NoteAttachment) {
+  if (attachment.source !== "path") return attachment.value;
+  return Files.image(attachment.value);
 }
 
-function readImageUrlsFromHtml(value: string) {
-  const parser = new DOMParser();
-  const document = parser.parseFromString(value, "text/html");
-  const urls = Array.from(document.querySelectorAll("img"))
-    .map((image) => image.currentSrc || image.src)
-    .filter((src) => /^https?:\/\//i.test(src));
-
-  return Array.from(new Set(urls));
-}
-
-export function resolveDraggedImageUrls(dataTransfer: DataTransfer) {
-  const uriList = dataTransfer.getData("text/uri-list");
-  const plainText = dataTransfer.getData("text/plain");
-  const html = dataTransfer.getData("text/html");
-  const urls = [...readUrls(uriList), ...readUrls(plainText), ...readImageUrlsFromHtml(html)];
-
-  return Array.from(new Set(urls));
-}
-
-export function resolveDraggedFileUrls(dataTransfer: DataTransfer) {
-  const uriList = dataTransfer.getData("text/uri-list");
-  const plainText = dataTransfer.getData("text/plain");
-
-  return Array.from(new Set([...readUrls(uriList, false), ...readUrls(plainText, false)]));
-}
-
-export function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(file);
-  });
+export function pathFromUri(value: string) {
+  if (!value.startsWith("file:")) return value;
+  let path = decodeURIComponent(new URL(value).pathname);
+  if (/^\/[a-z]:/i.test(path)) path = path.slice(1);
+  return path;
 }

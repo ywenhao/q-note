@@ -2,11 +2,12 @@ import type { AppSettings, Language } from "../types.ts";
 import { normalizeWindowState } from "./windowState.ts";
 
 function readSystemLanguage() {
-  if (typeof navigator === "undefined") {
-    return "en";
-  }
-
-  return navigator.language || navigator.languages?.[0] || "en";
+  const browser = (
+    globalThis as {
+      navigator?: { language?: string; languages?: readonly string[] };
+    }
+  ).navigator;
+  return browser?.language || browser?.languages?.[0] || "en";
 }
 
 function detectDefaultLanguage(): Language {
@@ -56,7 +57,10 @@ export function normalizeSettings(value: unknown): AppSettings {
     language: toLanguage(value.language),
     alwaysOnTop: Boolean(value.alwaysOnTop),
     autoStart: Boolean(value.autoStart),
-    dockOnEdge: typeof value.dockOnEdge === "boolean" ? value.dockOnEdge : defaults.dockOnEdge,
+    dockOnEdge:
+      typeof value.dockOnEdge === "boolean"
+        ? value.dockOnEdge
+        : defaults.dockOnEdge,
     docked: Boolean(value.docked),
     dockEdge:
       value.dockEdge === "left" ||

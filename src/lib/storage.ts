@@ -1,302 +1,118 @@
-import { invoke } from "@tauri-apps/api/core";
-import Database from "@tauri-apps/plugin-sql";
-import { desc, eq } from "drizzle-orm";
-import { drizzle, type SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
-import { type AppData, type AppSettings, type Note, type NoteAttachment } from "../types";
-import { inferAttachmentKind, normalizeImportPayload } from "./appData";
-import { isTauriRuntime } from "./env";
-import {
-  APP_SETTINGS_KEY,
-  persistDeleteAllNotes,
-  persistDeleteNote,
-  persistReplaceAppData,
-  persistSaveNote,
-  persistSaveNotesOrder,
-  type NotePersistClient,
-} from "./notePersist";
-import { attachmentsTable, notesTable, schema, settingsTable } from "./schema";
-import { createSqlNotePersistClient } from "./sqlNotePersist";
-import { createDefaultSettings, normalizeSettings, parseStoredSettings } from "./settingsState";
-import { mapSqliteProxyResult } from "./sqliteProxy";
+import { locale, platform, Storage } from "nsh";
+import { Notes } from "q-note/native";
+import type { AppData, AppSettings, Note } from "../types";
+import { normalizeImportPayload } from "./appData";
+import { createDefaultSettings, normalizeSettings } from "./settingsState";
 import {
   parsePendingUpdateDraft,
-  serializePendingUpdateDraft,
   type PendingUpdateDraft,
 } from "./updateDraft";
 
-export { createExportPayload, normalizeImportPayload } from "./appData";
-export { createDefaultSettings, normalizeSettings, parseStoredSettings } from "./settingsState";
-export { windowSizeMatches } from "./windowState";
+const key = "q-note:web-data";
+const draftKey = "q-note:pending-update-editor-draft";
+const native = () => platform.os !== "web";
+let queue: Promise<unknown> = Promise.resolve();
 
-const FALLBACK_DB_URL = "sqlite:q-note.db";
-const SETTINGS_KEY = APP_SETTINGS_KEY;
-const PENDING_UPDATE_DRAFT_KEY = "pending-update-editor-draft";
-const WEB_STORAGE_KEY = "q-note:web-data";
-const WEB_PENDING_UPDATE_DRAFT_KEY = "q-note:pending-update-editor-draft";
-
-let dbUrlPromise: Promise<string> | null = null;
-let dbPromise: Promise<Database> | null = null;
-let drizzlePromise: Promise<SqliteRemoteDatabase<typeof schema>> | null = null;
-let persistClient: NotePersistClient | null = null;
-
-function getDbUrl() {
-  if (!isTauriRuntime()) {
-    return Promise.resolve(FALLBACK_DB_URL);
-  }
-
-  dbUrlPromise ??= invoke<string>("get_database_url");
-  return dbUrlPromise;
-}
-
-function getDb() {
-  dbPromise ??= getDbUrl().then((url) => Database.load(url));
-  return dbPromise;
-}
-
-function getDrizzleDb() {
-  drizzlePromise ??= getDb().then((db) =>
-    drizzle(
-      // Drizzle builds the SQL while Tauri owns the native SQLite connection.
-      async (query, params, method) => {
-        if (method === "all" || method === "get" || method === "values") {
-          const rows = await db.select<Record<string, unknown>[]>(query, params);
-          return mapSqliteProxyResult(query, rows, method);
-        }
-
-        await db.execute(query, params);
-        return { rows: [] };
-      },
-      { schema },
-    ),
-  );
-
-  return drizzlePromise;
-}
-
-function loadWebData(): AppData {
-  const raw = localStorage.getItem(WEB_STORAGE_KEY);
-  if (!raw) {
-    return { notes: [], settings: createDefaultSettings() };
-  }
-
-  try {
-    return normalizeImportPayload(JSON.parse(raw));
-  } catch {
-    return { notes: [], settings: createDefaultSettings() };
-  }
-}
-
-function saveWebData(data: AppData) {
-  localStorage.setItem(WEB_STORAGE_KEY, JSON.stringify(data));
+function serialized<T>(work: () => Promise<T>): Promise<T> {
+  const next = queue.then(work);
+  queue = next.catch(() => {});
+  return next;
 }
 
 export async function loadAppData(): Promise<AppData> {
-  if (!isTauriRuntime()) {
-    return loadWebData();
-  }
-
-  const db = await getDrizzleDb();
-  const noteRows = await db
-    .select()
-    .from(notesTable)
-    .orderBy(desc(notesTable.pinned), notesTable.sortOrder, desc(notesTable.updatedAt));
-  const attachmentRows = await db
-    .select()
-    .from(attachmentsTable)
-    .orderBy(attachmentsTable.createdAt);
-  const settingsRows = await db
-    .select({ value: settingsTable.value })
-    .from(settingsTable)
-    .where(eq(settingsTable.key, SETTINGS_KEY))
-    .limit(1);
-
-  const attachmentMap = new Map<string, NoteAttachment[]>();
-  for (const row of attachmentRows) {
-    const list = attachmentMap.get(row.noteId) ?? [];
-    list.push({
-      id: row.id,
-      kind: row.kind ?? inferAttachmentKind(row.source, row.value),
-      source: row.source,
-      value: row.value,
-      name: row.name ?? undefined,
-      createdAt: row.createdAt,
-    });
-    attachmentMap.set(row.noteId, list);
-  }
-
-  const notes = noteRows.map<Note>((row) => ({
-    id: row.id,
-    content: row.content,
-    color: row.color,
-    pinned: row.pinned === 1,
-    sortOrder: row.sortOrder,
-    textHeight: row.textHeight,
-    attachments: attachmentMap.get(row.id) ?? [],
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
-
-  const settings = settingsRows[0]?.value
-    ? parseStoredSettings(settingsRows[0].value)
-    : createDefaultSettings();
-
-  return { notes, settings };
+  const raw = native() ? Notes.load() : await Storage.getItem(key);
+  const value = raw ? JSON.parse(raw) : {};
+  const data = normalizeImportPayload(value);
+  if (!value.settings)
+    data.settings = {
+      ...createDefaultSettings(),
+      language: locale().toLowerCase().startsWith("zh") ? "zh" : "en",
+    };
+  return data;
 }
 
-export async function loadPersistedSettings(): Promise<AppSettings> {
-  if (!isTauriRuntime()) {
-    return loadWebData().settings;
-  }
-
-  const db = await getDrizzleDb();
-  const settingsRows = await db
-    .select({ value: settingsTable.value })
-    .from(settingsTable)
-    .where(eq(settingsTable.key, SETTINGS_KEY))
-    .limit(1);
-
-  return settingsRows[0]?.value
-    ? parseStoredSettings(settingsRows[0].value)
-    : createDefaultSettings();
-}
-
-export async function flushDatabase() {
-  if (!isTauriRuntime()) {
-    return;
-  }
-
-  try {
-    const db = await getDb();
-    await db.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-    await db.close();
-  } finally {
-    dbPromise = null;
-    drizzlePromise = null;
-    persistClient = null;
-  }
-}
-
-export async function saveSettings(settings: AppSettings) {
-  const nextSettings = normalizeSettings(settings);
-
-  if (!isTauriRuntime()) {
-    const data = loadWebData();
-    saveWebData({ ...data, settings: nextSettings });
-    return nextSettings;
-  }
-
-  const db = await getDrizzleDb();
-  await db
-    .insert(settingsTable)
-    .values({ key: SETTINGS_KEY, value: JSON.stringify(nextSettings) })
-    .onConflictDoUpdate({
-      target: settingsTable.key,
-      set: { value: JSON.stringify(nextSettings) },
-    });
-  return nextSettings;
-}
-
-export async function loadPendingUpdateDraft(): Promise<PendingUpdateDraft | null> {
-  if (!isTauriRuntime()) {
-    const value = localStorage.getItem(WEB_PENDING_UPDATE_DRAFT_KEY);
-    return value ? parsePendingUpdateDraft(value) : null;
-  }
-
-  const db = await getDrizzleDb();
-  const rows = await db
-    .select({ value: settingsTable.value })
-    .from(settingsTable)
-    .where(eq(settingsTable.key, PENDING_UPDATE_DRAFT_KEY))
-    .limit(1);
-
-  return rows[0]?.value ? parsePendingUpdateDraft(rows[0].value) : null;
-}
-
-export async function savePendingUpdateDraft(value: PendingUpdateDraft) {
-  const serialized = serializePendingUpdateDraft(value);
-  if (!isTauriRuntime()) {
-    localStorage.setItem(WEB_PENDING_UPDATE_DRAFT_KEY, serialized);
-    return;
-  }
-
-  const db = await getDrizzleDb();
-  await db
-    .insert(settingsTable)
-    .values({ key: PENDING_UPDATE_DRAFT_KEY, value: serialized })
-    .onConflictDoUpdate({
-      target: settingsTable.key,
-      set: { value: serialized },
-    });
-}
-
-export async function clearPendingUpdateDraft() {
-  if (!isTauriRuntime()) {
-    localStorage.removeItem(WEB_PENDING_UPDATE_DRAFT_KEY);
-    return;
-  }
-
-  const db = await getDrizzleDb();
-  await db.delete(settingsTable).where(eq(settingsTable.key, PENDING_UPDATE_DRAFT_KEY));
-}
-
-function getPersistClient(): NotePersistClient {
-  persistClient ??= createSqlNotePersistClient(async (sql, params) => {
-    const db = await getDb();
-    await db.execute(sql, params ?? []);
+async function mutate(work: (data: AppData) => AppData) {
+  await serialized(async () => {
+    const next = work(await loadAppData());
+    await Storage.setItem(key, JSON.stringify(next));
   });
-  return persistClient;
 }
 
-export async function saveNote(note: Note) {
-  if (!isTauriRuntime()) {
-    const data = loadWebData();
-    const nextNotes = data.notes.filter((item) => item.id !== note.id);
-    saveWebData({ ...data, notes: [note, ...nextNotes] });
+export async function saveNote(note: Note, clearDraft = false) {
+  if (native()) {
+    Notes.save(JSON.stringify(note), clearDraft);
     return;
   }
-
-  await persistSaveNote(getPersistClient(), note);
-}
-
-export async function saveNotesOrder(notes: Note[]) {
-  if (!isTauriRuntime()) {
-    const data = loadWebData();
-    const noteMap = new Map(notes.map((note) => [note.id, note]));
-    saveWebData({
-      ...data,
-      notes: data.notes.map((note) => noteMap.get(note.id) ?? note),
-    });
-    return;
-  }
-
-  await persistSaveNotesOrder(getPersistClient(), notes);
+  if (clearDraft) await Storage.removeItem(draftKey);
+  await mutate((data) => ({
+    ...data,
+    notes: [note, ...data.notes.filter((n) => n.id !== note.id)],
+  }));
 }
 
 export async function deleteNote(id: string) {
-  if (!isTauriRuntime()) {
-    const data = loadWebData();
-    saveWebData({ ...data, notes: data.notes.filter((note) => note.id !== id) });
+  if (native()) {
+    Notes.delete(id);
     return;
   }
-
-  await persistDeleteNote(getPersistClient(), id);
+  await mutate((data) => ({
+    ...data,
+    notes: data.notes.filter((n) => n.id !== id),
+  }));
 }
 
 export async function deleteAllNotes() {
-  if (!isTauriRuntime()) {
-    const data = loadWebData();
-    saveWebData({ ...data, notes: [] });
+  if (native()) {
+    Notes.clear();
     return;
   }
+  await mutate((data) => ({ ...data, notes: [] }));
+}
 
-  await persistDeleteAllNotes(getPersistClient());
+export async function saveSettings(settings: AppSettings) {
+  const next = normalizeSettings(settings);
+  if (native()) Notes.settings(JSON.stringify(next));
+  else await mutate((data) => ({ ...data, settings: next }));
+  return next;
+}
+
+export async function saveNotesOrder(notes: Note[]) {
+  if (native()) {
+    Notes.reorder(JSON.stringify(notes));
+    return;
+  }
+  await mutate((data) => ({
+    ...data,
+    notes: data.notes.map((n) => {
+      const order = notes.find((item) => item.id === n.id);
+      return order
+        ? { ...n, pinned: order.pinned, sortOrder: order.sortOrder }
+        : n;
+    }),
+  }));
 }
 
 export async function replaceAppData(data: AppData) {
-  if (!isTauriRuntime()) {
-    saveWebData(data);
-    return;
-  }
+  if (native()) Notes.replace(JSON.stringify(data));
+  else await serialized(() => Storage.setItem(key, JSON.stringify(data)));
+}
 
-  await persistReplaceAppData(getPersistClient(), data);
+export async function loadPendingUpdateDraft() {
+  const value = native() ? Notes.readDraft() : await Storage.getItem(draftKey);
+  return value ? parsePendingUpdateDraft(value) : null;
+}
+
+export async function savePendingUpdateDraft(draft: PendingUpdateDraft | null) {
+  const value = draft ? JSON.stringify(draft) : null;
+  if (native()) Notes.draft(value);
+  else if (value) await Storage.setItem(draftKey, value);
+  else await Storage.removeItem(draftKey);
+}
+
+export async function clearPendingUpdateDraft() {
+  await savePendingUpdateDraft(null);
+}
+export async function flushDatabase() {
+  await queue;
+  if (native()) Notes.flush();
 }

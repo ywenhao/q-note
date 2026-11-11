@@ -22,10 +22,15 @@ export interface NotePersistClient {
   deleteAllNotes(): Promise<void>;
   deleteAllSettings(): Promise<void>;
   upsertSettings(key: string, value: string): Promise<void>;
-  updateNoteOrder(note: Pick<Note, "id" | "pinned" | "sortOrder">): Promise<void>;
+  updateNoteOrder(
+    note: Pick<Note, "id" | "pinned" | "sortOrder">,
+  ): Promise<void>;
 }
 
-export async function persistSaveNote(client: NotePersistClient, note: Note): Promise<void> {
+export async function persistSaveNote(
+  client: NotePersistClient,
+  note: Note,
+): Promise<void> {
   await client.transaction(async () => {
     await client.upsertNote(note);
     await client.deleteAttachmentsForNote(note.id);
@@ -46,14 +51,19 @@ export async function persistSaveNotesOrder(
   });
 }
 
-export async function persistDeleteNote(client: NotePersistClient, id: string): Promise<void> {
+export async function persistDeleteNote(
+  client: NotePersistClient,
+  id: string,
+): Promise<void> {
   await client.transaction(async () => {
     await client.deleteAttachmentsForNote(id);
     await client.deleteNote(id);
   });
 }
 
-export async function persistDeleteAllNotes(client: NotePersistClient): Promise<void> {
+export async function persistDeleteAllNotes(
+  client: NotePersistClient,
+): Promise<void> {
   await client.transaction(async () => {
     await client.deleteAllNotes();
   });
@@ -66,7 +76,10 @@ export async function persistReplaceAppData(
   await client.transaction(async () => {
     await client.deleteAllNotes();
     await client.deleteAllSettings();
-    await client.upsertSettings(APP_SETTINGS_KEY, JSON.stringify(normalizeSettings(data.settings)));
+    await client.upsertSettings(
+      APP_SETTINGS_KEY,
+      JSON.stringify(normalizeSettings(data.settings)),
+    );
     for (const note of data.notes) {
       await client.upsertNote(note);
       for (const attachment of note.attachments) {
@@ -90,16 +103,23 @@ function cloneNote(note: Note): Note {
 }
 
 function cloneNotes(notes: Map<string, Note>): Map<string, Note> {
-  return new Map([...notes.entries()].map(([id, note]) => [id, cloneNote(note)]));
+  return new Map(
+    [...notes.entries()].map(([id, note]) => [id, cloneNote(note)]),
+  );
 }
 
 export function createMemoryNotePersistClient(
   initial: { notes?: Note[]; settings?: AppSettings } = {},
 ): MemoryNotePersistClient {
-  let notes = new Map((initial.notes ?? []).map((note) => [note.id, cloneNote(note)]));
+  let notes = new Map(
+    (initial.notes ?? []).map((note) => [note.id, cloneNote(note)]),
+  );
   let settings = new Map<string, string>();
   if (initial.settings) {
-    settings.set(APP_SETTINGS_KEY, JSON.stringify(normalizeSettings(initial.settings)));
+    settings.set(
+      APP_SETTINGS_KEY,
+      JSON.stringify(normalizeSettings(initial.settings)),
+    );
   }
 
   let depth = 0;

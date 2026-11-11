@@ -34,5 +34,5 @@ export function getRepositoryWebUrl() {
 }
 
 export function getReleaseTagUrl(version: string) {
-  return `${getRepositoryWebUrl()}/releases/tag/v${version}`;
+  return `${getRepositoryWebUrl()}/releases/tag/nsh-v${version}`;
 }

@@ -1,4 +1,14 @@
 {
-  "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "extends": "./.nsh/tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "App.tsx",
+    "App.test.tsx",
+    "Desktop.test.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ]
 }

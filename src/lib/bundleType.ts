@@ -1,7 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { isTauriRuntime } from "./env.ts";
-
-export type BundleType = "appimage" | "deb" | "rpm" | "nsis" | "msi" | "app" | "unknown";
+export type BundleType =
+  "appimage" | "deb" | "rpm" | "nsis" | "msi" | "app" | "unknown";
 
 export type RuntimeOs = "linux" | "windows" | "macos" | "other";
 
@@ -28,13 +26,5 @@ export function shouldOpenReleaseForUpdate(info: RuntimeBundleInfo) {
 }
 
 export async function readRuntimeBundleInfo(): Promise<RuntimeBundleInfo> {
-  if (!isTauriRuntime()) {
-    return DEFAULT_RUNTIME_BUNDLE_INFO;
-  }
-
-  const info = await invoke<{ bundleType: BundleType; os: RuntimeOs }>("get_bundle_type");
-  return {
-    bundleType: info.bundleType,
-    os: info.os,
-  };
+  return DEFAULT_RUNTIME_BUNDLE_INFO;
 }

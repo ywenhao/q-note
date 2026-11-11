@@ -24,10 +24,11 @@ export function getTopSortOrder(notes: Note[], pinned: boolean) {
 }
 
 export function normalizeManualOrder(notes: Note[]) {
-  return [...notes.filter((note) => note.pinned), ...notes.filter((note) => !note.pinned)].map(
-    (note, index) => ({
-      ...note,
-      sortOrder: index,
-    }),
-  );
+  return [
+    ...notes.filter((note) => note.pinned),
+    ...notes.filter((note) => !note.pinned),
+  ].map((note, index) => ({
+    ...note,
+    sortOrder: index,
+  }));
 }

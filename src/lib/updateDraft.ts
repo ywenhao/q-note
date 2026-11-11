@@ -56,7 +56,8 @@ function normalizeAttachment(value: unknown): NoteAttachment | null {
 
 export function createNoteDraft(note: Note | null): NoteDraft {
   return {
-    attachments: note?.attachments.map((attachment) => ({ ...attachment })) ?? [],
+    attachments:
+      note?.attachments.map((attachment) => ({ ...attachment })) ?? [],
     color: note?.color ?? DEFAULT_NOTE_COLOR,
     content: note?.content ?? "",
     pinned: note?.pinned ?? false,
@@ -92,7 +93,9 @@ export function createPendingUpdateDraft({
   };
 }
 
-export function normalizePendingUpdateDraft(value: unknown): PendingUpdateDraft | null {
+export function normalizePendingUpdateDraft(
+  value: unknown,
+): PendingUpdateDraft | null {
   if (!isObject(value) || !isObject(value.draft)) {
     return null;
   }

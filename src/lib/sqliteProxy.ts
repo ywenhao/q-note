@@ -11,7 +11,15 @@ export const SQLITE_TABLE_COLUMNS: Record<string, string[]> = {
     "created_at",
     "updated_at",
   ],
-  attachments: ["id", "note_id", "kind", "source", "value", "name", "created_at"],
+  attachments: [
+    "id",
+    "note_id",
+    "kind",
+    "source",
+    "value",
+    "name",
+    "created_at",
+  ],
   settings: ["key", "value"],
 };
 
@@ -38,13 +46,19 @@ export function extractSelectColumns(sql: string): string[] | null {
   return splitSelectList(list).map(normalizeSelectColumn);
 }
 
-export function readProxyRowValue(row: Record<string, unknown>, column: string): unknown {
+export function readProxyRowValue(
+  row: Record<string, unknown>,
+  column: string,
+): unknown {
   if (Object.prototype.hasOwnProperty.call(row, column)) {
     return row[column];
   }
 
   const unquoted = stripQuotes(column);
-  if (unquoted !== column && Object.prototype.hasOwnProperty.call(row, unquoted)) {
+  if (
+    unquoted !== column &&
+    Object.prototype.hasOwnProperty.call(row, unquoted)
+  ) {
     return row[unquoted];
   }
 
@@ -56,7 +70,10 @@ export function readProxyRowValue(row: Record<string, unknown>, column: string):
   return undefined;
 }
 
-export function mapProxyRowValues(row: Record<string, unknown>, sql: string): unknown[] {
+export function mapProxyRowValues(
+  row: Record<string, unknown>,
+  sql: string,
+): unknown[] {
   const columns = extractSelectColumns(sql) ?? inferColumnsFromRow(row);
   return columns.map((column) => readProxyRowValue(row, column));
 }
@@ -64,7 +81,9 @@ export function mapProxyRowValues(row: Record<string, unknown>, sql: string): un
 function inferColumnsFromRow(row: Record<string, unknown>): string[] {
   const known = Object.values(SQLITE_TABLE_COLUMNS)
     .flat()
-    .filter((column, index, all) => all.indexOf(column) === index && column in row);
+    .filter(
+      (column, index, all) => all.indexOf(column) === index && column in row,
+    );
   if (known.length > 0) {
     return known;
   }

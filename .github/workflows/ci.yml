@@ -2,49 +2,38 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, nsh]
   pull_request:
-    branches: [main]
+    branches: [main, nsh]
 
 jobs:
   check:
-    name: Typecheck and test
-    runs-on: ubuntu-latest
+    name: NSH checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev clang
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-  rust:
-    name: Cargo test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cargo test
-        run: cargo test --manifest-path src-tauri/legacy-db/Cargo.toml
-        env:
-          CARGO_TERM_COLOR: always
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            native
+            .nsh/rust
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: cargo fmt --manifest-path native/Cargo.toml --check
+      - run: pnpm test
+      - run: pnpm test:native
+      - run: pnpm test:ui
+      - run: pnpm build

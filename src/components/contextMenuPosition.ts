@@ -13,12 +13,20 @@ export interface ContextMenuPosition {
   top: number;
 }
 
-function clampAxis(requested: number, menuSize: number, viewportSize: number, margin: number) {
+function clampAxis(
+  requested: number,
+  menuSize: number,
+  viewportSize: number,
+  margin: number,
+) {
   if (viewportSize < menuSize + margin * 2) {
     return 0;
   }
 
-  return Math.min(Math.max(requested, margin), viewportSize - menuSize - margin);
+  return Math.min(
+    Math.max(requested, margin),
+    viewportSize - menuSize - margin,
+  );
 }
 
 export function clampContextMenuPosition({
