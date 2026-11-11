@@ -61,17 +61,55 @@ test("native windows retain independent bounds and hide instead of quitting", as
     true,
   );
   await app.screenshot(".nsh/qa-card-expanded.png");
+  const beforeCollapse = app.window("main").state()!.bounds;
   await app.press("collapse");
-  await app.wait(220);
+  await app.waitUntil(() => app.window("main").state()?.visible === false);
   expect(app.window("main").state()?.visible).toBe(false);
+  expect(app.window("dock").state()?.visible).toBe(true);
   expect(app.window("dock").state()?.bounds.size).toEqual({
     width: 30,
     height: 30,
   });
+  const dockBounds = app.window("dock").state()!.bounds;
+  expect(
+    Math.abs(
+      dockBounds.origin.x -
+        (beforeCollapse.origin.x + beforeCollapse.size.width - 30),
+    ) <= 1,
+  ).toBe(true);
+  expect(
+    Math.abs(
+      dockBounds.origin.y -
+        (beforeCollapse.origin.y + beforeCollapse.size.height - 30),
+    ) <= 1,
+  ).toBe(true);
   await app.window("dock").screenshot(".nsh/qa-dock.png");
   await app.press("dock-ball");
   await app.wait(180);
   expect(app.window("main").state()?.visible).toBe(true);
+  expect(app.window("dock").state()).toBe(null);
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await app.press("collapse");
+    await app.waitUntil(() => app.window("main").state()?.visible === false);
+    expect(app.window("dock").state()?.visible).toBe(true);
+    expect(app.window("dock").state()?.bounds).toEqual(dockBounds);
+    await app.rightClick("dock-ball");
+    const pinLabel = cycle === 1 ? "Unpin window" : "Pin window";
+    expect(app.menu()?.map((item) => item.label)).toEqual([
+      pinLabel,
+      "Switch language",
+      "Switch to main window",
+      "Quit",
+    ]);
+    if (cycle < 2) await app.chooseMenuItem(pinLabel);
+    else await app.closeMenu();
+    expect(app.window("main").state()?.visible).toBe(false);
+    expect(app.window("dock").state()?.visible).toBe(true);
+    expect(app.window("dock").state()?.bounds).toEqual(dockBounds);
+    await app.press("dock-ball");
+    await app.waitUntil(() => app.window("dock").state() === null);
+    expect(app.window("main").state()?.visible).toBe(true);
+  }
   await app.press("window-close");
   expect(app.window("main").state()?.visible).toBe(false);
 });

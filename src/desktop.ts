@@ -34,6 +34,8 @@ export function createDesktop(m: NoteModel) {
   let dockHeld = false;
   let dockMenuOpen = false;
   let dockHovered = false;
+  let collapseGeneration = 0;
+  let pendingCollapse: number | null = null;
   const main = isAvailable ? currentWindow() : null;
 
   function area(window?: WindowRef | null) {
@@ -78,6 +80,8 @@ export function createDesktop(m: NoteModel) {
   }
 
   function restore() {
+    collapseGeneration++;
+    pendingCollapse = null;
     clearTimeout(dockAnimation);
     if (m.docked()) {
       const dock = Window.get("dock");
@@ -129,14 +133,19 @@ export function createDesktop(m: NoteModel) {
   }
 
   async function collapse() {
-    if (!isAvailable) return;
+    if (!isAvailable || m.docked() || pendingCollapse !== null) return;
+    const generation = ++collapseGeneration;
+    pendingCollapse = generation;
     try {
       await saveBounds();
     } catch (error) {
       console.error(error);
       m.notify(m.t().saveFailed);
       return;
+    } finally {
+      if (pendingCollapse === generation) pendingCollapse = null;
     }
+    if (generation !== collapseGeneration) return;
     const current = main?.state()?.bounds;
     dockEdge = null;
     const remembered =
@@ -200,16 +209,22 @@ export function createDesktop(m: NoteModel) {
     if (dockEdge === "top") dockExpanded.origin.y = work.origin.y;
     if (dockEdge === "bottom")
       dockExpanded.origin.y = work.origin.y + work.size.height - 30;
+    dockPosition = { ...dockExpanded.origin };
     m.docked.set(true);
+  }
+
+  function presentDock(dock: WindowRef, shownAt: number) {
+    if (!m.docked() || Window.get("dock") !== dock || !dockExpanded) return;
+    // Keep the main surface alive until the new window has drawn its fade-in.
+    dock.setBounds(dockExpanded);
+    DockClip.set("", 0);
+    dock.focus();
     main?.hide();
-    setTimeout(() => {
-      const dock = Window.get("dock");
-      dockPosition = { ...dockExpanded!.origin };
-      dock?.setBounds(dockExpanded!);
-      dock?.show();
-      DockClip.set("", 0);
-      if (dockEdge) dockAnimation = setTimeout(() => animateDock(false), 500);
-    }, 0);
+    if (dockEdge)
+      dockAnimation = setTimeout(
+        () => animateDock(false),
+        Math.max(0, 500 - (Date.now() - shownAt)),
+      );
   }
 
   function animateDock(expand: boolean) {
@@ -423,6 +438,8 @@ export function createDesktop(m: NoteModel) {
     menu,
     restore,
     collapse,
+    dockOrigin: () => dockExpanded?.origin,
+    presentDock,
     beginDockDrag,
     moveDock,
     endDockDrag,

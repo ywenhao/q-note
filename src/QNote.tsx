@@ -1,5 +1,6 @@
 import {
   cleanup,
+  createAnimatedValue,
   effect,
   PanResponder,
   Scroll,
@@ -22,12 +23,27 @@ import { dockDragOrigin } from "./lib/dockGeometry";
 
 function DockBall(props: { model: NoteModel; desktop: DesktopController }) {
   const d = props.desktop;
+  const window = isAvailable ? currentWindow() : null;
   let start = { x: 0, y: 0 };
   let dragged = 0;
   let moving = false;
   let grab = { x: 0, y: 0 };
   let screenDrag = false;
-  const motion = presence(() => true, 180);
+  const opacity = createAnimatedValue(0);
+  let appearing = false;
+  effect(() => {
+    if (!window?.state()?.visible || appearing) return;
+    appearing = true;
+    const shownAt = Date.now();
+    void opacity
+      .timing(1, { duration: 180, easing: "easeOut" })
+      .then(({ finished }) => {
+        if (finished) d.presentDock(window, shownAt);
+      });
+  });
+  cleanup(() => {
+    void opacity.stop();
+  });
   const responder = PanResponder.create({
     onStartShouldSetPanResponder: (e) => {
       grab = { x: e.pageX, y: e.pageY };
@@ -85,7 +101,7 @@ function DockBall(props: { model: NoteModel; desktop: DesktopController }) {
         height: 30,
         borderRadius: 15,
         overflow: "hidden",
-        opacity: motion.opacity,
+        opacity,
       }}
     >
       <QMark size={30} />
@@ -582,6 +598,7 @@ export function QNote() {
           transparent
           shadow={false}
           defaultSize={{ width: 30, height: 30 }}
+          defaultPosition={desktop.dockOrigin()}
           minSize={{ width: 30, height: 30 }}
           maxSize={{ width: 30, height: 30 }}
           resizable={false}
