@@ -4,6 +4,7 @@ import {
   currentWindow,
   displays,
   isAvailable,
+  Menu,
   Tray,
   Window,
   windows,
@@ -12,6 +13,7 @@ import {
 } from "nsh/desktop";
 import { DockClip } from "q-note/native";
 import type { NoteModel } from "./model";
+import { dockScreenPointer, type DockPoint } from "./lib/dockGeometry";
 import icon from "../app-icon.png";
 
 export const clamp = (v: number, low: number, high: number) =>
@@ -26,6 +28,12 @@ export function createDesktop(m: NoteModel) {
   let dockEdge: string | null = null;
   let dockExpanded: Bounds | null = null;
   let dockAnimation: ReturnType<typeof setTimeout> | undefined;
+  let dockPosition: DockPoint | null = null;
+  let dockTargetExpanded: boolean | null = null;
+  let dockDragging = false;
+  let dockHeld = false;
+  let dockMenuOpen = false;
+  let dockHovered = false;
   const main = isAvailable ? currentWindow() : null;
 
   function area(window?: WindowRef | null) {
@@ -70,6 +78,7 @@ export function createDesktop(m: NoteModel) {
   }
 
   function restore() {
+    clearTimeout(dockAnimation);
     if (m.docked()) {
       const dock = Window.get("dock");
       if (dockExpanded)
@@ -168,6 +177,11 @@ export function createDesktop(m: NoteModel) {
       size: { width: 30, height: 30 },
     };
     dockEdge = remembered?.edge ?? null;
+    dockDragging = false;
+    dockHeld = false;
+    dockMenuOpen = false;
+    dockHovered = false;
+    dockTargetExpanded = null;
     dockExpanded.origin = {
       x: clamp(
         dockExpanded.origin.x,
@@ -190,6 +204,7 @@ export function createDesktop(m: NoteModel) {
     main?.hide();
     setTimeout(() => {
       const dock = Window.get("dock");
+      dockPosition = { ...dockExpanded!.origin };
       dock?.setBounds(dockExpanded!);
       dock?.show();
       DockClip.set("", 0);
@@ -198,6 +213,13 @@ export function createDesktop(m: NoteModel) {
   }
 
   function animateDock(expand: boolean) {
+    if (
+      dockHeld ||
+      dockDragging ||
+      dockMenuOpen ||
+      dockTargetExpanded === expand
+    )
+      return;
     clearTimeout(dockAnimation);
     if (!dockExpanded || !dockEdge) return;
     const dock = Window.get("dock");
@@ -207,22 +229,19 @@ export function createDesktop(m: NoteModel) {
       x: base.x + (dockEdge === "left" ? -15 : dockEdge === "right" ? 15 : 0),
       y: base.y + (dockEdge === "top" ? -15 : dockEdge === "bottom" ? 15 : 0),
     };
-    const from = dock.state()?.bounds.origin ?? base;
+    dockTargetExpanded = expand;
+    const from = dockPosition ?? dock.state()?.bounds.origin ?? base;
     const to = expand ? base : hidden;
     const start = Date.now();
     const frame = () => {
       const ratio = Math.min(1, (Date.now() - start) / 130);
       const eased = 1 - (1 - ratio) ** 3;
-      dock.setBounds({
-        origin: {
-          x: from.x + (to.x - from.x) * eased,
-          y: from.y + (to.y - from.y) * eased,
-        },
-      });
       const point = {
         x: from.x + (to.x - from.x) * eased,
         y: from.y + (to.y - from.y) * eased,
       };
+      dockPosition = point;
+      dock.setBounds({ origin: point });
       DockClip.set(
         dockEdge!,
         Math.abs(
@@ -237,9 +256,14 @@ export function createDesktop(m: NoteModel) {
   }
 
   function beginDockDrag() {
+    dockDragging = true;
+    dockTargetExpanded = null;
     clearTimeout(dockAnimation);
     DockClip.set("", 0);
-    if (dockExpanded) Window.get("dock")?.setBounds(dockExpanded);
+    if (dockExpanded) {
+      dockPosition = { ...dockExpanded.origin };
+      Window.get("dock")?.setBounds(dockExpanded);
+    }
     dockEdge = null;
     return (
       dockExpanded?.origin ??
@@ -268,10 +292,13 @@ export function createDesktop(m: NoteModel) {
       },
       size: { width: 30, height: 30 },
     };
+    dockPosition = { ...dockExpanded.origin };
     dock?.setBounds(dockExpanded);
   }
 
   function endDockDrag() {
+    dockHeld = false;
+    dockDragging = false;
     if (!dockExpanded) return;
     const work = area(Window.get("dock"));
     const origin = dockExpanded.origin;
@@ -293,7 +320,27 @@ export function createDesktop(m: NoteModel) {
     if (dockEdge === "top") origin.y = work.origin.y;
     if (dockEdge === "bottom") origin.y = work.origin.y + work.size.height - 30;
     Window.get("dock")?.setBounds(dockExpanded);
-    if (dockEdge) animateDock(false);
+    dockPosition = { ...origin };
+    if (dockEdge) animateDock(dockHovered);
+  }
+
+  function dockPointer() {
+    const sample = DockClip.pointer();
+    return sample ? dockScreenPointer(JSON.parse(sample), displays()) : null;
+  }
+
+  async function openDockMenu() {
+    if (dockMenuOpen || dockDragging) return;
+    dockMenuOpen = true;
+    dockTargetExpanded = null;
+    clearTimeout(dockAnimation);
+    try {
+      // A child window's surface coordinates are not the main window's menu coordinates.
+      await Menu.popup(menu());
+    } finally {
+      dockMenuOpen = false;
+      if (m.docked()) animateDock(dockHovered);
+    }
   }
 
   if (main) {
@@ -379,8 +426,25 @@ export function createDesktop(m: NoteModel) {
     beginDockDrag,
     moveDock,
     endDockDrag,
-    expandDock: () => animateDock(true),
-    hideDock: () => animateDock(false),
+    dockPointer,
+    openDockMenu,
+    holdDock: () => {
+      dockHeld = true;
+      dockTargetExpanded = null;
+      clearTimeout(dockAnimation);
+    },
+    releaseDock: () => {
+      dockHeld = false;
+      if (m.docked()) animateDock(dockHovered);
+    },
+    expandDock: () => {
+      dockHovered = true;
+      animateDock(true);
+    },
+    hideDock: () => {
+      dockHovered = false;
+      animateDock(false);
+    },
     area,
   };
 }

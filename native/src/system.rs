@@ -45,6 +45,67 @@ pub fn image(path: &str) -> Result<String, String> {
 }
 
 #[cfg(windows)]
+pub fn dock_pointer() -> Option<String> {
+    use windows_sys::Win32::{
+        Foundation::POINT,
+        Graphics::Gdi::{
+            DISPLAY_DEVICEW, EnumDisplayDevicesW, GetMonitorInfoW, MONITOR_DEFAULTTONEAREST,
+            MONITORINFO, MONITORINFOEXW, MonitorFromPoint,
+        },
+        UI::{
+            Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
+            WindowsAndMessaging::{EDD_GET_DEVICE_INTERFACE_NAME, GetCursorPos},
+        },
+    };
+    fn text(value: &[u16]) -> String {
+        let length = value.iter().position(|c| *c == 0).unwrap_or(value.len());
+        String::from_utf16_lossy(&value[..length])
+    }
+    // Sample the OS cursor, not surface-local deltas: moving the surface changes those deltas.
+    unsafe {
+        if GetAsyncKeyState(VK_LBUTTON as i32) >= 0 {
+            return None;
+        }
+        let mut cursor = POINT::default();
+        if GetCursorPos(&mut cursor) == 0 {
+            return None;
+        }
+        let monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+        let mut info = MONITORINFOEXW::default();
+        info.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+        if GetMonitorInfoW(monitor, &mut info as *mut _ as *mut MONITORINFO) == 0 {
+            return None;
+        }
+        let mut device = DISPLAY_DEVICEW {
+            cb: std::mem::size_of::<DISPLAY_DEVICEW>() as u32,
+            ..Default::default()
+        };
+        // Use the same stable monitor identity as NSH, including mixed-DPI layouts.
+        let name = if EnumDisplayDevicesW(
+            info.szDevice.as_ptr(),
+            0,
+            &mut device,
+            EDD_GET_DEVICE_INTERFACE_NAME,
+        ) != 0
+            && device.DeviceID[0] != 0
+        {
+            text(&device.DeviceID)
+        } else {
+            text(&info.szDevice)
+        };
+        let display = nsh_core::desktop::DisplayId::from_name(name.as_bytes());
+        Some(
+            serde_json::json!({
+                "display": format!("{:016x}", display.0),
+                "x": cursor.x - info.monitorInfo.rcMonitor.left,
+                "y": cursor.y - info.monitorInfo.rcMonitor.top,
+            })
+            .to_string(),
+        )
+    }
+}
+
+#[cfg(windows)]
 pub fn clip_dock(edge: &str, hidden: f64) {
     use windows_sys::Win32::{
         Foundation::{HWND, LPARAM, RECT},

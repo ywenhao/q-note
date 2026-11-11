@@ -172,12 +172,20 @@ impl Startup {
 #[module]
 pub struct Updates;
 
-/// Platform clipping of the transparent floating window at adjacent monitors.
+/// Platform geometry of the transparent floating window at adjacent monitors.
 #[module]
 pub struct DockClip;
 
 #[module]
 impl DockClip {
+    /// Reads the held primary pointer in physical pixels relative to its display.
+    pub fn pointer() -> Option<String> {
+        #[cfg(windows)]
+        return system::dock_pointer();
+        #[cfg(not(windows))]
+        None
+    }
+
     /// Clips only the off-screen portion of this process's floating window.
     pub fn set(edge: String, hidden: f64) {
         #[cfg(windows)]

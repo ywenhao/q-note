@@ -9,7 +9,7 @@ import {
   type ViewRef,
 } from "nsh";
 import { Button, Progress, Switch } from "nsh/base";
-import { currentWindow, isAvailable, Menu, Window } from "nsh/desktop";
+import { currentWindow, isAvailable, Window } from "nsh/desktop";
 import { createDesktop, clamp, type DesktopController } from "./desktop";
 import { createModel, type NoteModel } from "./model";
 import { colors as C } from "./theme";
@@ -18,14 +18,23 @@ import { Editor } from "./components/Editor";
 import { NoteCard, type NoteDrag } from "./components/Notes";
 import { ImagePreview } from "./components/Preview";
 import { WindowBar } from "./components/WindowBar";
+import { dockDragOrigin } from "./lib/dockGeometry";
 
 function DockBall(props: { model: NoteModel; desktop: DesktopController }) {
   const d = props.desktop;
   let start = { x: 0, y: 0 };
   let dragged = 0;
   let moving = false;
+  let grab = { x: 0, y: 0 };
+  let screenDrag = false;
   const motion = presence(() => true, 180);
   const responder = PanResponder.create({
+    onStartShouldSetPanResponder: (e) => {
+      grab = { x: e.pageX, y: e.pageY };
+      screenDrag = d.dockPointer() !== null;
+      d.holdDock();
+      return false;
+    },
     onMoveShouldSetPanResponder: (_e, state) =>
       Math.hypot(state.dx, state.dy) > 4,
     onPanResponderGrant: () => {
@@ -34,7 +43,13 @@ function DockBall(props: { model: NoteModel; desktop: DesktopController }) {
     },
     onPanResponderMove: (_e, state) => {
       dragged = Date.now();
-      d.moveDock({ x: start.x + state.dx, y: start.y + state.dy });
+      const pointer = screenDrag ? d.dockPointer() : null;
+      if (screenDrag && !pointer) return;
+      d.moveDock(
+        pointer
+          ? dockDragOrigin(pointer, grab)
+          : { x: start.x + state.dx, y: start.y + state.dy },
+      );
     },
     onPanResponderRelease: () => {
       moving = false;
@@ -43,6 +58,7 @@ function DockBall(props: { model: NoteModel; desktop: DesktopController }) {
     },
     onPanResponderTerminate: () => {
       moving = false;
+      dragged = Date.now();
       d.endDockDrag();
     },
   });
@@ -54,11 +70,15 @@ function DockBall(props: { model: NoteModel; desktop: DesktopController }) {
         if (Date.now() - dragged > 250) d.restore();
       }}
       onMouseEnter={d.expandDock}
-      onMouseLeave={() => {
-        if (!moving) d.hideDock();
+      onMouseLeave={d.hideDock}
+      onTouchEnd={() => {
+        if (!moving) d.releaseDock();
       }}
-      onContextMenu={(e) => {
-        void Menu.popup(d.menu(), e.pagePosition);
+      onTouchCancel={() => {
+        if (!moving) d.releaseDock();
+      }}
+      onContextMenu={() => {
+        void d.openDockMenu();
       }}
       style={{
         width: 30,
@@ -252,6 +272,7 @@ function UpdateDialog(props: { model: NoteModel }) {
 }
 
 export function QNote() {
+  const mainWindow = isAvailable ? currentWindow() : null;
   const m = createModel();
   const desktop = createDesktop(m);
   const toastMotion = presence(() => !!m.toast());
@@ -318,8 +339,8 @@ export function QNote() {
   cleanup(() => clearTimeout(updateTimer));
 
   function editorPosition() {
-    const main = isAvailable ? currentWindow().state()?.bounds : null;
-    const area = desktop.area(isAvailable ? currentWindow() : null);
+    const main = mainWindow?.state()?.bounds;
+    const area = desktop.area(mainWindow);
     return {
       x: clamp(
         (main?.origin.x ?? 532) - 532,
@@ -343,7 +364,12 @@ export function QNote() {
   effect(() => {
     const session = m.editor();
     if (session && isAvailable) {
-      const focusTimer = setTimeout(() => Window.get("editor")?.focus(), 0);
+      const focusTimer = setTimeout(() => {
+        const editor = Window.get("editor");
+        if (!editor) return;
+        editor.setBounds({ origin: editorPosition() });
+        editor.focus();
+      }, 0);
       return () => clearTimeout(focusTimer);
     }
   });

@@ -15,6 +15,17 @@ test("native windows retain independent bounds and hide instead of quitting", as
     width: 520,
     height: 640,
   });
+  const editorOrigin = app.window("editor").state()!.bounds.origin;
+  const mainOrigin = initial!.bounds.origin;
+  expect(Math.abs(editorOrigin.x - Math.max(0, mainOrigin.x - 532)) <= 1).toBe(
+    true,
+  );
+  expect(
+    Math.abs(
+      editorOrigin.y -
+        Math.max(0, mainOrigin.y + (initial!.bounds.size.height - 640) / 2),
+    ) <= 1,
+  ).toBe(true);
   expect(app.window("main").state()?.bounds.size).toEqual(initial?.bounds.size);
   expect(app.window("editor").state()?.contentBounds.size).toEqual({
     width: 520,
