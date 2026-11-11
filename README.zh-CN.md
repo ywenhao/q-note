@@ -60,7 +60,8 @@ Q Note 基于 Tauri 2、Vue 3.6 Vapor、TypeScript、Vite+、Tailwind CSS、SQLi
 1. [AGENTS.md](./AGENTS.md)：项目规则、当前技术栈和运行命令。
 2. [docs/FEATURES.md](./docs/FEATURES.md)：与框架、语言无关的产品行为和视觉规格，是规则来源。
 3. [docs/TEST_CASES.md](./docs/TEST_CASES.md)：固定编号、夹具、操作步骤、精确断言、失败/取消/重启、真实窗口/DPI/多屏及执行记录模板。
-4. [docs/images 参考图](./docs/images/)：辅助视觉对照；明确规格优先于旧图片。
+4. [Windows 已修复问题与回归约束](./docs/WINDOWS_REGRESSIONS.md)：真实故障、已确认修复，以及以后实现必须保留的首显、托盘与窗口交接检查。
+5. [docs/images 参考图](./docs/images/)：辅助视觉对照；明确规格优先于旧图片。
 
 根据详细用例生成目标技术栈的测试代码，逐编号、逐参数记录测试位置和实际证据；不能只跑正常流程，也不能把文档存在当作测试通过。旧实现不满足规则时记录失败，不放宽断言。换栈后仍需保持数据兼容，并同步本 README 与 AGENTS 中的技术栈及命令。
 
