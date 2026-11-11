@@ -24,6 +24,17 @@ Q Note is a small Tauri desktop app for keeping short notes close to your cursor
 
 The interface stays intentionally compact. The main board is a narrow yellow panel with a short toolbar, card list, tray integration, always-on-top mode, and a floating icon mode that can snap to desktop edges while staying partly visible. Editing happens in a separate window so the main panel does not resize or jump.
 
+## Product specification and migration tests
+
+For AI contributors and stack migrations, read these in order:
+
+1. [AGENTS.md](./AGENTS.md): repository rules and current commands.
+2. [docs/FEATURES.md](./docs/FEATURES.md), in full: the framework-independent product rules.
+3. [docs/TEST_CASES.md](./docs/TEST_CASES.md), in full: stable test IDs, fixtures, steps, exact assertions, failure/cancellation/restart cases, native-window/DPI coverage, and the result template.
+4. [Reference screenshots](./docs/images/): visual context; explicit specification values take precedence over older images.
+
+Generate tests for the chosen stack from those cases and map every applicable ID/parameter to test code and actual evidence. Keep product behavior and data compatibility; update this README and AGENTS when commands or the stack change. The test catalog is a requirement baseline, not a passing test report. Existing implementation defects must be recorded, not copied into weaker assertions.
+
 ## Quick Start
 
 ```bash

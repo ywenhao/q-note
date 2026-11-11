@@ -53,6 +53,17 @@ Q Note 基于 Tauri 2、Vue 3.6 Vapor、TypeScript、Vite+、Tailwind CSS、SQLi
 | 粘贴截图或剪贴板图片 | 读取为 base64 data URL       |
 | 手动输入 URL 或路径  | 根据扩展名判断图片或文件     |
 
+## 功能规格与迁移测试（AI 必读）
+
+下次调整功能或更换技术栈，按顺序完整读取：
+
+1. [AGENTS.md](./AGENTS.md)：项目规则、当前技术栈和运行命令。
+2. [docs/FEATURES.md](./docs/FEATURES.md)：与框架、语言无关的产品行为和视觉规格，是规则来源。
+3. [docs/TEST_CASES.md](./docs/TEST_CASES.md)：固定编号、夹具、操作步骤、精确断言、失败/取消/重启、真实窗口/DPI/多屏及执行记录模板。
+4. [docs/images 参考图](./docs/images/)：辅助视觉对照；明确规格优先于旧图片。
+
+根据详细用例生成目标技术栈的测试代码，逐编号、逐参数记录测试位置和实际证据；不能只跑正常流程，也不能把文档存在当作测试通过。旧实现不满足规则时记录失败，不放宽断言。换栈后仍需保持数据兼容，并同步本 README 与 AGENTS 中的技术栈及命令。
+
 ## 开发命令
 
 ```bash
