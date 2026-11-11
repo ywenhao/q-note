@@ -62,6 +62,8 @@ The database stays at `~/.q-note/q-note.db`. The first run migrates the former c
 
 [Functional specification](./docs/FEATURES.md) defines the complete behavior. [NSH implementation notes](./docs/NSH.md) describe architecture and verification.
 
+Before changing window behavior, tray integration or animations on Windows, or replacing the desktop stack, read [Windows regression history](./docs/WINDOWS_REGRESSIONS.md). It records the floating Q disappearing until the tray menu opens, its confirmed fix, and the first-display checks future implementations must preserve. The framework-independent [migration test catalog on main](https://github.com/ywenhao/q-note/blob/main/docs/TEST_CASES.md) defines the detailed cases, including DOCK-022–025.
+
 ## Releases
 
 `pnpm release:patch --dry-run` previews the next release. The patch/minor/major commands synchronize all versions, run checks, create a commit and `nsh-vX.Y.Z` tag, then push. Run these only when intending to publish.

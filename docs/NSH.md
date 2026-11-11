@@ -10,6 +10,8 @@ The `nsh` branch replaces the active Vue/Tauri entry with an NSH TSX application
 
 The main window explicitly applies `frame: "none"` before placement so the development host cannot add a second system title bar. Main and editor spacing, circular swatches, Q artwork, neutral toolbar buttons and dark confirmation buttons follow `docs/images` and the main variant's visual baseline. Settings use a surface-sized dialog layer to stay centered.
 
+On Windows the floating window is created at its target position. Its native visible state starts the roughly 180ms fade; only the current window's completed fade may clear stale clipping, bring the floating window forward within its current level, and hide the main window. Restore invalidates pending collapse requests, and unmount cancels the old fade, so a late completion cannot hide a restored main window or affect a replacement floating window. The roughly 500ms cached-edge delay starts at first native visibility and includes the fade. See [WIN-FLOAT-001](./WINDOWS_REGRESSIONS.md#win-float-001切成悬浮球后不可见打开托盘菜单才出现) for the original tray-dependent visibility failure, fix commit, user confirmation and regression requirements.
+
 ## Persistence
 
 `src/lib/storage.ts` is the sole data boundary. Desktop reads and writes the existing SQLite schema through `native/src/database.rs`. Note/attachment writes, reorder, delete and import replacement are transactions. An editor save clears its recovery record in the same transaction. Settings parsing errors retain notes.
@@ -28,7 +30,7 @@ HTTP transfers run asynchronously. Cancellation drops the active request immedia
 
 - `pnpm test`: existing data normalization, ordering, window sizing and transaction regressions.
 - `pnpm test:ui`: real NSH component interactions in the headless engine, using browser storage and isolated native storage.
-- `pnpm test:desktop`: real Windows screenshots, outer/content bounds equality, independent editor size, card resize, settings, floating-window round trips and hide-on-close behavior. The test temporarily enlarges the main viewport for the driver's editor selectors, then restores it; opening the editor itself is checked before that resize.
+- `pnpm test:desktop`: real Windows screenshots, outer/content bounds equality, independent editor size, card resize, settings, initial floating-window visible state/30px bounds/target position, three round trips, topmost changes, floating-menu cancellation and hide-on-close behavior. The test temporarily enlarges the main viewport for the driver's editor selectors, then restores it; opening the editor itself is checked before that resize. Window-state assertions and per-window screenshots do not replace actual desktop presentation or real tray-menu checks; record those separately using [Windows regression history](./WINDOWS_REGRESSIONS.md).
 - `pnpm test:native`: SQLite schema compatibility, live WAL migration, failed write/import rollback, and cancellation of a stalled update response.
 - `pnpm typecheck` and `pnpm format:check`: generated native declarations and source consistency.
 - `pnpm package:windows`: native Windows runner and portable ZIP. Use `Q_NOTE_DATA_DIR` for launch smoke checks.

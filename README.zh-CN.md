@@ -62,6 +62,8 @@ cargo build --release --manifest-path nsh-toolchain/Cargo.toml -p nsh-cli
 
 完整产品行为见[功能规格](./docs/FEATURES.md)，架构与验证方式见[NSH 实现说明](./docs/NSH.md)。
 
+修改 Windows 窗口、托盘、动画或更换桌面技术栈前，先读 [Windows 已修复问题与回归约束](./docs/WINDOWS_REGRESSIONS.md)。其中记录“切球后不可见、打开托盘菜单才出现”的故障、已确认修复及以后必须保留的首显检查；详细用例使用 main 的[迁移测试基线](https://github.com/ywenhao/q-note/blob/main/docs/TEST_CASES.md)，包含 DOCK-022–025。
+
 ## 发布
 
 `pnpm release:patch --dry-run` 预览版本变更。patch/minor/major 命令同步所有版本、运行检查、创建提交和 `nsh-vX.Y.Z` 标签并推送，只有准备发布时才执行。
