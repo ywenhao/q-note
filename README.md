@@ -10,7 +10,7 @@ This is the `nsh` branch. It replaces the Vue/Tauri application with NSH; existi
 
 ## Development
 
-Install Node 24, pnpm 12 and Rust stable. Windows needs the Visual Studio C++ build tools. Linux requires GTK 4.14+ and clang.
+Install stable NSH 0.5.0 or newer, Node 24, pnpm 12 and Rust stable. Windows needs the Visual Studio C++ build tools. Linux requires GTK 4.14+ and clang.
 
 ```sh
 pnpm install
@@ -40,19 +40,18 @@ Artifacts are written to `dist/<platform>`. The browser preview uses separate br
 
 The optional web runtime also needs the `wasm32-unknown-unknown` Rust target and LLVM/clang on PATH.
 
-## Pinned NSH toolchain
+## Installed NSH toolchain
 
-Multi-window and tray support require nightly revision `c5214aaf4bbdf33bc1d59e9595e009b6aa54d702`. The wrapper downloads the official distribution and verifies its SHA-256 before running it. It also accepts a matching global NSH or `Q_NOTE_NSH_BIN`.
+Development, checks, tests and packaging use the stable `nsh` installed on PATH. NSH 0.5.0 includes the multi-window and tray APIs used by the app. The wrapper requires stable 0.5.0 or newer and never downloads or builds an NSH toolchain.
 
-If the upstream nightly has moved, the wrapper builds the pinned CLI from source automatically. You can also build it explicitly:
+Check the selected installation:
 
 ```sh
-git clone https://github.com/longbridge/nsh nsh-toolchain
-git -C nsh-toolchain checkout c5214aaf4bbdf33bc1d59e9595e009b6aa54d702
-cargo build --release --manifest-path nsh-toolchain/Cargo.toml -p nsh-cli
+nsh --version
+node scripts/nsh.mjs --version
 ```
 
-Set `Q_NOTE_NSH_BIN` to the absolute path of `nsh-toolchain/target/release/nsh.exe` on Windows, or `nsh` on macOS/Linux. A source checkout builds the required host automatically. The project rejects a different runtime revision rather than silently changing APIs.
+Set `Q_NOTE_NSH_BIN` to the absolute path of another installed stable NSH executable if needed. Install NSH using the [official instructions](https://nsh.dev/docs/installation). The application's Rust dependencies use release tag `v0.5.0`; CI and release jobs explicitly install that stable version.
 
 ## Product and data
 

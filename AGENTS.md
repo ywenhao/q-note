@@ -2,11 +2,11 @@
 
 ## Project
 
-Q Note is a Native Shell (https://nsh.dev) desktop app: TypeScript TSX, native NSH components, and a small Rust extension for SQLite and operating system integration. This branch uses NSH nightly c5214aaf4bbdf33bc1d59e9595e009b6aa54d702.
+Q Note is a Native Shell (https://nsh.dev) desktop app: TypeScript TSX, native NSH components, and a small Rust extension for SQLite and operating system integration. Development and packaging use the locally installed stable NSH CLI (0.5.0 or newer); the Rust dependencies use the v0.5.0 release.
 
 ## Commands
 
-- Install dependencies with `pnpm install` (Node 24, pnpm 12, Rust stable/MSVC required).
+- Install dependencies with `pnpm install` (NSH 0.5.0+ stable on PATH, Node 24, pnpm 12, Rust stable/MSVC required).
 - Start the native desktop app with `pnpm dev`.
 - Start the optional browser preview with `pnpm dev:web`.
 - Run TypeScript checks and generate native declarations with `pnpm typecheck`.
@@ -25,7 +25,7 @@ Q Note is a Native Shell (https://nsh.dev) desktop app: TypeScript TSX, native N
 - `pnpm release:patch`, `pnpm release:minor` and `pnpm release:major` require a clean tree, synchronize package.json, nsh.json, native/Cargo.toml and native/Cargo.lock, run checks, then commit, tag and push.
 - Tags use `nsh-vX.Y.Z`. The NSH release workflow publishes portable platform archives and an NSH update manifest without replacing the main variant's latest release.
 - The updater checks published `nsh-v*` releases only. Never offer the previous framework's packages to the NSH installer.
-- scripts/nsh.mjs validates the pinned toolchain and builds the pinned source if the moving upstream nightly no longer matches. Q_NOTE_NSH_BIN can select an existing executable at that revision; see README.
+- scripts/nsh.mjs uses the installed stable NSH CLI from PATH; Q_NOTE_NSH_BIN can select another installed executable. It never downloads or builds an NSH toolchain. CI and release jobs explicitly install NSH v0.5.0; see README.
 - Do not execute release scripts or publish without the user's authorization.
 
 ## Working Rules

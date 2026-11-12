@@ -1,6 +1,6 @@
 # NSH implementation
 
-The `nsh` branch replaces the active Vue/Tauri entry with an NSH TSX application. The runtime and Rust crates are pinned to `c5214aaf4bbdf33bc1d59e9595e009b6aa54d702`, whose desktop API supports the independent editor, tray and floating window.
+The `nsh` branch replaces the active Vue/Tauri entry with an NSH TSX application. Development and packaging use the locally installed stable NSH CLI (0.5.0 or newer), whose desktop API supports the independent editor, tray and floating window. The Rust dependencies use release tag `v0.5.0`. The wrapper uses `nsh` from PATH or `Q_NOTE_NSH_BIN` and does not download or build a toolchain; CI and release jobs explicitly install v0.5.0.
 
 ## UI and state
 

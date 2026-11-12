@@ -16,6 +16,24 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v7
+      - name: Install NSH 0.5.0 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          NSH_VERSION: v0.5.0
+        run: |
+          $nshInstaller = Join-Path $env:RUNNER_TEMP 'install-nsh.ps1'
+          Invoke-WebRequest -Uri 'https://github.com/longbridge/nsh/releases/download/v0.5.0/install.ps1' -OutFile $nshInstaller
+          & $nshInstaller
+          Join-Path $env:LOCALAPPDATA 'nsh/bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install NSH 0.5.0 (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          NSH_VERSION: v0.5.0
+        run: |
+          curl -fsSL https://github.com/longbridge/nsh/releases/download/v0.5.0/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Linux native dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev clang

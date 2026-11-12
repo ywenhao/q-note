@@ -10,7 +10,7 @@
 
 ## 开发
 
-需要 Node 24、pnpm 12 和 Rust stable。Windows 需要 Visual Studio C++ 构建工具；Linux 需要 GTK 4.14+ 和 clang。
+需要已安装的 NSH 0.5.0 或更高稳定版、Node 24、pnpm 12 和 Rust stable。Windows 需要 Visual Studio C++ 构建工具；Linux 需要 GTK 4.14+ 和 clang。
 
 ```sh
 pnpm install
@@ -40,19 +40,18 @@ pnpm dev
 
 可选网页运行时还需要 `wasm32-unknown-unknown` Rust target，以及 PATH 中可用的 LLVM/clang。
 
-## 固定 NSH 版本
+## 使用本机 NSH
 
-多窗口和托盘需要 nightly 提交 `c5214aaf4bbdf33bc1d59e9595e009b6aa54d702`。启动脚本会下载官方包并验证 SHA-256，也支持相同版本的全局 NSH 或 `Q_NOTE_NSH_BIN`。
+开发、检查、测试和打包统一使用 PATH 中已安装的稳定版 `nsh`。NSH 0.5.0 已包含应用所需的多窗口和托盘接口；脚本要求 0.5.0 或更高稳定版，不再下载或编译 NSH 工具链。
 
-如果官方滚动 nightly 已更新，脚本会自动从固定提交编译 CLI。也可手动编译：
+可用以下命令确认实际版本：
 
 ```sh
-git clone https://github.com/longbridge/nsh nsh-toolchain
-git -C nsh-toolchain checkout c5214aaf4bbdf33bc1d59e9595e009b6aa54d702
-cargo build --release --manifest-path nsh-toolchain/Cargo.toml -p nsh-cli
+nsh --version
+node scripts/nsh.mjs --version
 ```
 
-将 `Q_NOTE_NSH_BIN` 设置为生成的 `target/release/nsh.exe`（Windows）或 `nsh`（macOS/Linux）绝对路径。源码检出会自动编译所需宿主。不同提交的运行时会被拒绝，避免组件 API 静默变化。
+需要指定其他已安装的稳定版时，将 `Q_NOTE_NSH_BIN` 设置为对应可执行文件的绝对路径。安装方式见 [NSH 官方说明](https://nsh.dev/docs/installation)。应用的 Rust 依赖使用 `v0.5.0` 发布标签，CI 和发布任务会显式安装该稳定版。
 
 ## 功能和数据
 
