@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /native
+    target-branch: nsh
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: nsh-core
+      - dependency-name: nsh-updater
+    groups:
+      nsh:
+        patterns:
+          - nsh-core
+          - nsh-updater
