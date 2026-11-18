@@ -10,7 +10,7 @@
 
 ## 开发
 
-需要已安装的 NSH 0.5.0 或更高稳定版、Node 24、pnpm 12 和 Rust stable。Windows 需要 Visual Studio C++ 构建工具；Linux 需要 GTK 4.14+ 和 clang。
+需要下方命令显示的 NSH 稳定版，以及 Node 24、pnpm 12 和 Rust stable。Windows 需要 Visual Studio C++ 构建工具。Ubuntu 24.04 或更新版本需安装 `clang libgtk-4-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` 以构建原生应用。
 
 ```sh
 pnpm install
@@ -42,16 +42,18 @@ pnpm dev
 
 ## 使用本机 NSH
 
-开发、检查、测试和打包统一使用 PATH 中已安装的稳定版 `nsh`。NSH 0.5.0 已包含应用所需的多窗口和托盘接口；脚本要求 0.5.0 或更高稳定版，不再下载或编译 NSH 工具链。
+开发、检查、测试和打包使用本机安装的稳定版 `nsh`。CLI 版本必须与 `native/Cargo.toml` 中 `nsh-core` 和 `nsh-updater` 锁定的版本一致。
 
-可用以下命令确认实际版本：
+用以下命令对照项目要求和本机安装的版本。
 
 ```sh
+node scripts/nsh.mjs --required-version
 nsh --version
-node scripts/nsh.mjs --version
 ```
 
-需要指定其他已安装的稳定版时，将 `Q_NOTE_NSH_BIN` 设置为对应可执行文件的绝对路径。安装方式见 [NSH 官方说明](https://nsh.dev/docs/installation)。应用的 Rust 依赖使用 `v0.5.0` 发布标签，CI 和发布任务会显式安装该稳定版。
+脚本默认使用 PATH 中的 `nsh`。也可将 `Q_NOTE_NSH_BIN` 设置为已安装的匹配版本的可执行文件绝对路径。[NSH 官方安装说明](https://nsh.dev/docs/installation)
+
+CI 和发布任务按 `native/Cargo.toml` 中锁定的版本安装 CLI。Dependabot 每天检查两个 crate，将依赖和锁文件的更新合并到同一条发往 `nsh` 的 PR，待 CI 验证通过后再合并。[`main` 上的 Dependabot 配置](https://github.com/ywenhao/q-note/blob/main/.github/dependabot.yml)
 
 ## 功能和数据
 

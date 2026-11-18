@@ -10,7 +10,7 @@ This is the `nsh` branch. It replaces the Vue/Tauri application with NSH; existi
 
 ## Development
 
-Install stable NSH 0.5.0 or newer, Node 24, pnpm 12 and Rust stable. Windows needs the Visual Studio C++ build tools. Linux requires GTK 4.14+ and clang.
+Install the stable NSH version reported below, Node 24, pnpm 12 and Rust stable. Windows needs the Visual Studio C++ build tools. On Ubuntu 24.04 or newer, install `clang libgtk-4-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` for the native build.
 
 ```sh
 pnpm install
@@ -42,16 +42,18 @@ The optional web runtime also needs the `wasm32-unknown-unknown` Rust target and
 
 ## Installed NSH toolchain
 
-Development, checks, tests and packaging use the stable `nsh` installed on PATH. NSH 0.5.0 includes the multi-window and tray APIs used by the app. The wrapper requires stable 0.5.0 or newer and never downloads or builds an NSH toolchain.
+Development, checks, tests and packaging use the installed stable `nsh`. The CLI version must match the exact versions of `nsh-core` and `nsh-updater` in `native/Cargo.toml`.
 
-Check the selected installation:
+Compare the required and installed versions.
 
 ```sh
+node scripts/nsh.mjs --required-version
 nsh --version
-node scripts/nsh.mjs --version
 ```
 
-Set `Q_NOTE_NSH_BIN` to the absolute path of another installed stable NSH executable if needed. Install NSH using the [official instructions](https://nsh.dev/docs/installation). The application's Rust dependencies use release tag `v0.5.0`; CI and release jobs explicitly install that stable version.
+The wrapper uses `nsh` on PATH. Set `Q_NOTE_NSH_BIN` to the absolute path of a matching installed executable if needed. [NSH installation instructions](https://nsh.dev/docs/installation)
+
+CI and release jobs install the CLI from the version pinned in `native/Cargo.toml`. Dependabot checks both crates daily and groups their version and lockfile updates in a PR against `nsh`. Verify the PR in CI before merging. [Dependabot configuration on `main`](https://github.com/ywenhao/q-note/blob/main/.github/dependabot.yml)
 
 ## Product and data
 

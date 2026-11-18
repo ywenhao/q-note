@@ -2,11 +2,11 @@
 
 ## Project
 
-Q Note is a Native Shell (https://nsh.dev) desktop app: TypeScript TSX, native NSH components, and a small Rust extension for SQLite and operating system integration. Development and packaging use the locally installed stable NSH CLI (0.5.0 or newer); the Rust dependencies use the v0.5.0 release.
+Q Note is a Native Shell (https://nsh.dev) desktop app with TypeScript TSX, native NSH components, and a small Rust extension for SQLite and operating system integration. The stable NSH CLI must match the exact versions of `nsh-core` and `nsh-updater` in `native/Cargo.toml`.
 
 ## Commands
 
-- Install dependencies with `pnpm install` (NSH 0.5.0+ stable on PATH, Node 24, pnpm 12, Rust stable/MSVC required).
+- Install dependencies with `pnpm install`. Use Node 24, pnpm 12, and Rust stable (MSVC on Windows). Run `node scripts/nsh.mjs --required-version` for the required NSH CLI version.
 - Start the native desktop app with `pnpm dev`.
 - Start the optional browser preview with `pnpm dev:web`.
 - Run TypeScript checks and generate native declarations with `pnpm typecheck`.
@@ -25,7 +25,7 @@ Q Note is a Native Shell (https://nsh.dev) desktop app: TypeScript TSX, native N
 - `pnpm release:patch`, `pnpm release:minor` and `pnpm release:major` require a clean tree, synchronize package.json, nsh.json, native/Cargo.toml and native/Cargo.lock, run checks, then commit, tag and push.
 - Tags use `nsh-vX.Y.Z`. The NSH release workflow publishes portable platform archives and an NSH update manifest without replacing the main variant's latest release.
 - The updater checks published `nsh-v*` releases only. Never offer the previous framework's packages to the NSH installer.
-- scripts/nsh.mjs uses the installed stable NSH CLI from PATH; Q_NOTE_NSH_BIN can select another installed executable. It never downloads or builds an NSH toolchain. CI and release jobs explicitly install NSH v0.5.0; see README.
+- `scripts/nsh.mjs` selects the installed CLI from PATH or `Q_NOTE_NSH_BIN`. CI and release jobs install the version pinned in `native/Cargo.toml`. Dependabot groups updates to both NSH crates and `native/Cargo.lock` into a PR against `nsh` for CI verification. Its configuration lives on the default branch (`main`).
 - Do not execute release scripts or publish without the user's authorization.
 
 ## Working Rules

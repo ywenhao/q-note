@@ -43,6 +43,7 @@
     "closeOnPress": false
   },
   "capabilities": {
+    "application": true,
     "network": { "hosts": ["*"] },
     "clipboard": true,
     "picker": true,

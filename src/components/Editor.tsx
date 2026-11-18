@@ -49,12 +49,12 @@ export function Editor(props: { model: NoteModel; desktop?: boolean }) {
           },
         ],
       });
+      const files = picked
+        .map(({ file }) => file)
+        .filter((file) => file !== null);
       const attachments = await Promise.all(
-        picked.map(async (item) =>
-          attachmentFromValue(
-            await readFileAsDataUrl(item.file),
-            item.file.name,
-          ),
+        files.map(async (file) =>
+          attachmentFromValue(await readFileAsDataUrl(file), file.name),
         ),
       );
       if (attachments.length)

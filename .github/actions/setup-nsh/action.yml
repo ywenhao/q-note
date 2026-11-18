@@ -1,0 +1,29 @@
+name: Set up NSH
+description: Install the stable NSH CLI pinned by the native crate
+runs:
+  using: composite
+  steps:
+    - name: Read the pinned NSH version
+      id: version
+      shell: bash
+      run: |
+        version="$(node scripts/nsh.mjs --required-version)"
+        echo "tag=v$version" >> "$GITHUB_OUTPUT"
+    - name: Install NSH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        NSH_VERSION: ${{ steps.version.outputs.tag }}
+      run: |
+        $nshInstaller = Join-Path $env:RUNNER_TEMP 'install-nsh.ps1'
+        Invoke-WebRequest -Uri "https://github.com/longbridge/nsh/releases/download/$env:NSH_VERSION/install.ps1" -OutFile $nshInstaller
+        & $nshInstaller
+        Join-Path $env:LOCALAPPDATA 'nsh/bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Install NSH (Unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        NSH_VERSION: ${{ steps.version.outputs.tag }}
+      run: |
+        curl -fsSL "https://github.com/longbridge/nsh/releases/download/$NSH_VERSION/install.sh" | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"

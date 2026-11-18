@@ -32,7 +32,7 @@
     "test": "node --experimental-strip-types --experimental-sqlite --test tests/*.test.ts",
     "test:ui": "node scripts/nsh.mjs test App.test.tsx",
     "test:desktop": "node scripts/nsh.mjs test Desktop.test.tsx --target windows",
-    "test:native": "cargo test --manifest-path native/Cargo.toml",
+    "test:native": "cargo test --locked --manifest-path native/Cargo.toml",
     "check": "pnpm typecheck && pnpm format:check",
     "test:context-menu": "node --experimental-strip-types --test tests/contextMenuPosition.test.ts",
     "test:update-draft": "node --experimental-strip-types --test tests/updateDraft.test.ts tests/updateRecovery.test.ts",
